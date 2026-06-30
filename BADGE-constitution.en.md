@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.6.0
+# The BADGE Constitution v1.6.2
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -204,7 +204,7 @@ project/
 
 A file of thousands of lines is hard to read, modify, and even slow for the IDE to open. But split too finely, and a single feature is scattered across a dozen files — the reader jumps between them, their mental model fractured. The ideal granularity: **one file corresponds to one clear conceptual unit.** The reader should be able to fully understand that concept by opening that file.
 
-**Litmus test:** Can you fully understand a concept in one file? If you need to jump between multiple files to piece together the full picture, it's too fragmented. If a file exceeds 500 lines, ask yourself: is it cramming in two concepts?
+**Litmus test:** Can you fully understand a concept in one file? If you need to jump between multiple files to piece together the full picture, it's too fragmented. **Aim to keep files under 500 lines** — if a file exceeds that, ask yourself: is it cramming in two concepts? However, if the logic genuinely belongs to a single conceptual unit (e.g., a pure-function toolkit, a complex model adapter), exceeding 500 lines is acceptable; in that case, ensure the file is internally organized by functional domain with clear separators and comments so readers can quickly navigate.
 
 ### 8.3 Class-to-Directory: When a Class Outgrows a File
 
@@ -276,6 +276,14 @@ The project's version number is maintained **only in the `[project] version` fie
 If the version number is needed at runtime, read it from `pyproject.toml` or use `importlib.metadata.version("package-name")`. If users need to know the version, tell them to check `pyproject.toml` or run `pip show`.
 
 **Litmus test:** How many files need to change to update the version? If more than 1, this clause is violated.
+
+- **Forbidden:** embedding constitution version references (`BADGE Constitution vX.Y`,
+  `constitution vX.Y §Z.W`, or similar patterns) in source code files.  The
+  constitution version is maintained only in the constitution repository itself.
+  Scattering version references across project source files creates drift and
+  violates the same single-source-of-truth principle that §8.7 applies to project
+  versions.  The constitution repo's own `CLAUDE.md` and `tools/` scripts are
+  exempt — they are part of the constitution's own content, not project code.
 
 ---
 
@@ -396,6 +404,18 @@ All projects use `uv` as the sole package manager. `.python-version` pins the Py
 
 Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`); a SHA256 digest is strongly recommended. Dockerfile uses two-stage caching (dependencies layer + source layer). Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions as the development environment. `build.sh` encapsulates the build command.
 
+- **build.sh version:** The Docker image tag in `build.sh` MUST derive the version
+  from `pyproject.toml` rather than hardcoding it.  Per §8.7 (single source of
+  truth), the tag is read dynamically.  Recommended pattern:
+
+  ```bash
+  VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+  IMAGE_NAME="${IMAGE_NAME:-project:${VERSION}}"
+  ```
+
+  The `IMAGE_NAME` environment variable override remains available for manual
+  testing, but the default MUST come from `pyproject.toml`.
+
 ---
 
 # Layer 3: Security and Project Governance
@@ -426,7 +446,7 @@ Every commit must pass the following checks. These checks should be integrated i
 
 ### 15.2 Secrets Management
 
-The only authoritative location for secrets is the `.env` file — local, never committed. No code, documentation, config template, or example file may contain literal secret values. If a piece of information should not appear on GitHub after open-sourcing, it must not appear in any tracked file, period.
+The only authoritative location for secrets is the `.env` file — local, never committed. (If the project has no non-infrastructure environment variables — see §19.2 for the definition of infrastructure-only projects — `.env` and `.env-example` are not required.) No code, documentation, config template, or example file may contain literal secret values. If a piece of information should not appear on GitHub after open-sourcing, it must not appear in any tracked file, period.
 
 ### 15.3 Post-Leak Response
 
@@ -491,7 +511,7 @@ Projects do not maintain a standalone Changelog file. The git commit log is the 
 
 ## XVIII. Version Evolution and Debt Management
 
-Technical debt is the cancer of engineering quality. Today's shortcut becomes tomorrow's double workload, and the day after tomorrow's untouchable禁区. The core principle is one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
+Technical debt is the cancer of engineering quality. Today's shortcut becomes tomorrow's double workload, and the day after tomorrow's untouchable forbidden zone. The core principle is one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
 
 ### 18.1 No Debt Left Behind
 
@@ -528,7 +548,11 @@ When users of an old version need to upgrade to the new architecture, provide a 
 - Virtual environments: `.venv/`, `venv/`
 - Test and type check caches: `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`
 - Build artifacts: `dist/`, `build/`, `*.egg-info/`
-- Environment config: `.env` (keep `.env-example`)
+- Environment config: `.env` (keep `.env-example` if the project has
+  non-infrastructure environment variables; infrastructure-only projects —
+  e.g. those using only standard CUDA/NCCL/PyTorch distributed env vars
+  like `CUDA_VISIBLE_DEVICES`, `NCCL_*`, `PYTORCH_*`, `RANK`, `LOCAL_RANK`,
+  `WORLD_SIZE`, `MASTER_ADDR`, `MASTER_PORT` — are exempt)
 - Outputs and data: `outputs/`, `data/` (except sample data)
 - IDE: `.idea/`, `.vscode/`
 - AI assistants: `CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`

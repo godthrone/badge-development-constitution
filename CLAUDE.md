@@ -29,17 +29,54 @@ This `CLAUDE.md` is committed to git — unlike the constitution's general recom
 
 ## Compliance Check Scripts
 
-The `tools/` directory contains bash scripts that verify a project's compliance with the constitution:
-
-- `tools/check_all.sh` — run all checks
-- `tools/check_secrets.sh` — scan for IPs, keys, tokens, internal paths (§15.1)
-- `tools/check_gitignore.sh` — verify .gitignore coverage (§19.2)
-- `tools/check_readme_parity.sh` — verify README.md / README.zh-CN.md content mirroring (§17.1)
-- `tools/check_version.sh` — verify version is only in pyproject.toml (§8.7)
-- `tools/check_local_files.sh` — verify no temporary files outside .local/ (§XVI)
+The `tools/` directory contains bash scripts that verify a project's compliance with the constitution.
+Run all checks with: `./tools/check_all.sh [project_root]`
 
 Scripts are zero-dependency (bash + grep + git only). They define the exact matching patterns while the constitution defines the principles (§15.1).
 
+### Design Philosophy (Layer 1)
+
+| Script | Clause | Description |
+|--------|--------|-------------|
+| `check_hasattr_kwargs.sh` | §2.2 | Detect `hasattr()` on business interfaces and undocumented `**kwargs` |
+
+### Engineering Standards (Layer 2)
+
+| Script | Clause | Description |
+|--------|--------|-------------|
+| `check_reproducibility.sh` | §6 | Verify uv.lock tracked, Docker base image pinned, seed config |
+| `check_config_system.sh` | §7.1-7.3 | Verify config_example.yaml, pydantic validation, no env overrides |
+| `check_directory_layout.sh` | §8.1 | Verify src-layout, required directories and files exist |
+| `check_file_size.sh` | §8.2 | Flag files exceeding 500/1000 lines |
+| `check_imports.sh` | §8.6 | Detect forbidden relative imports |
+| `check_future_annotations.sh` | §8.6 | Warn on unnecessary `from __future__ import annotations` |
+| `check_version.sh` | §8.7 | Verify version only in pyproject.toml |
+| `check_constitution_refs.sh` | §8.7 | Scan for constitution version references in source code |
+| `check_pydantic.sh` | §9.1 | Detect BaseModel without `extra="forbid"`, bare dict usage |
+| `check_test_structure.sh` | §11.2 | Verify tests/ mirrors src/, toolchain config |
+| `check_type_annotations.sh` | §12.1 | Detect `Optional[str]` → should be `str \| None`, verify py.typed |
+| `check_exception_handling.sh` | §13.1 | Detect `except: pass`, `except Exception: pass`, bare except |
+| `check_log_consistency.sh` | §13.3 | Cross-reference README log file names with source code |
+| `check_dependencies.sh` | §14.1-2, §19.3 | Verify uv-only deps, LICENSE file, no copyleft packages |
+| `check_dockerfile.sh` | §14.3 | Verify Dockerfile: no :latest, multi-stage build, uv usage |
+| `check_docker_version.sh` | §14.3 | Verify Docker image tag matches pyproject.toml version |
+
+### Security and Governance (Layer 3)
+
+| Script | Clause | Description |
+|--------|--------|-------------|
+| `check_secrets.sh` | §15.1 | Scan for IPs, keys, tokens, passwords, JWT, base64 secrets |
+| `check_local_files.sh` | §XVI | Verify no temp files outside .local/, no .log/.tmp/.bak tracked |
+| `check_readme_parity.sh` | §17.1 | Verify README.md / README.zh-CN.md content mirroring |
+| `check_legacy_cleanup.sh` | §18.1 | Detect legacy/ dirs, naming anti-patterns, stale TODOs |
+| `check_gitignore.sh` | §19.2 | Verify .gitignore coverage of all required entries |
+
+### Orchestrator
+
+| Script | Description |
+|--------|-------------|
+| `check_all.sh` | Run all 22 checks, print summary |
+
 ## Current Version
 
-v1.6.0 — restructured Layer 3 with Security (§XV) and Temporary Files (§XVI) chapters, removed Changelog requirement (§17.4: git log is the changelog).
+v1.6.2 — align EN §8.2 500-line exception with CN, fix EN §18 mixed-language typo, expand compliance suite to 22 scripts covering 19 clauses, strengthen secrets/local-files/readme-parity checks.
