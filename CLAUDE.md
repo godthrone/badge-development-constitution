@@ -79,4 +79,4 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 
 ## Current Version
 
-v1.6.2 — align EN §8.2 500-line exception with CN, fix EN §18 mixed-language typo, expand compliance suite to 22 scripts covering 19 clauses, strengthen secrets/local-files/readme-parity checks.
+v1.7.0 — raise file-size advisory threshold from 500 to 1000 lines (§8.2), bump check_file_size.sh thresholds (1000→warn, 2000→fail).
