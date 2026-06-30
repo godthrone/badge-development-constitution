@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.5
+# The BADGE Constitution v1.6.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -185,6 +185,7 @@ project/
 │   ├── backends/
 │   └── e2e/                 # End-to-end tests
 ├── scripts/                 # One-off utility scripts
+├── .local/                  # Temporary local files (never committed, see §XVI)
 ├── docker/                  # Docker build
 ├── pyproject.toml
 ├── uv.lock
@@ -344,7 +345,7 @@ All other files — comments, docstrings, architecture documentation, config ann
 
 **Config template comments** (`config_example.yaml`) default to **English** — the config template is a user-facing interface, and English is the common language of the global developer community.
 
-**Commit messages** use **English** (see 17.3).
+**Commit messages** use **English** (see 19.1).
 
 **Technical terms, algorithm names, framework names, and academic concepts** are kept in their original English form — e.g. Flink, 1F1B, KV cache, attention mask, backpressure. These are the shared vocabulary of engineers across all languages. Forcing translation loses information density. The principle is: **accuracy first — do not sacrifice technical expression for language purity.**
 
@@ -397,35 +398,108 @@ Every project must support Docker deployment. Base image is pinned to a specific
 
 ---
 
-# Layer 3: Project Governance
+# Layer 3: Security and Project Governance
 
-## XV. Documentation System
+## XV. Security and Secrets
 
-### 15.1 Bilingual Documentation
+Security is not an afterthought bolted on before release. It is a design constraint that shapes every commit. The principle is simple: **if you don't want it on GitHub, it doesn't belong in any tracked file.**
 
-`README.md` (English) and `README.zh-CN.md` (Chinese) mirror each other. This constitution also provides bilingual versions (`BADGE-constitution.en.md` and `BADGE-constitution.zh-CN.md`). Chapter structure: Introduction → Quick Start → Data Format → Configuration Reference → Output Description → Development Guide → FAQ → Changelog. The Quick Start is a complete, copy-pasteable command sequence.
+### 15.1 Pre-Commit Verification
 
-### 15.2 Architecture Documentation
+Every commit must pass the following checks. These checks should be integrated into CI or pre-commit hooks, executed by the companion `tools/` scripts, not left to human memory. The constitution defines the categories — the scripts define the exact patterns.
 
-Split by topic under the `docs/` directory, each file focused on one concern. Write **why** the design is the way it is, not just what the code looks like.
+**1. Secrets scan:** No tracked file may contain any secret information. Secrets include:
+- Keys, passwords, tokens, private keys of any form
+- Internal IP addresses, internal domain names, internal file paths
+- Any information you would not want public after open-sourcing
 
-### 15.3 AI Assistant Documentation
+**2. File-type check:** The following must not appear in tracked files:
+- `.env` file (only `.env-example` may be committed)
+- Build artifacts, caches, virtual environments
+- IDE configuration files
+- AI assistant files (`CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`)
+- Temporary local files — all such files must live in `.local/` (see §XVI)
 
-If a project uses AI coding assistants (e.g. Claude Code, GitHub Copilot), it may generate `CLAUDE.md` and `AGENTS.md` on demand for the assistant's use — high information density, structured format, helping AI understand the project's architecture and conventions. These files are **not committed to git** (excluded in `.gitignore`) — they are part of the local development environment. If the project does not use AI assistants, there is no need to create these files.
+**3. Content review (human + AI assisted):**
+- No training data, user data, or private datasets
+- No internal resource references in README
+
+### 15.2 Secrets Management
+
+The only authoritative location for secrets is the `.env` file — local, never committed. No code, documentation, config template, or example file may contain literal secret values. If a piece of information should not appear on GitHub after open-sourcing, it must not appear in any tracked file, period.
+
+### 15.3 Post-Leak Response
+
+If secret information was ever committed to git history:
+- Confirm via `git log --all --full-history` that no sensitive file history remains
+- Use `BFG Repo-Cleaner` to thoroughly purge all traces, then rotate every leaked key
+- Confirm `LICENSE` file exists and is correct
+- Confirm README contains no references to internal resources
 
 ---
 
-## XVI. Version Evolution and Debt Management
+## XVI. Temporary and Local Files
+
+Every project generates files that are useful during development but have no place in the permanent codebase — run logs, migration plans, deployment notes, personal experiments. Without a designated home, these files scatter across the repository, and sooner or later one of them gets committed with internal IPs or passwords still in it.
+
+### 16.1 `.local/` — The Sole Home for Temporary Files
+
+The `.local/` directory at the project root is the **only** permitted location for temporary files. It is excluded entirely in `.gitignore` — nothing inside it will ever be committed.
+
+`.local/` is not a suggestion. It is a rule: any temporary file found in a tracked path outside `.local/` is a violation.
+
+### 16.2 What Belongs in `.local/`
+
+A file belongs in `.local/` if it meets any of these criteria:
+- Contains runtime environment information (IPs, hostnames, container names, SSH users, internal paths)
+- Describes a one-time operation (migration plans, deployment records, experiment tracking)
+- Is a personal note, debug log, or run monitor
+- Is temporary data or an experimental config
+- Is any engineering artifact that does not belong in the permanent codebase
+
+If a file has long-term value to the project, turn it into formal documentation under `docs/`. If it only has short-term value to you or the current phase, put it in `.local/`.
+
+### 16.3 Relationship with `scripts/`
+
+§10.2 defines `scripts/` as the directory for shared temporary code tools. The two directories serve different purposes:
+- `scripts/` — shared temporary code tools (committed to git, no backward-compatibility obligation)
+- `.local/` — private temporary files (never committed, never shared, no obligations whatsoever)
+
+---
+
+## XVII. Documentation System
+
+### 17.1 Bilingual Documentation
+
+`README.md` (English) and `README.zh-CN.md` (Chinese) must be **content mirrors**, not just structural mirrors. The same operation instructions, configuration descriptions, and FAQ entries must exist in both versions — one version must never contain information absent from the other. Both READMEs must be updated simultaneously on every release.
+
+Chapter structure: Introduction → Quick Start → Data Format → Configuration Reference → Output Description → Development Guide → FAQ.
+
+### 17.2 Architecture Documentation
+
+Split by topic under the `docs/` directory, each file focused on one concern. Write **why** the design is the way it is, not just what the code looks like.
+
+### 17.3 AI Assistant Documentation
+
+If a project uses AI coding assistants (e.g. Claude Code, GitHub Copilot), it may generate `CLAUDE.md` and `AGENTS.md` on demand for the assistant's use — high information density, structured format, helping AI understand the project's architecture and conventions. These files are **not committed to git** (excluded in `.gitignore`) — they are part of the local development environment. If the project does not use AI assistants, there is no need to create these files.
+
+### 17.4 Version History
+
+Projects do not maintain a standalone Changelog file. The git commit log is the single, authoritative change history. On release, tag the version with `git tag`. To review changes, use `git log`. Commit messages must follow the format specified in §19.1 so that `git log --oneline` is a readable project history.
+
+---
+
+## XVIII. Version Evolution and Debt Management
 
 Technical debt is the cancer of engineering quality. Today's shortcut becomes tomorrow's double workload, and the day after tomorrow's untouchable禁区. The core principle is one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
 
-### 16.1 No Debt Left Behind
+### 18.1 No Debt Left Behind
 
 - After the new architecture is online, tested, and stable, old code is **deleted immediately**. No "compatibility mode" kept around. No `legacy/` directory. No `# TODO: remove after v2` comments. The codebase contains exactly one current architecture.
 - When deleting old code, simultaneously update: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), config templates (`config_example.yaml` reflects the current architecture), documentation (architecture descriptions in README and docs/), tests (delete tests for the old architecture — don't keep them "just in case").
 - Version numbers are updated on every release, following `MAJOR.MINOR.PATCH`: architecture refactors and incompatible config changes bump MAJOR, new features bump MINOR, bug fixes bump PATCH.
 
-### 16.2 Legacy System Migration
+### 18.2 Legacy System Migration
 
 When users of an old version need to upgrade to the new architecture, provide a one-click migration path:
 
@@ -437,35 +511,18 @@ When users of an old version need to upgrade to the new architecture, provide a 
 
 ---
 
-## XVII. Open Source Management
+## XIX. Open Source Management
 
-### 17.1 Pre-Commit Checklist
-
-Self-check before every commit:
-- Any API keys, passwords, tokens, private keys, or other secrets?
-- Any training data, user data, internal URLs, IP addresses, or other private data?
-- Any `.env` file? (Only `.env-example` should be committed)
-- Any build artifacts, caches, virtual environments? (`__pycache__`, `.pytest_cache`, `.venv`, `outputs/`)
-- Any IDE config files? (`.idea/`, `.vscode/`)
-- Any AI assistant docs? (`CLAUDE.md`, `AGENTS.md`)
-
-### 17.2 Pre-Open-Source Final Check
-
-- Confirm no sensitive file history in `git log --all --full-history`
-- If sensitive information was ever committed, use `BFG Repo-Cleaner` to thoroughly purge it, and rotate all leaked keys
-- Confirm `LICENSE` file exists and is correct
-- Confirm README doesn't reference internal resources
-
-### 17.3 Git Workflow
+### 19.1 Git Workflow
 
 - Direct commits to `main` / `master` are forbidden
 - All development happens on feature branches: `feature/<description>`, `fix/<description>`, `docs/<description>`
 - Merging to main requires a PR — at minimum, self-review the diff
 - Commit messages are **recommended** to be in English, format: `type: short description` (feat, fix, docs, refactor, test, chore). English is the de facto standard of the open source community — the `git log --oneline` toolchain is English-first, and it enables international contributors to understand the project's history. Projects whose primary contributor community uses another language (e.g. Chinese) may use that language, but should stay consistent within one repository.
-- **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be rewritten to fix message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. The exception is security: if a historical commit contains leaked secrets, history MUST be rewritten (see 17.2).
+- **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be rewritten to fix message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. The exception is security: if a historical commit contains leaked secrets, history MUST be rewritten (see §15.3).
 - One commit does one thing
 
-### 17.4 .gitignore Must Cover
+### 19.2 .gitignore Must Cover
 
 - Python runtime: `__pycache__/`, `*.pyc`
 - Virtual environments: `.venv/`, `venv/`
@@ -475,15 +532,16 @@ Self-check before every commit:
 - Outputs and data: `outputs/`, `data/` (except sample data)
 - IDE: `.idea/`, `.vscode/`
 - AI assistants: `CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`
+- Temporary local files: `.local/`
 - System files: `.DS_Store`, `Thumbs.db`
 
-### 17.5 Open Source License
+### 19.3 Open Source License
 
 Default: MIT license. `LICENSE` file at the project root. If the project depends on Apache 2.0-licensed libraries, consider using Apache 2.0 for compatibility.
 
 ---
 
-## XVIII. pyproject.toml Skeleton
+## XX. pyproject.toml Skeleton
 
 ```toml
 [project]
