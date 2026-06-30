@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check_version.sh — Verify version number is only in pyproject.toml per §8.7
-# Part of BADGE Constitution v1.6.0 §8.7
+# Part of BADGE Constitution §8.7
 #
 # Usage: ./check_version.sh [project_root]
 

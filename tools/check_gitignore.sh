@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check_gitignore.sh — Verify .gitignore covers all required entries per §19.2
-# Part of BADGE Constitution v1.6.0 §19.2
+# Part of BADGE Constitution §19.2
 #
 # Usage: ./check_gitignore.sh [project_root]
 
@@ -90,10 +90,55 @@ else
     echo "  [WARN] CLAUDE.zh-CN.md not explicitly in .gitignore (covered by CLAUDE.md pattern if using glob)"
 fi
 
-# Check that .env-example is NOT excluded (it should be tracked)
-if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -q '\.env-example' 2>/dev/null; then
-    echo "  [FAIL] .env-example is excluded in .gitignore — it MUST be tracked."
-    FAIL=1
+# ─── .env-example check (conditional per §19.2) ────────────────────────────
+#
+# .env-example is only required when the project has non-infrastructure
+# environment variables.  Infrastructure-only projects (using only standard
+# CUDA/NCCL/PyTorch distributed env vars) are exempt.
+# We detect this by scanning source code for os.environ / os.getenv calls
+# that are NOT infrastructure env vars.
+INFRA_VARS='CUDA_VISIBLE_DEVICES|NCCL_|PYTORCH_|RANK\b|LOCAL_RANK|WORLD_SIZE|MASTER_ADDR|MASTER_PORT|TORCH_|OMP_'
+IS_INFRA_ONLY=1
+
+if [ -d "$PROJECT_ROOT/src" ]; then
+    # Find os.environ / os.getenv references, exclude infrastructure-only ones
+    # Also exclude bare os.environ copies (e.g. dict(os.environ), os.environ.copy())
+    # which are infrastructure-level env passthrough, not app-specific config.
+    APP_ENV_REFS=$(grep -rE '(os\.environ|os\.getenv)\b' "$PROJECT_ROOT/src/" 2>/dev/null | \
+        grep -vE "$INFRA_VARS" | \
+        grep -vE '(dict\(|\.copy\(|\.items\(|\.keys\()' | \
+        grep -v '\.pyc' | grep -v '__pycache__' || true)
+    if [ -n "$APP_ENV_REFS" ]; then
+        IS_INFRA_ONLY=0
+    fi
+fi
+
+# Also check config_example.yaml for env-related fields
+if [ -f "$PROJECT_ROOT/config_example.yaml" ]; then
+    if grep -qiE 'env:|environment:' "$PROJECT_ROOT/config_example.yaml" 2>/dev/null; then
+        ENV_SECTION=$(grep -A 5 -E '^\s*env:' "$PROJECT_ROOT/config_example.yaml" 2>/dev/null | \
+            grep -vE '^\s*(#|$)' | grep -v '^\s*env:' | grep -v '\{\}' | grep -v '\[\]' || true)
+        if [ -n "$ENV_SECTION" ]; then
+            IS_INFRA_ONLY=0
+        fi
+    fi
+fi
+
+if [ $IS_INFRA_ONLY -eq 1 ]; then
+    echo "  [INFO] No .env-example needed (infrastructure-only project, see §19.2)."
+else
+    # Project has app-specific env vars → .env-example must exist
+    if [ -f "$PROJECT_ROOT/.env-example" ]; then
+        echo "  [OK] .env-example exists (project has app-specific env vars)."
+        # Ensure .env-example is NOT in .gitignore
+        if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -q '\.env-example' 2>/dev/null; then
+            echo "  [FAIL] .env-example is excluded in .gitignore — it MUST be tracked."
+            FAIL=1
+        fi
+    else
+        echo "  [FAIL] .env-example is missing but project has app-specific env vars."
+        FAIL=1
+    fi
 fi
 
 # Check sample data exceptions

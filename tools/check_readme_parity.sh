@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # check_readme_parity.sh — Verify README.md and README.zh-CN.md are content mirrors
-# Part of BADGE Constitution v1.6.0 §17.1
+# Part of BADGE Constitution §17.1
+#
+# Checks:
+#   1. Both README files exist
+#   2. Section count parity
+#   3. Required sections present in both
+#   4. Code block count parity
+#   5. Image/link count parity
+#   6. Cross-reference links present
+#   7. Word count ratio (rough content volume check)
+#   8. No Changelog section (§17.4)
+#   9. Same version references in both
 #
 # Usage: ./check_readme_parity.sh [project_root]
 
@@ -41,8 +52,6 @@ fi
 
 # Per §17.1: Introduction → Quick Start → Data Format → Config Reference →
 #              Output Description → Development Guide → FAQ
-# We check for key terms that should appear in both versions.
-
 REQUIRED_TERMS_EN=(
     "Quick Start"
     "Data Format"
@@ -79,11 +88,10 @@ for i in "${!REQUIRED_TERMS_EN[@]}"; do
     fi
 done
 
-# ─── 3. Code block count (rough content parity check) ────────────────────
+# ─── 3. Code block count ─────────────────────────────────────────────────
 
 EN_CODE_BLOCKS=$(grep -c '```' "$README_EN" 2>/dev/null || echo 0)
 CN_CODE_BLOCKS=$(grep -c '```' "$README_CN" 2>/dev/null || echo 0)
-# Code blocks come in pairs (open/close), so compare pair counts
 EN_PAIRS=$((EN_CODE_BLOCKS / 2))
 CN_PAIRS=$((CN_CODE_BLOCKS / 2))
 
@@ -94,9 +102,26 @@ else
     echo "  [OK] Code block count: $EN_PAIRS pairs in both"
 fi
 
-# ─── 4. Cross-reference check ────────────────────────────────────────────
+# ─── 4. Image/link count parity ──────────────────────────────────────────
 
-# EN should link to CN, and vice versa. Check for the link text.
+EN_IMAGES=$(grep -oc '!\[.*\](.*)' "$README_EN" 2>/dev/null || echo 0)
+CN_IMAGES=$(grep -oc '!\[.*\](.*)' "$README_CN" 2>/dev/null || echo 0)
+
+if [ "$EN_IMAGES" != "$CN_IMAGES" ]; then
+    echo "  [WARN] Image count differs: EN=$EN_IMAGES, CN=$CN_IMAGES"
+fi
+
+EN_LINKS=$(grep -oc '\[.*\](http[^)]*)\|\[.*\](\.\/[^)]*)\|\[.*\]([a-z]*\.md)' "$README_EN" 2>/dev/null || echo 0)
+CN_LINKS=$(grep -oc '\[.*\](http[^)]*)\|\[.*\](\.\/[^)]*)\|\[.*\]([a-z]*\.md)' "$README_CN" 2>/dev/null || echo 0)
+
+if [ "$EN_LINKS" != "$CN_LINKS" ]; then
+    echo "  [WARN] Link count differs: EN=$EN_LINKS, CN=$CN_LINKS"
+else
+    echo "  [OK] Image and link counts match"
+fi
+
+# ─── 5. Cross-reference check ────────────────────────────────────────────
+
 if grep -q 'README.zh-CN.md' "$README_EN" 2>/dev/null; then
     echo "  [OK] EN README links to CN version"
 else
@@ -109,7 +134,29 @@ else
     echo "  [WARN] CN README does not link to README.md"
 fi
 
-# ─── 5. No Changelog section (per §17.4) ──────────────────────────────────
+# ─── 6. Word count ratio check ───────────────────────────────────────────
+
+EN_WORDS=$(wc -w < "$README_EN" 2>/dev/null || echo 0)
+CN_WORDS=$(wc -w < "$README_CN" 2>/dev/null || echo 0)
+
+# Chinese text typically has fewer "words" (characters) for the same content
+# but wc -w counts whitespace-delimited tokens differently.
+# We check that neither is less than 30% of the other.
+if [ "$EN_WORDS" -gt 0 ] && [ "$CN_WORDS" -gt 0 ]; then
+    if [ "$EN_WORDS" -gt "$CN_WORDS" ]; then
+        RATIO=$((100 * CN_WORDS / EN_WORDS))
+    else
+        RATIO=$((100 * EN_WORDS / CN_WORDS))
+    fi
+    if [ "$RATIO" -lt 30 ]; then
+        echo "  [WARN] Word count ratio is $RATIO% (large disparity)."
+        echo "         EN: $EN_WORDS words, CN: $CN_WORDS words. Review manually."
+    else
+        echo "  [OK] Word count ratio: $RATIO% (EN=$EN_WORDS, CN=$CN_WORDS)"
+    fi
+fi
+
+# ─── 7. No Changelog section (per §17.4) ─────────────────────────────────
 
 if grep -qi 'Changelog\|更新日志' "$README_EN" 2>/dev/null; then
     echo "  [FAIL] EN README contains Changelog section (remove per §17.4)."
@@ -118,6 +165,20 @@ fi
 if grep -qi 'Changelog\|更新日志' "$README_CN" 2>/dev/null; then
     echo "  [FAIL] CN README contains Changelog section (remove per §17.4)."
     FAIL=1
+fi
+
+# ─── 8. Version references consistency ───────────────────────────────────
+
+EN_VERSION=$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' "$README_EN" 2>/dev/null | head -1 || true)
+CN_VERSION=$(grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' "$README_CN" 2>/dev/null | head -1 || true)
+
+if [ -n "$EN_VERSION" ] && [ -n "$CN_VERSION" ]; then
+    if [ "$EN_VERSION" = "$CN_VERSION" ]; then
+        echo "  [OK] Version references match: $EN_VERSION"
+    else
+        echo "  [FAIL] Version mismatch: EN=$EN_VERSION, CN=$CN_VERSION"
+        FAIL=1
+    fi
 fi
 
 echo ""

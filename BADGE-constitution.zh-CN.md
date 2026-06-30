@@ -1,4 +1,4 @@
-# BADGE 开发宪法 v1.6.0
+# BADGE 开发宪法 v1.6.2
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — 边界与守护工程开发宪法
 >
@@ -277,6 +277,11 @@ outputs/<run_name>/
 
 **判断标准：** 改版本号需要改几个文件？如果超过 1 个，违反本条款。
 
+- **禁止**在源代码文件中嵌入宪法版本引用（`BADGE Constitution vX.Y`、`constitution vX.Y §Z.W`
+  或类似模式）。宪法版本号只在宪法仓库本身中维护。将版本引用散布在项目源代码中会导致漂移，
+  违反了与 §8.7 项目版本号相同的单一真相源原则。宪法仓库自身的 `CLAUDE.md` 和 `tools/`
+  脚本除外——它们是宪法内容的一部分，不是项目代码。
+
 ---
 
 ## 九、数据与接口
@@ -396,6 +401,16 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 
 每个项目必须提供 Docker 部署。Base image 锁定具体版本（不用 `latest`）；强烈建议锁定 SHA256 digest。Dockerfile 两层构建（依赖层 + 源码层），利用层缓存。依赖安装使用 `uv sync` 或 `uv pip install` 配合 `uv.lock`，确保容器内依赖版本与开发环境一致。`build.sh` 封装构建命令。
 
+- **build.sh 版本：** `build.sh` 中的 Docker 镜像标签必须从 `pyproject.toml` 动态读取，不得硬编码。
+  遵循 §8.7（单一真相源），标签通过脚本动态获取。推荐模式：
+
+  ```bash
+  VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+  IMAGE_NAME="${IMAGE_NAME:-project:${VERSION}}"
+  ```
+
+  `IMAGE_NAME` 环境变量覆盖仍可用于手动测试，但默认值必须来自 `pyproject.toml`。
+
 ---
 
 # 第三层：安全与项目治理
@@ -426,7 +441,7 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 
 ### 15.2 机密管理原则
 
-机密信息的唯一定义来源是 `.env` 文件（本地，不入库）。任何代码、文档、配置模板、示例文件中不得出现机密信息的字面值。如果某条信息你不想在开源后出现在 GitHub 上，它就不应该出现在任何已跟踪的文件中，没有例外。
+机密信息的唯一定义来源是 `.env` 文件（本地，不入库）。（如果项目没有非基础设施环境变量——基础设施型项目的定义见 §19.2——则 `.env` 和 `.env-example` 均不需要。）任何代码、文档、配置模板、示例文件中不得出现机密信息的字面值。如果某条信息你不想在开源后出现在 GitHub 上，它就不应该出现在任何已跟踪的文件中，没有例外。
 
 ### 15.3 泄露后处理
 
@@ -528,7 +543,10 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 - 虚拟环境：`.venv/`、`venv/`
 - 测试与类型检查缓存：`.pytest_cache/`、`.mypy_cache/`、`.ruff_cache/`
 - 构建产物：`dist/`、`build/`、`*.egg-info/`
-- 环境配置：`.env`（保留 `.env-example`）
+- 环境配置：`.env`（保留 `.env-example`；仅当项目有非基础设施环境变量时才需要；
+  仅使用标准 CUDA/NCCL/PyTorch 分布式环境变量的项目——如 `CUDA_VISIBLE_DEVICES`、
+  `NCCL_*`、`PYTORCH_*`、`RANK`、`LOCAL_RANK`、`WORLD_SIZE`、`MASTER_ADDR`、
+  `MASTER_PORT`——可豁免）
 - 输出与数据：`outputs/`、`data/`（示例数据除外）
 - IDE：`.idea/`、`.vscode/`
 - AI 助手：`CLAUDE.md`、`AGENTS.md`、`CLAUDE.zh-CN.md`
