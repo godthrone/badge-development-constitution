@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.7.0
+# The BADGE Constitution v1.8.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -160,6 +160,20 @@ All validation happens at config load time, not scattered across usage points. P
 ### 7.3 Template as Documentation
 
 Every project provides a `config_example.yaml` containing all fields, comments, and defaults. Users copy it, change a few values, and go. The template file itself is a working configuration — well-commented, sensible defaults, covering 80% of use cases.
+
+### 7.4 Config Parameter Design
+
+Config parameters are the boundary between the user and the system. Poorly designed parameters can't be fixed by better documentation — users will be misled by ambiguous names, overwhelmed by redundant knobs, and trapped by coupled parameters. Three principles of parameter design:
+
+**1. No useless parameters.** If a value can be derived automatically, don't make the user specify it. A parameter that is uniquely determined by other parameters should not exist — every extra parameter is one more opportunity for user error. `total_steps` can be derived from `max_steps × optimize_iterations_per_step × rollout_group_size`, so don't expose it. `num_layers` is known from the model config file, so don't ask the user to fill it in. The principle: **the user should only specify what they genuinely care about and what the system cannot decide for them.**
+
+**2. Orthogonal parameters.** Parameters should be independent of each other — adjusting one should not change the semantics of another. If changing `warmup_steps` requires also changing `total_steps` for the scheduler to work correctly, the two parameters are coupled and the design is flawed. Orthogonal configuration lets users independently optimize each dimension without maintaining a mental "parameter linkage table."
+
+**Litmus test:** Can the user independently adjust each parameter and get a predictable result? If changing parameter A requires also changing parameter B, they are not orthogonal — they should be merged into one parameter, or one of them should be auto-derived.
+
+**3. Self-explanatory names.** Parameter names can be long, but must communicate their meaning at a glance — no documentation lookup required. `learning_rate` is better than `lr`. `warmup_steps` is better than `ws`. `min_lr_ratio` is better than `min_lr` (the latter reads as an absolute LR value, not a ratio). Abbreviations are only acceptable when the term is a universally recognized domain standard — such as `lr`, `tp`, `pp`, `lora`. Even then, prefer full names as top-level config keys — `learning_rate` is less ambiguous than `lr`.
+
+**Litmus test:** Show only the parameter name and comment to someone unfamiliar with the project. Can they accurately state what the parameter does? If they get the function right but the unit or range wrong, the name is good but the comment is insufficient. If they get the function wrong, the name itself is ambiguous.
 
 ---
 
