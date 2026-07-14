@@ -1,4 +1,4 @@
-# BADGE 开发宪法 v1.8.0
+# BADGE 开发宪法 v1.9.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — 边界与守护工程开发宪法
 >
@@ -281,15 +281,19 @@ outputs/<run_name>/
 
 ### 8.7 版本号：单一来源
 
-项目的版本号**只在 `pyproject.toml` 的 `[project] version` 字段中维护**。这是宪法 1.4（单一真相源）和 2.1（防呆设计）的直接体现：
+项目的版本号**由 git tag 通过 `setuptools-scm` 自动推导**，`pyproject.toml` 中声明 `dynamic = ["version"]`。这是宪法 1.4（单一真相源）和 2.1（防呆设计）的加强体现：
 
-- **禁止**在 `__init__.py` 中定义 `__version__` —— 它必然和 `pyproject.toml` 不同步，事实上有两个真相源
+- `pyproject.toml` 的 `[tool.setuptools_scm]` 配置版本推导规则（tag 格式、前缀等），这是版本机制的**唯一配置来源**
+- 实际的版本号字符串不在任何文件中——它从 `git describe --tags` 推导，发版时 `git tag vX.Y.Z` 即可
+- **禁止**在 `__init__.py` 中定义 `__version__` —— 事实上有两个真相源
 - **禁止**在 `config_example.yaml` 注释中写版本号 —— 模板文件是给用户看的，不是版本记录
 - **禁止**在代码中硬编码版本号字符串
 
-如果代码运行时需要版本号，从 `pyproject.toml` 读取或使用 `importlib.metadata.version("package-name")`。如果用户需要知道版本，告诉他看 `pyproject.toml` 或运行 `pip show`。
+运行时通过 `importlib.metadata.version("package-name")` 获取版本号。用户查看版本：`git tag --sort=-v:refname | head -1` 或 `pip show package-name`。
 
-**判断标准：** 改版本号需要改几个文件？如果超过 1 个，违反本条款。
+**为什么不用 `pyproject.toml` 的 `version` 字段？** 因为 `pyproject.toml` 同时承载了版本号和依赖声明两个完全不相关的信息。Docker 构建利用文件哈希做层缓存——改版本号导致 `pyproject.toml` 哈希变更，依赖层缓存失效，需要重新下载所有包。`setuptools-scm` 将版本号从文件中解耦到 git tag 中，让版本号变更不再触发依赖重建，这是 §1.4（单一真相源）和 §14.3（Docker 层缓存）协同作用的结果。
+
+**判断标准：** 发版需要改几个文件？如果超过 0 个，违反本条款。
 
 - **禁止**在源代码文件中嵌入宪法版本引用（`BADGE Constitution vX.Y`、`constitution vX.Y §Z.W`
   或类似模式）。宪法版本号只在宪法仓库本身中维护。将版本引用散布在项目源代码中会导致漂移，
@@ -415,15 +419,43 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 
 每个项目必须提供 Docker 部署。Base image 锁定具体版本（不用 `latest`）；强烈建议锁定 SHA256 digest。Dockerfile 两层构建（依赖层 + 源码层），利用层缓存。依赖安装使用 `uv sync` 或 `uv pip install` 配合 `uv.lock`，确保容器内依赖版本与开发环境一致。`build.sh` 封装构建命令。
 
-- **build.sh 版本：** `build.sh` 中的 Docker 镜像标签必须从 `pyproject.toml` 动态读取，不得硬编码。
-  遵循 §8.7（单一真相源），标签通过脚本动态获取。推荐模式：
+**Docker 层缓存设计：** 依赖层只 COPY `uv.lock`（不含 `pyproject.toml`）。版本号由 `setuptools-scm` 从 git tag 推导（§8.7），`pyproject.toml` 放在源码层 COPY。这确保版本号变更不触发依赖层重建——依赖层只在 `uv.lock` 真正变更时才重建。
 
-  ```bash
-  VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-  IMAGE_NAME="${IMAGE_NAME:-project:${VERSION}}"
-  ```
+**BuildKit cache mount：** 所有 `uv sync` 和 `uv pip install` 命令使用 `RUN --mount=type=cache,target=/root/.cache/uv`。BuildKit 在构建之间持久化 `/root/.cache/uv` 目录，即使依赖层被重建（如 `uv.lock` 变更），包也从本地缓存读取，不走网络。这是 Docker 官方推荐模式，所有现代 Dockerfile 应标配。
 
-  `IMAGE_NAME` 环境变量覆盖仍可用于手动测试，但默认值必须来自 `pyproject.toml`。
+**Docker 构建中的版本号：** `build.sh` 通过 `git describe --tags` 获取版本号，通过 `--build-arg VERSION=X.Y.Z` 传入 Dockerfile，Dockerfile 设置 `SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}`。这确保 shallow clone、CI 环境、COPY-only 上下文（无 `.git` 目录）中也能正确构建，同时保持版本号单一来源。
+
+**推荐 Dockerfile 模板：**
+
+```dockerfile
+# Layer 1: dependencies (cached when uv.lock unchanged)
+# pyproject.toml NOT copied here — version via setuptools-scm from git tags
+COPY uv.lock .python-version README.md LICENSE ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-install-project --frozen --no-dev
+
+# Layer 2: source code
+COPY src ./src
+COPY configs ./configs
+COPY data ./data
+COPY pyproject.toml ./
+
+ARG VERSION=0.0.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+```
+
+**推荐 build.sh 模板：**
+
+```bash
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+IMAGE_NAME="${IMAGE_NAME:-project:${VERSION}}"
+docker build --build-arg VERSION="${VERSION}" -t "${IMAGE_NAME}" -f docker/Dockerfile .
+```
+
+- **build.sh 版本：** 版本号必须通过 `git describe --tags` 获取，不得硬编码。`IMAGE_NAME` 环境变量覆盖仍可用于手动测试，但默认值必须来自 git tag。
 
 ---
 
@@ -578,7 +610,7 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 ```toml
 [project]
 name = "my-project"
-version = "0.1.0"
+dynamic = ["version"]
 description = "一句话描述"
 readme = "README.md"
 license = {text = "MIT"}
@@ -595,11 +627,14 @@ my-project = "my_project.cli:main"
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.0"]
 
 [build-system]
-requires = ["setuptools>=75.0"]
+requires = ["setuptools>=75.0", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.setuptools_scm]
+tag_regex = "^(?:v)?(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)$"
 
 [tool.ruff]
 line-length = 100

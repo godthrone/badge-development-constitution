@@ -74,6 +74,15 @@ if [ -n "$DOCKERFILE" ]; then
         echo "         Tags can be overwritten — use @sha256:... for bit-for-bit reproducibility."
     fi
 
+    # Check for BuildKit cache mount (recommended §14.3)
+    if grep -qE 'RUN --mount=type=cache.*uv' "$DOCKERFILE" 2>/dev/null; then
+        echo "  [OK] BuildKit cache mount for uv (prevents re-download on rebuild §14.3)"
+    else
+        echo "  [WARN] No BuildKit cache mount for uv found."
+        echo "         Add: RUN --mount=type=cache,target=/root/.cache/uv uv sync ..."
+        echo "         This prevents re-downloading all packages when a layer is rebuilt (§14.3)."
+    fi
+
     # Check for two-stage build (COPY --from=...)
     if grep -qE 'COPY --from=' "$DOCKERFILE" 2>/dev/null || \
        grep -qE 'FROM.*AS\s+(builder|deps|build)' "$DOCKERFILE" 2>/dev/null; then

@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.8.0
+# The BADGE Constitution v1.9.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -281,15 +281,19 @@ Always use absolute imports — relative imports are forbidden. `from __future__
 
 ### 8.7 Version Number: Single Source of Truth
 
-The project's version number is maintained **only in the `[project] version` field of `pyproject.toml`**. This directly embodies Constitution 1.4 (Single Source of Truth) and 2.1 (Foolproof Design):
+The project's version number is **automatically derived from git tags via `setuptools-scm`**. `pyproject.toml` declares `dynamic = ["version"]`. This is a stronger embodiment of Constitution 1.4 (Single Source of Truth) and 2.1 (Foolproof Design):
 
-- **Forbidden:** defining `__version__` in `__init__.py` — it inevitably drifts out of sync with `pyproject.toml`, creating two sources of truth
+- `pyproject.toml`'s `[tool.setuptools_scm]` section configures version derivation rules (tag format, prefix, etc.) — this is the **single configuration source** for the versioning mechanism
+- The actual version string does not live in any file — it is derived from `git describe --tags`. To release: `git tag vX.Y.Z`
+- **Forbidden:** defining `__version__` in `__init__.py` — creates two sources of truth
 - **Forbidden:** writing version numbers in comments in `config_example.yaml` — the template file is for users, not version records
 - **Forbidden:** hardcoding version strings in source code
 
-If the version number is needed at runtime, read it from `pyproject.toml` or use `importlib.metadata.version("package-name")`. If users need to know the version, tell them to check `pyproject.toml` or run `pip show`.
+At runtime, use `importlib.metadata.version("package-name")`. For users to check the version: `git tag --sort=-v:refname | head -1` or `pip show package-name`.
 
-**Litmus test:** How many files need to change to update the version? If more than 1, this clause is violated.
+**Why not use `pyproject.toml`'s `version` field?** `pyproject.toml` carries two entirely unrelated pieces of information: the version number and the dependency declarations. Docker builds use file hashes for layer caching — changing the version number changes `pyproject.toml`'s hash, invalidating the dependency layer cache and forcing a full re-download of all packages. `setuptools-scm` decouples the version number from the file into git tags, so version bumps no longer trigger dependency rebuilds. This is §1.4 (Single Source of Truth) and §14.3 (Docker layer caching) working in concert.
+
+**Litmus test:** How many files need to change for a release? If more than 0, this clause is violated.
 
 - **Forbidden:** embedding constitution version references (`BADGE Constitution vX.Y`,
   `constitution vX.Y §Z.W`, or similar patterns) in source code files.  The
@@ -418,17 +422,43 @@ All projects use `uv` as the sole package manager. `.python-version` pins the Py
 
 Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`); a SHA256 digest is strongly recommended. Dockerfile uses two-stage caching (dependencies layer + source layer). Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions as the development environment. `build.sh` encapsulates the build command.
 
-- **build.sh version:** The Docker image tag in `build.sh` MUST derive the version
-  from `pyproject.toml` rather than hardcoding it.  Per §8.7 (single source of
-  truth), the tag is read dynamically.  Recommended pattern:
+**Docker layer cache design:** The dependency layer copies only `uv.lock` (not `pyproject.toml`). The version number is derived by `setuptools-scm` from git tags (§8.7), and `pyproject.toml` is copied in the source layer. This ensures that version bumps do not invalidate the dependency layer cache — the dependency layer is only rebuilt when `uv.lock` actually changes.
 
-  ```bash
-  VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-  IMAGE_NAME="${IMAGE_NAME:-project:${VERSION}}"
-  ```
+**BuildKit cache mount:** All `uv sync` and `uv pip install` commands use `RUN --mount=type=cache,target=/root/.cache/uv`. BuildKit persists the `/root/.cache/uv` directory across builds, so even when the dependency layer is rebuilt (e.g., `uv.lock` changed), packages are read from local cache rather than re-downloaded from PyPI. This is the Docker-recommended pattern and should be standard in every modern Dockerfile.
 
-  The `IMAGE_NAME` environment variable override remains available for manual
-  testing, but the default MUST come from `pyproject.toml`.
+**Version in Docker builds:** `build.sh` obtains the version via `git describe --tags`, passes it as `--build-arg VERSION=X.Y.Z` to the Dockerfile, and the Dockerfile sets `SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}`. This ensures correct builds in shallow clones, CI environments, and COPY-only contexts (no `.git` directory), while maintaining a single source of truth for the version.
+
+**Recommended Dockerfile template:**
+
+```dockerfile
+# Layer 1: dependencies (cached when uv.lock unchanged)
+# pyproject.toml NOT copied here — version via setuptools-scm from git tags
+COPY uv.lock .python-version README.md LICENSE ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-install-project --frozen --no-dev
+
+# Layer 2: source code
+COPY src ./src
+COPY configs ./configs
+COPY data ./data
+COPY pyproject.toml ./
+
+ARG VERSION=0.0.0
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+```
+
+**Recommended build.sh template:**
+
+```bash
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+IMAGE_NAME="${IMAGE_NAME:-project:${VERSION}}"
+docker build --build-arg VERSION="${VERSION}" -t "${IMAGE_NAME}" -f docker/Dockerfile .
+```
+
+- **build.sh version:** The version MUST be obtained via `git describe --tags`, not hardcoded. The `IMAGE_NAME` environment variable override remains available for manual testing, but the default MUST come from git tags.
 
 ---
 
@@ -584,7 +614,7 @@ Default: MIT license. `LICENSE` file at the project root. If the project depends
 ```toml
 [project]
 name = "my-project"
-version = "0.1.0"
+dynamic = ["version"]
 description = "One-sentence description"
 readme = "README.md"
 license = {text = "MIT"}
@@ -601,11 +631,14 @@ my-project = "my_project.cli:main"
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.0"]
 
 [build-system]
-requires = ["setuptools>=75.0"]
+requires = ["setuptools>=75.0", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.setuptools_scm]
+tag_regex = "^(?:v)?(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)$"
 
 [tool.ruff]
 line-length = 100

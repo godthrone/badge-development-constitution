@@ -79,7 +79,17 @@ if grep -qE 'pip install.*-r.*requirements' "$DOCKERFILE" 2>/dev/null; then
     FAIL=1
 fi
 
-# ─── 6. build.sh exists ────────────────────────────────────────────────
+# ─── 6. BuildKit cache mount for uv ─────────────────────────────────────
+
+if grep -qE 'RUN --mount=type=cache.*uv' "$DOCKERFILE" 2>/dev/null; then
+    echo "  [OK] BuildKit cache mount for uv (prevents re-download on rebuild)"
+else
+    echo "  [WARN] No BuildKit cache mount for uv found."
+    echo "         Add: RUN --mount=type=cache,target=/root/.cache/uv uv sync ..."
+    echo "         This prevents re-downloading all packages when a layer is rebuilt (§14.3)."
+fi
+
+# ─── 7. build.sh exists ────────────────────────────────────────────────
 
 if [ -f "$PROJECT_ROOT/build.sh" ]; then
     echo "  [OK] build.sh exists"

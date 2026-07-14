@@ -79,4 +79,4 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 
 ## Current Version
 
-v1.7.0 — raise file-size advisory threshold from 500 to 1000 lines (§8.2), bump check_file_size.sh thresholds (1000→warn, 2000→fail).
+v1.9.0 — setuptools-scm dynamic versioning replaces hardcoded version in pyproject.toml (§8.7), Docker BuildKit cache mount + SETUPTOOLS_SCM_PRETEND_VERSION pattern (§14.3), update §20 skeleton.
