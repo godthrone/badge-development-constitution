@@ -1,4 +1,4 @@
-# BADGE 开发宪法 v1.9.0
+# BADGE 开发宪法 v1.9.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — 边界与守护工程开发宪法
 >
@@ -291,7 +291,7 @@ outputs/<run_name>/
 
 运行时通过 `importlib.metadata.version("package-name")` 获取版本号。用户查看版本：`git tag --sort=-v:refname | head -1` 或 `pip show package-name`。
 
-**为什么不用 `pyproject.toml` 的 `version` 字段？** 因为 `pyproject.toml` 同时承载了版本号和依赖声明两个完全不相关的信息。Docker 构建利用文件哈希做层缓存——改版本号导致 `pyproject.toml` 哈希变更，依赖层缓存失效，需要重新下载所有包。`setuptools-scm` 将版本号从文件中解耦到 git tag 中，让版本号变更不再触发依赖重建，这是 §1.4（单一真相源）和 §14.3（Docker 层缓存）协同作用的结果。
+**为什么不用 `pyproject.toml` 的 `version` 字段？** 因为 `pyproject.toml` 同时承载了版本号和依赖声明两个完全不相关的信息。如果版本号硬编码在 `pyproject.toml` 中，Docker 构建时改版本号会导致文件哈希变更，依赖层缓存失效，需要重新下载所有包。`setuptools-scm` + `dynamic = ["version"]` 将版本号从文件中解耦到 git tag 中——`pyproject.toml` 不包含版本号字符串，版本号变更不改变文件哈希，因此 `pyproject.toml` 可以安全地放入依赖层，不会触发依赖重建。版本号变更仅影响源码层（`COPY src`），而依赖层缓存完全复用。这是 §1.4（单一真相源）和 §14.3（Docker 层缓存）协同作用的结果。
 
 **判断标准：** 发版需要改几个文件？如果超过 0 个，违反本条款。
 
@@ -419,7 +419,7 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 
 每个项目必须提供 Docker 部署。Base image 锁定具体版本（不用 `latest`）；强烈建议锁定 SHA256 digest。Dockerfile 两层构建（依赖层 + 源码层），利用层缓存。依赖安装使用 `uv sync` 或 `uv pip install` 配合 `uv.lock`，确保容器内依赖版本与开发环境一致。`build.sh` 封装构建命令。
 
-**Docker 层缓存设计：** 依赖层只 COPY `uv.lock`（不含 `pyproject.toml`）。版本号由 `setuptools-scm` 从 git tag 推导（§8.7），`pyproject.toml` 放在源码层 COPY。这确保版本号变更不触发依赖层重建——依赖层只在 `uv.lock` 真正变更时才重建。
+**Docker 层缓存设计：** 依赖层同时 COPY `uv.lock` 和 `pyproject.toml`。版本号由 `setuptools-scm` 从 git tag 推导（§8.7），`pyproject.toml` 中 `dynamic = ["version"]` 不包含版本号字符串，因此版本号变更不改变 `pyproject.toml` 的文件哈希。依赖层只在 `uv.lock` 或 `pyproject.toml` 真正变更时才重建——日常的版本号发布和代码修改都不会触发依赖层重建。
 
 **BuildKit cache mount：** 所有 `uv sync` 和 `uv pip install` 命令使用 `RUN --mount=type=cache,target=/root/.cache/uv`。BuildKit 在构建之间持久化 `/root/.cache/uv` 目录，即使依赖层被重建（如 `uv.lock` 变更），包也从本地缓存读取，不走网络。这是 Docker 官方推荐模式，所有现代 Dockerfile 应标配。
 
@@ -428,9 +428,11 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 **推荐 Dockerfile 模板：**
 
 ```dockerfile
-# Layer 1: dependencies (cached when uv.lock unchanged)
-# pyproject.toml NOT copied here — version via setuptools-scm from git tags
-COPY uv.lock .python-version README.md LICENSE ./
+# Layer 1: dependencies (cached when uv.lock AND pyproject.toml unchanged)
+# pyproject.toml IS copied here — version is managed by setuptools-scm
+# (dynamic = ["version"]), so version bumps don't change this file's hash
+# and don't invalidate this layer.
+COPY uv.lock pyproject.toml .python-version README.md LICENSE ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-install-project --frozen --no-dev
 
@@ -438,7 +440,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY src ./src
 COPY configs ./configs
 COPY data ./data
-COPY pyproject.toml ./
 
 ARG VERSION=0.0.0
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}

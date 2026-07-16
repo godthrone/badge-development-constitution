@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.9.0
+# The BADGE Constitution v1.9.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -291,7 +291,7 @@ The project's version number is **automatically derived from git tags via `setup
 
 At runtime, use `importlib.metadata.version("package-name")`. For users to check the version: `git tag --sort=-v:refname | head -1` or `pip show package-name`.
 
-**Why not use `pyproject.toml`'s `version` field?** `pyproject.toml` carries two entirely unrelated pieces of information: the version number and the dependency declarations. Docker builds use file hashes for layer caching — changing the version number changes `pyproject.toml`'s hash, invalidating the dependency layer cache and forcing a full re-download of all packages. `setuptools-scm` decouples the version number from the file into git tags, so version bumps no longer trigger dependency rebuilds. This is §1.4 (Single Source of Truth) and §14.3 (Docker layer caching) working in concert.
+**Why not use `pyproject.toml`'s `version` field?** `pyproject.toml` carries two entirely unrelated pieces of information: the version number and the dependency declarations. If the version number were hardcoded in `pyproject.toml`, Docker builds would use the file hash for layer caching — changing the version number would change the hash, invalidating the dependency layer cache and forcing a full re-download of all packages. `setuptools-scm` + `dynamic = ["version"]` decouples the version number from the file into git tags — `pyproject.toml` contains no version string, so version bumps do not change the file's hash, making it safe to include in the dependency layer. Version bumps then only affect the source layer (`COPY src`), while the dependency layer cache is fully reused. This is §1.4 (Single Source of Truth) and §14.3 (Docker layer caching) working in concert.
 
 **Litmus test:** How many files need to change for a release? If more than 0, this clause is violated.
 
@@ -422,7 +422,7 @@ All projects use `uv` as the sole package manager. `.python-version` pins the Py
 
 Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`); a SHA256 digest is strongly recommended. Dockerfile uses two-stage caching (dependencies layer + source layer). Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions as the development environment. `build.sh` encapsulates the build command.
 
-**Docker layer cache design:** The dependency layer copies only `uv.lock` (not `pyproject.toml`). The version number is derived by `setuptools-scm` from git tags (§8.7), and `pyproject.toml` is copied in the source layer. This ensures that version bumps do not invalidate the dependency layer cache — the dependency layer is only rebuilt when `uv.lock` actually changes.
+**Docker layer cache design:** The dependency layer copies both `uv.lock` and `pyproject.toml`. The version number is derived by `setuptools-scm` from git tags (§8.7), and `pyproject.toml` uses `dynamic = ["version"]` (no version string in the file), so version bumps do not change `pyproject.toml`'s file hash. The dependency layer is only rebuilt when `uv.lock` or `pyproject.toml` actually changes — routine version releases and code changes never trigger a dependency layer rebuild.
 
 **BuildKit cache mount:** All `uv sync` and `uv pip install` commands use `RUN --mount=type=cache,target=/root/.cache/uv`. BuildKit persists the `/root/.cache/uv` directory across builds, so even when the dependency layer is rebuilt (e.g., `uv.lock` changed), packages are read from local cache rather than re-downloaded from PyPI. This is the Docker-recommended pattern and should be standard in every modern Dockerfile.
 
@@ -431,9 +431,11 @@ Every project must support Docker deployment. Base image is pinned to a specific
 **Recommended Dockerfile template:**
 
 ```dockerfile
-# Layer 1: dependencies (cached when uv.lock unchanged)
-# pyproject.toml NOT copied here — version via setuptools-scm from git tags
-COPY uv.lock .python-version README.md LICENSE ./
+# Layer 1: dependencies (cached when uv.lock AND pyproject.toml unchanged)
+# pyproject.toml IS copied here — version is managed by setuptools-scm
+# (dynamic = ["version"]), so version bumps don't change this file's hash
+# and don't invalidate this layer.
+COPY uv.lock pyproject.toml .python-version README.md LICENSE ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --no-install-project --frozen --no-dev
 
@@ -441,7 +443,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY src ./src
 COPY configs ./configs
 COPY data ./data
-COPY pyproject.toml ./
 
 ARG VERSION=0.0.0
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
