@@ -3,8 +3,8 @@
 ## Bilingual Sync Requirement
 
 The BADGE constitution exists in two versions:
-- `BADGE-constitution.en.md` — English
-- `BADGE-constitution.zh-CN.md` — Chinese
+- `BADGE-constitution-v1.9.1.en.md` — English
+- `BADGE-constitution-v1.9.1.zh-CN.md` — Chinese
 
 **Any change to one version MUST be reflected in the other.** The two files are semantic mirrors — not word-for-word translations, but the same content, same structure, same clauses, same version number. When editing one, always update the other in the same commit.
 
