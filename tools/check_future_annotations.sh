@@ -61,7 +61,7 @@ while IFS= read -r file; do
 
     if grep -q 'TYPE_CHECKING' "$file" 2>/dev/null; then
         NEEDS_IT=1
-    elif grep -qE '["'\"'\"']([A-Z][a-zA-Z0-9_]*["'\"'\"']|\s*\|)' "$file" 2>/dev/null; then
+    elif grep -qE '["'\''"'\'']([A-Z][a-zA-Z0-9_]*["'\''"'\'']|\s*\|)' "$file" 2>/dev/null; then
         # String annotation pattern like -> "ClassName" or : "SomeType"
         NEEDS_IT=1
     elif grep -qE '->\s*[A-Z][a-zA-Z0-9_]*' "$file" 2>/dev/null; then
