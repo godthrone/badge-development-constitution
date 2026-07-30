@@ -1,9 +1,11 @@
-# The BADGE Constitution v1.9.1
+# The BADGE Constitution v1.10.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
 > Great projects aren't built by checking harder — they're built by designing so that mistakes are impossible.
 > This constitution is the distillation of engineering taste — it tells you *why* a design is right, not just *what* to do.
+>
+> **The three-layer structure of this constitution:** Principles tell you why a design is right. Rules tell you what you must do. Techniques tell you how to do it. Principles without rules are empty words. Rules without techniques are unenforceable. Techniques without principles leave you not knowing why you're doing them. All three are essential — none is optional.
 
 ---
 
@@ -42,6 +44,18 @@ Every piece of information in the system has exactly **one** authoritative sourc
 "The value can come from three places" sounds flexible, but in practice the user changes a parameter, finds it didn't take effect, and spends an afternoon debugging. Flexibility here isn't a feature — it's a bug factory.
 
 **Litmus test:** If someone asks "where does this value come from?", can you give the unique answer in one second? If not, there are too many sources.
+
+### 1.5 Task Boundaries: Decomposition is Execution
+
+Module boundaries constrain code structure. Task boundaries constrain the development process. The same principle: **one task does one thing. Finish one thing before starting the next.**
+
+When facing a complex problem, the human instinct is to "solve everything at once." The result: context bloat, declining decision quality, and unverifiable intermediate states. The principle: complex problems must be decomposed into independent sub-tasks with clear boundaries — each sub-task has explicit inputs, verifiable outputs, and no dependency on other sub-tasks' internal state.
+
+**Rule:** A sub-task must be independently completable and produce a verifiable result. Sub-tasks communicate through explicit input/output interfaces — never through shared implicit state. The caller must be able to determine whether a sub-task succeeded solely from its output.
+
+**Technique (AI-assisted development):** Break a large task into multiple specific, single-responsibility sub-tasks. Dispatch them to agents in parallel, each producing independently verifiable results. Aggregate at the end. Benefits: saves context window, yields more detailed output, reduces total elapsed time, and each sub-task's correctness is independently verifiable.
+
+**Litmus test:** Can a sub-task be completed independently and produce a verifiable result without relying on the context of other sub-tasks? If not, the decomposition isn't fine enough. After a sub-task completes, can the caller determine success solely from its output? If not, the output boundary is unclear.
 
 ---
 
@@ -210,6 +224,8 @@ project/
 └── .gitignore
 ```
 
+**Directory organization principle:** The directory structure is a navigation system for the codebase, not a filing cabinet. From directory hierarchy and file names alone, a reader should roughly understand what the code does, which module it belongs to, and its inheritance relationships — without opening any files. A directory should not contain more than 10 code files of distinct responsibilities. When it does, the directory contains multiple independently-nameable sub-domains — create categorized sub-directories and group files by functional domain. This is not a hard limit, but a signal: when you see the 11th file, ask yourself "can this directory's responsibility still be described in a single sentence?"
+
 **`cli.py` may be upgraded to a `cli/` directory:** When the CLI logic is complex enough to warrant multiple sub-modules (e.g. subcommand dispatch, training worker process entry point), follow the same logic as §8.3 (Class-to-Directory) — `cli/__init__.py` maintains external transparency, so consumers only see `graspo.cli:main` and are unaware whether the implementation is a single file or a directory.
 
 **`domain/` may be omitted:** Not every project has an independent domain logic layer. If the domain logic naturally coheres within `core/` computation modules, or if the domain concepts are not yet stable enough to justify a separate layer, an empty directory is worse than no directory. The core principle of module boundaries (§1.1) is that a module's responsibility must be describable in a single sentence — if you cannot describe what `domain/` is responsible for, it should not exist.
@@ -311,6 +327,8 @@ At runtime, use `importlib.metadata.version("package-name")`. For users to check
 
 All core data structures use pydantic `BaseModel`. Passing bare `dict` or `list` for business data is forbidden. `extra = "forbid"` rejects unknown fields. Nested structures use nested pydantic models — no dict of dicts.
 
+**Model purity:** Data models follow the same single-responsibility principle as module boundaries (§1.1). A model should contain only data that belongs to its conceptual domain. When you need to attach unrelated metadata, don't add fields to the existing model — create a new model and use composition (nesting) instead of pollution. For example, an observation model should stay clean, containing only observation data; additional control flags (such as reset_task_done) belong in a wrapper model, with the observation as one of its fields.
+
 `frozen = True` is recommended for pure data objects loaded from external sources that are never modified afterward (e.g. training samples, scoring results) — it prevents accidental mutation. For configuration objects that may need to be overridden by CLI arguments during initialization, `frozen` is not required; in that case, ensure the config object is not modified after initialization completes.
 
 ### 9.2 Class Inheritance: ABC Template Method
@@ -363,6 +381,8 @@ Union types: `str | None`, not `Optional[str]`. `py.typed` marker file present. 
 
 Classes PascalCase, functions and variables snake_case, private members `_`-prefixed, constants UPPER_SNAKE_CASE, type aliases PascalCase, module files snake_case.
 
+**Naming as documentation:** File names are the first line of documentation for a codebase. From directory hierarchy and file names alone, a reader should be able to infer the file's purpose, its owning module, and its inheritance relationships. File names are not labels for yourself — they are navigation signals for future readers (including AI agents). When a file must be renamed for a new reader to understand its responsibility, the original naming was a failure.
+
 ### 12.3 Language Convention
 
 `README.md` and `README.zh-CN.md` are bilingual — the project's front door is accessible to both the English and Chinese developer communities, the two most active language groups in open source.
@@ -403,6 +423,14 @@ The specific filenames and module splits are defined by each project according t
 **Core principle: splitting is meant to prevent investigators from having to open irrelevant modules' logs, but it must not force investigators to stitch together a timeline across files when tracing a single causal chain.** Structured domain-specific logs (e.g., JSONL rollout records, timing event logs) are system-specific extensions (see 13.2) and are not constrained by this rule — they serve machine analysis, not human investigation.
 
 **Litmus test:** When investigating an event, how many log files do you need to open and correlate timelines across? If you keep jumping back and forth, the split is too fine — merge.
+
+### 13.4 Debugging: Simplicity is Reliability
+
+**Principle:** The complexity of your debugging tools must not exceed the complexity of the system being debugged. Debugging tools are themselves code, and they can have bugs too. When a complex logging framework, distributed tracing system, or async sampler becomes part of the problem, fall back to the simplest reliable tool.
+
+**Technique:** `print()` + stdout redirection is the last and most reliable fallback. This is not a step backward — it is the fallback design principle (§3.1) applied to debugging: degrade to a simpler but more reliable approach to ensure that debugging information is never lost.
+
+**Litmus test:** How long does it take to set up your debugging environment? If the debugging environment itself is more complex than the bug you're trying to fix, your debugging tooling is the problem.
 
 ---
 
