@@ -3,8 +3,8 @@
 ## Bilingual Sync Requirement
 
 The BADGE constitution exists in two versions:
-- `BADGE-constitution-v1.10.0.en.md` — English
-- `BADGE-constitution-v1.10.0.zh-CN.md` — Chinese
+- `BADGE-constitution-v1.10.1.en.md` — English
+- `BADGE-constitution-v1.10.1.zh-CN.md` — Chinese
 
 **Any change to one version MUST be reflected in the other.** The two files are semantic mirrors — not word-for-word translations, but the same content, same structure, same clauses, same version number. When editing one, always update the other in the same commit.
 
@@ -80,3 +80,4 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 ## Current Version
 
 v1.10.0 — task boundaries (§1.5), technique-layer completions: directory organization (§8.1), model purity (§9.1), naming as documentation (§12.2), debugging simplicity (§13.4).
+v1.10.1 — fix: check_future_annotations detects self-referencing return types (§8.6); docs/ boundary clarified (§17.2); script fixes: recursive config search, *_TEMP_* pattern, BuildKit cache, sha256 in base64 scan.

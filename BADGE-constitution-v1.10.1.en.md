@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.10.0
+# The BADGE Constitution v1.10.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -571,6 +571,8 @@ Chapter structure: Introduction → Quick Start → Data Format → Configuratio
 ### 17.2 Architecture Documentation
 
 Split by topic under the `docs/` directory, each file focused on one concern. Write **why** the design is the way it is, not just what the code looks like.
+
+**`docs/` is for project-level architecture documentation, not deployment-specific experiment records.** Deployment notes, experiment logs, run monitors, and similar artifacts are temporary files as defined in §16.2 and belong in `.local/`.
 
 ### 17.3 AI Assistant Documentation
 

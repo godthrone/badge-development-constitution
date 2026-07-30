@@ -1,4 +1,4 @@
-# BADGE 开发宪法 v1.10.0
+# BADGE 开发宪法 v1.10.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — 边界与守护工程开发宪法
 >
@@ -568,6 +568,8 @@ docker build --build-arg VERSION="${VERSION}" -t "${IMAGE_NAME}" -f docker/Docke
 ### 17.2 架构文档
 
 `docs/` 目录下按主题拆分，每个文件聚焦一个关注点。写清楚**为什么**这样设计，不只是代码长什么样。
+
+**`docs/` 是项目级架构文档，不包含特定部署的实验记录。** 部署笔记、实验记录、运行监控等属于 §16.2 定义的临时文件，应放入 `.local/`。
 
 ### 17.3 AI 助手文档
 

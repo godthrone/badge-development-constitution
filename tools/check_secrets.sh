@@ -201,7 +201,8 @@ B64_MATCHES=$(echo "$FILES" | grep -vE '\.(png|jpg|jpeg|gif|ico|woff2?|ttf|eot|p
     grep -v 'uv\.lock:' | \
     grep -v '\.gitignore' | \
     grep -v '__pycache__' | \
-    grep -v 'check_secrets\.sh' || true)
+    grep -v 'check_secrets\.sh' | \
+    grep -v 'sha256:[A-Za-z0-9]' || true)
 if [ -n "$B64_MATCHES" ]; then
     echo "[WARN] Long base64-like strings found (review manually):"
     echo "$B64_MATCHES" | head -20 | while IFS= read -r line; do
@@ -216,7 +217,8 @@ echo "Scanning for internal paths..."
 for path_pattern in "${INTERNAL_PATH_PATTERNS[@]}"; do
     PATH_RAW=$(grep_tracked "$path_pattern")
     PATH_MATCHES=$(echo "$PATH_RAW" | grep -v '\.gitignore' | grep -v '\.local/' | \
-        grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' || true)
+        grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' | \
+        grep -v 'RUN --mount=type=cache,target=/root/.cache' || true)
     print_matches "Internal path ($path_pattern)" "$PATH_MATCHES"
 done
 

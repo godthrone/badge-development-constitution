@@ -21,11 +21,17 @@ echo "Checking configuration system..."
 
 # ─── 1. config_example.yaml exists ──────────────────────────────────────
 
-CONFIG_EXAMPLE="$PROJECT_ROOT/config_example.yaml"
-CONFIGS_DIR="$PROJECT_ROOT/configs"
+# Recursively search for config_example.yaml or configs/ directory.
+# Projects may place configs in subdirectories (e.g. samples/configs/).
+CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" -name "config_example.yaml" \
+    -not -path "*/.local/*" -not -path "*/node_modules/*" \
+    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
+CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
+    -not -path "*/.local/*" -not -path "*/node_modules/*" \
+    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
 
-if [ -f "$CONFIG_EXAMPLE" ]; then
-    echo "  [OK] config_example.yaml exists"
+if [ -n "$CONFIG_EXAMPLE" ] && [ -f "$CONFIG_EXAMPLE" ]; then
+    echo "  [OK] config_example.yaml found at $CONFIG_EXAMPLE"
 
     # Check comment density (should be well-commented)
     TOTAL_LINES=$(wc -l < "$CONFIG_EXAMPLE" 2>/dev/null || echo 0)
@@ -39,10 +45,11 @@ if [ -f "$CONFIG_EXAMPLE" ]; then
             echo "  [OK] config_example.yaml has good comment coverage ($COMMENT_RATIO%)."
         fi
     fi
-elif [ -d "$CONFIGS_DIR" ] && [ -n "$(ls -A "$CONFIGS_DIR" 2>/dev/null)" ]; then
-    echo "  [OK] configs/ directory with example configs exists"
+elif [ -n "$CONFIGS_DIR" ] && [ -d "$CONFIGS_DIR" ] && [ -n "$(ls -A "$CONFIGS_DIR" 2>/dev/null)" ]; then
+    echo "  [OK] configs/ directory with example configs found at $CONFIGS_DIR"
 else
     echo "[FAIL] check_config_system: No config_example.yaml or configs/ found (§7.3)."
+    echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
     FAIL=1
 fi
 

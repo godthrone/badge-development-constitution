@@ -54,15 +54,21 @@ while IFS= read -r file; do
     # Heuristic indicators that the import IS needed:
     # 1. TYPE_CHECKING guard → likely has forward refs
     # 2. String annotations like 'ClassName' or "ClassName"
-    # 3. from typing import ... → may need it for old-style annotations
+    # 3. Self-referencing return type: `-> GraspoConfig` inside class GraspoConfig
+    #    (Python 3.11 needs PEP 563 to defer class-body annotation evaluation)
+    # 4. Old-style typing imports → may need PEP 563 for forward references
     NEEDS_IT=0
 
     if grep -q 'TYPE_CHECKING' "$file" 2>/dev/null; then
         NEEDS_IT=1
-    elif grep -qE '["'\'']([A-Z][a-zA-Z0-9_]*["'\'']|\s*\|)' "$file" 2>/dev/null; then
+    elif grep -qE '["'\"'\"']([A-Z][a-zA-Z0-9_]*["'\"'\"']|\s*\|)' "$file" 2>/dev/null; then
         # String annotation pattern like -> "ClassName" or : "SomeType"
         NEEDS_IT=1
-    elif grep -qE 'from typing import (Any|Dict|List|Tuple|Set|Optional|Union|Callable)' "$file" 2>/dev/null; then
+    elif grep -qE '->\s*[A-Z][a-zA-Z0-9_]*' "$file" 2>/dev/null; then
+        # Self-referencing return type annotation (e.g. `-> GraspoConfig`)
+        NEEDS_IT=1
+    elif grep -qE 'from typing import (Dict|List|Tuple|Set|Optional|Union|Callable)' "$file" 2>/dev/null; then
+        # Old-style typing imports that need PEP 563 for forward references
         NEEDS_IT=1
     fi
 

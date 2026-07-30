@@ -65,7 +65,7 @@ TEMP_PATTERNS=(
     '*LONG_RUN*' '*run_monitor*' '*watchdog*'
     # Draft files
     '*_DRAFT*' '*_draft*' '*_WIP*' '*_wip*'
-    '*_TEMP*' '*_temp*' '*_TMP*' '*_tmp*'
+    '*_TEMP_*' '*_temp_*' '*_TMP*' '*_tmp*'
     '*_BACKUP*' '*_backup*' '*_BAK*' '*_bak*'
     '*_OLD*' '*_old*'
     # Discussion / meeting notes
