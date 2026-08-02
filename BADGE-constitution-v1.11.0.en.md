@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.10.1
+# The BADGE Constitution v1.11.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -56,6 +56,15 @@ When facing a complex problem, the human instinct is to "solve everything at onc
 **Technique (AI-assisted development):** Break a large task into multiple specific, single-responsibility sub-tasks. Dispatch them to agents in parallel, each producing independently verifiable results. Aggregate at the end. Benefits: saves context window, yields more detailed output, reduces total elapsed time, and each sub-task's correctness is independently verifiable.
 
 **Litmus test:** Can a sub-task be completed independently and produce a verifiable result without relying on the context of other sub-tasks? If not, the decomposition isn't fine enough. After a sub-task completes, can the caller determine success solely from its output? If not, the output boundary is unclear.
+
+### 1.6 Documentation Boundaries: Details in Comments, Structure in Docs
+
+In the AI era, code is the first document — AI reads and writes code directly, and maintaining a detailed architecture document that stays in sync with the code is both expensive and inevitably stale. The boundary between architecture documentation and code comments is itself a boundary decision:
+
+- **Architecture documentation** — for humans and AI. It describes module boundaries, responsibilities, and interfaces, with architecture, flow, data-flow, and swimlane diagrams — after reading it, you know how the system works. No implementation details.
+- **Code comments** — for AI. First, they explain the logic of key code and the design rationale (why it is designed this way). Second, each file opens with a responsibility declaration — what this file does and its scope of responsibility — drawing a boundary around the file so that AI doesn't pile unrelated methods or classes into it during modification (a foolproof device, see §2).
+
+**Litmus test:** Can the architecture documentation explain how the system works without containing implementation details? If not, details haven't been pushed down into comments. Can the file header's responsibility declaration answer in one sentence "should this piece of code go into this file"? If not, the file boundary isn't clear.
 
 ---
 
@@ -254,6 +263,8 @@ backends/models/qwen35_36/
 
 Internal methods that need shared state access it through `self` — they remain methods of the same class, just physically distributed across files. Pure functions that don't need `self` state go into `helpers.py` — they are independent and individually testable.
 
+File names inside a class directory need not match class names — the directory name carries the locality of the domain (the class name stem), and inner files are named by functional domain (§12.2 class-path mirroring).
+
 ### 8.4 OOP and FP: Each Has Its Place
 
 Object-oriented and functional programming have debated for decades which is better. The answer is: **they are not rivals — they are tools.** The key is letting each do what it's best at.
@@ -383,6 +394,12 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 **Naming as documentation:** File names are the first line of documentation for a codebase. From directory hierarchy and file names alone, a reader should be able to infer the file's purpose, its owning module, and its inheritance relationships. File names are not labels for yourself — they are navigation signals for future readers (including AI agents). When a file must be renamed for a new reader to understand its responsibility, the original naming was a failure.
 
+**Class-path mirroring:** A class name should encode two pieces of information — its **domain** and its **function**. The domain must map to a directory level in the path; the function must map to a file level in the path. `Qwen35Adapter` should live at `.../qwen35_36/adapter.py`, not scattered inside `utils.py`. The mechanical rule follows: **in a non-class-directory, a single-class file's name must match the class name one-to-one** — the PascalCase class name converted to snake_case (`Qwen35Adapter` → `qwen35_adapter.py`); the two differ only in naming style. Exemptions: inside class directories (§8.3), files are named by functional domain and the directory name carries class-name locality; mixin classes (`_`-prefixed or `*Mixin`-suffixed) are named by function (`_Qwen35GenerationMethods` in `generation.py`, `CheckpointMixin` in `checkpoint.py`); same-family multi-class files (§8.4) are named by functional family (`Qwen35*StageOp` classes in `ops.py`); data-container types (frozen dataclass, pydantic models) are attached to the function family that operates on them and are named by that family (`CompareResult` in `compare.py`); test files are named after the module under test (§11.2), and their helper classes are exempt.
+
+**Why constrain classes but not functions?** Functions get their domain context from the file that contains them — locality is the file's job. Classes are self-locating units referenced across files, and a class may outgrow into a directory (§8.3) — a class name must carry its own locality.
+
+**Litmus test:** Given a class name, can you say where it should live without reading the code? Given a path, can you say which class families it should contain? Naming passes only if both directions answer yes.
+
 ### 12.3 Language Convention
 
 `README.md` and `README.zh-CN.md` are bilingual — the project's front door is accessible to both the English and Chinese developer communities, the two most active language groups in open source.
@@ -396,6 +413,16 @@ All other files — comments, docstrings, architecture documentation, config ann
 **Technical terms, algorithm names, framework names, and academic concepts** are kept in their original English form — e.g. Flink, 1F1B, KV cache, attention mask, backpressure. These are the shared vocabulary of engineers across all languages. Forcing translation loses information density. The principle is: **accuracy first — do not sacrifice technical expression for language purity.**
 
 Comments explain **why**, not **what**. No useless comments.
+
+### 12.4 File Header Comments: Responsibility Declarations
+
+Every source file must open with a comment declaring the file's function and scope of responsibility, in one sentence. This is a boundary declaration for AI (and for humans) — when AI wants to stuff unrelated methods or classes into a file, the file header is the first line of defense (foolproof design, §2). If the responsibility cannot be stated in one sentence → the file should be split (§1.1).
+
+- The header may be a module docstring or a comment block; language follows §12.3
+- `__init__.py` is exempt — its responsibility is re-exporting the public API (§8.6), no need to declare it again
+- A responsibility declaration is navigation and foolproofing information, not the "useless comment" §12.3 prohibits — it answers "why does this file exist, and what belongs in it"
+
+**Litmus test:** Can the file header's responsibility declaration answer in one sentence "should this piece of code go into this file"? If not, either the comment isn't clear, or the file boundary has already been breached.
 
 ---
 
@@ -552,6 +579,8 @@ A file belongs in `.local/` if it meets any of these criteria:
 
 If a file has long-term value to the project, turn it into formal documentation under `docs/`. If it only has short-term value to you or the current phase, put it in `.local/`.
 
+**The one exception: the work log (§17.5).** It has long-term value but necessarily contains environment information (working environment and tooling notes), so its only home is `.local/` — it must never be promoted to a `docs/` document. This is part of the data boundary (§1.4): environment information never enters tracked files.
+
 ### 16.3 Relationship with `scripts/`
 
 §10.2 defines `scripts/` as the directory for shared temporary code tools. The two directories serve different purposes:
@@ -570,17 +599,38 @@ Chapter structure: Introduction → Quick Start → Data Format → Configuratio
 
 ### 17.2 Architecture Documentation
 
-Split by topic under the `docs/` directory, each file focused on one concern. Write **why** the design is the way it is, not just what the code looks like.
+Split by topic under the `docs/` directory, each file focused on one concern. The content boundary of documentation is defined by §1.6: **write module boundaries, responsibilities, and interfaces — write structural "why"** — implementation details live in code comments (§12.4), not in docs.
+
+**All diagrams in documentation must be drawn with Mermaid — ASCII hand-drawn diagrams are prohibited.** Mermaid is machine-parseable, natively rendered by GitHub/IDEs, and AI can generate and modify it; ASCII diagrams cannot be maintained, and AI cannot reliably redraw them. Node names must always be wrapped in English double quotes (`"Training Loop"`) for compatibility across renderers. Architecture, flow, data-flow, and swimlane diagrams are essential elements of architecture documentation — after reading it, you know how the system works. Directory trees, tables, and other plain-text structures are not "diagrams" and are exempt from this rule.
 
 **`docs/` is for project-level architecture documentation, not deployment-specific experiment records.** Deployment notes, experiment logs, run monitors, and similar artifacts are temporary files as defined in §16.2 and belong in `.local/`.
+
+**Litmus test:** After reading `docs/`, can a reader (human or AI) describe the system's module boundaries, data flows, and key processes? Can they say why a class is designed the way it is? If the first is yes and the answer to the second lives in code comments rather than docs, the docs/comments boundary is correct.
 
 ### 17.3 AI Assistant Documentation
 
 If a project uses AI coding assistants (e.g. Claude Code, GitHub Copilot), it may generate `CLAUDE.md` and `AGENTS.md` on demand for the assistant's use — high information density, structured format, helping AI understand the project's architecture and conventions. These files are **not committed to git** (excluded in `.gitignore`) — they are part of the local development environment. If the project does not use AI assistants, there is no need to create these files.
 
+Projects that use the work log (§17.5) should place a one-line pointer to `work_log_current.md` in `CLAUDE.md`, so AI discovers the log entry point at every session.
+
 ### 17.4 Version History
 
 Projects do not maintain a standalone Changelog file. The git commit log is the single, authoritative change history. On release, tag the version with `git tag`. To review changes, use `git log`. Commit messages must follow the format specified in §19.1 so that `git log --oneline` is a readable project history.
+
+### 17.5 Work Log: Continuous Handover
+
+Handover is not an event; it is a continuous state. Instead of writing a compressed handover document at each transition, maintain a work log — essentially a continuously updated handover document that lets any successor (human or AI) continue the work at any time, without asking the original author.
+
+The work log consists of two files under `.local/`, never committed to git (they necessarily contain environment information, §16.2):
+
+- **`work_log_current.md` — the state section, read at every session.** It holds only the latest values, updated in place, never pruned: current progress, next tasks, current major difficulties and problems, planned solutions to try, working environment and tooling notes. Keep it under about 100 lines — it carries the "understand the state in 30 seconds" responsibility.
+- **`work_log_history.md` — the event section, read on demand.** Completed tasks and resolved problems are appended incrementally with timestamps (entries start with `YYYY-MM-DD`), newest at the end. When the log grows long, prune selectively: delete from the head (oldest) entries that are **already absorbed into code or docs and no longer worth referencing**; important decision context may be kept forever. **Pruning is a trade-off, not a truncation** — if after pruning a successor cannot understand the current state faster than from reading git log, you pruned too much.
+
+Relationship with git: the git commit log is the authoritative record of changes (immutable, §17.4); the work log is the narrative layer of decision context (selectively compressible). The log records what git doesn't — why, difficulties, plans, next steps. The log is not a Changelog replacement and carries no authority; every statement in it should be cross-verifiable against git or the code.
+
+**When to update:** at the end of each working session or when a phase completes — append 3–5 lines to the event section and refresh the state section. Projects that use AI assistants place a pointer to `work_log_current.md` in `CLAUDE.md` (§17.3).
+
+**Litmus test:** Can a newcomer (human or AI) fully continue the work reading only the work log and the codebase, without asking the original author? If not, the log is incomplete.
 
 ---
 

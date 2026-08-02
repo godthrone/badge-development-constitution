@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 
 # Dynamically read version from the English constitution
-VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.10.1.en.md" 2>/dev/null || echo "unknown")
+VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.11.0.en.md" 2>/dev/null || echo "unknown")
 
 echo "============================================"
 echo " BADGE Constitution v$VERSION — Compliance Check"
@@ -83,6 +83,12 @@ run_check "Test Structure (§11.2)"             "$SCRIPT_DIR/check_test_structur
 # §12.1 — Type Annotations
 run_check "Type Annotations (§12.1)"           "$SCRIPT_DIR/check_type_annotations.sh"
 
+# §12.2 — Class-Path Mirroring (file name = class name)
+run_check "Class-Path Mirroring (§12.2)"       "$SCRIPT_DIR/check_class_file_naming.sh"
+
+# §12.4 — File Header Responsibility Declarations
+run_check "File Headers (§12.4)"               "$SCRIPT_DIR/check_file_header.sh"
+
 # §13.1 — Exception Handling
 run_check "Exception Handling (§13.1)"         "$SCRIPT_DIR/check_exception_handling.sh"
 
@@ -110,6 +116,9 @@ run_check "Temporary Files (§XVI)"             "$SCRIPT_DIR/check_local_files.s
 
 # §17.1 — README Parity
 run_check "README Parity (§17.1)"              "$SCRIPT_DIR/check_readme_parity.sh"
+
+# §17.2 — Docs ASCII Diagrams (warn-only)
+run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh"
 
 # §18.1 — Legacy Cleanup
 run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"

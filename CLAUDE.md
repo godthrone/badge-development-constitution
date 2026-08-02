@@ -3,8 +3,8 @@
 ## Bilingual Sync Requirement
 
 The BADGE constitution exists in two versions:
-- `BADGE-constitution-v1.10.1.en.md` — English
-- `BADGE-constitution-v1.10.1.zh-CN.md` — Chinese
+- `BADGE-constitution-v1.11.0.en.md` — English
+- `BADGE-constitution-v1.11.0.zh-CN.md` — Chinese
 
 **Any change to one version MUST be reflected in the other.** The two files are semantic mirrors — not word-for-word translations, but the same content, same structure, same clauses, same version number. When editing one, always update the other in the same commit.
 
@@ -55,6 +55,8 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 | `check_pydantic.sh` | §9.1 | Detect BaseModel without `extra="forbid"`, bare dict usage |
 | `check_test_structure.sh` | §11.2 | Verify tests/ mirrors src/, toolchain config |
 | `check_type_annotations.sh` | §12.1 | Detect `Optional[str]` → should be `str \| None`, verify py.typed |
+| `check_class_file_naming.sh` | §12.2 | Verify single-class file names match class names (snake_case), exempting class directories / private mixins / multi-class files |
+| `check_file_header.sh` | §12.4 | Verify every source file opens with a responsibility-declaration comment (exempt `__init__.py`) |
 | `check_exception_handling.sh` | §13.1 | Detect `except: pass`, `except Exception: pass`, bare except |
 | `check_log_consistency.sh` | §13.3 | Cross-reference README log file names with source code |
 | `check_dependencies.sh` | §14.1-2, §19.3 | Verify uv-only deps, LICENSE file, no copyleft packages |
@@ -68,6 +70,7 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 | `check_secrets.sh` | §15.1 | Scan for IPs, keys, tokens, passwords, JWT, base64 secrets |
 | `check_local_files.sh` | §XVI | Verify no temp files outside .local/, no .log/.tmp/.bak tracked |
 | `check_readme_parity.sh` | §17.1 | Verify README.md / README.zh-CN.md content mirroring |
+| `check_docs_ascii.sh` | §17.2 | Warn on box-drawing characters in docs/ and READMEs (Mermaid required for diagrams; trees/tables allowed) |
 | `check_legacy_cleanup.sh` | §18.1 | Detect legacy/ dirs, naming anti-patterns, stale TODOs |
 | `check_gitignore.sh` | §19.2 | Verify .gitignore coverage of all required entries |
 
@@ -81,3 +84,4 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 
 v1.10.0 — task boundaries (§1.5), technique-layer completions: directory organization (§8.1), model purity (§9.1), naming as documentation (§12.2), debugging simplicity (§13.4).
 v1.10.1 — fix: check_future_annotations detects self-referencing return types (§8.6); docs/ boundary clarified (§17.2); script fixes: recursive config search, *_TEMP_* pattern, BuildKit cache, sha256 in base64 scan.
+v1.11.0 — documentation boundaries (§1.6): details in comments, structure in docs; Mermaid-only diagrams (§17.2); file-header responsibility declarations (§12.4); class-path mirroring naming (§12.2); work log for continuous handover, `work_log_current.md` + `work_log_history.md` (§17.5, §16.2 exception). New checks: check_class_file_naming.sh (§12.2), check_file_header.sh (§12.4), check_docs_ascii.sh (§17.2).
