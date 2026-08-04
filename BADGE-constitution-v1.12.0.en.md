@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.11.0
+# The BADGE Constitution v1.12.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -156,7 +156,7 @@ The computation-infrastructure separation already provides a natural foundation 
 
 ## VI. Reproducible Environments
 
-A project run on any two machines with identical hardware should produce **bit-for-bit identical** output. This is not an ideal — it's a verifiable engineering standard. If two runs produce different results, either the random seed isn't fixed, or dependency versions are inconsistent, or the code contains non-deterministic operations — all of these should be eliminated.
+A project run on any two machines with identical hardware should produce **bit-for-bit identical** output (excluding uncontrollable randomness — the full definition is in §10.1). This is not an ideal — it's a verifiable engineering standard. If two runs produce different results, either the random seed isn't fixed, or dependency versions are inconsistent, or the code contains non-deterministic operations — all of these should be eliminated. Uncontrollable randomness (wall-clock timing differences from machine load, GPU kernel selection, and other differences outside your control) is not a reproducibility violation.
 
 **Implementation points:**
 - Random seed is explicitly set in the config file, never dependent on system time or hardware state
@@ -164,7 +164,7 @@ A project run on any two machines with identical hardware should produce **bit-f
 - Docker base image is pinned to a specific SHA256 digest (not a tag — tags can be overwritten)
 - Configuration for each run is automatically backed up to the output directory, ensuring post-hoc reproducibility
 
-**Litmus test:** Two machines, same config, same seed — identical output? Two runs, identical output?
+**Litmus test:** Two machines, same config, same seed — identical output? Two runs, identical output? "Identical" means identical on-disk output after excluding uncontrollable randomness — when judging parameter placement, use the reproducibility definition in §10.1.
 
 ---
 
@@ -356,13 +356,38 @@ Multiple implementations of the same type are managed through a registry (string
 
 ### 10.1 Config-Driven Commands
 
-A project may have a small set of CLI commands (e.g. `train`, `export`), each accepting only a `--config` parameter plus infrastructure parameters. All behavior is driven by the config file — the CLI makes no logic decisions. Each command's sole responsibility is: parse arguments → load config → execute. Nothing more. CLI flags that override config values are forbidden.
+**Principle: the config file is the sole description of run output.** Run output includes everything written to disk (model weights, datasets, evaluation results, log and record files) — the on-disk location is part of the output (output_dir and run_name are both config-driven); content sent to external systems counts as output too. The only exception: content printed directly to stdout without touching disk is not output.
 
-Infrastructure parameters (`--gpus`, `--master_port`) are legitimate exceptions — they describe the runtime environment (which GPUs are available, which port is free), not business logic. Adding a new command is acceptable when it represents a fundamentally different lifecycle operation (training vs. exporting) that cannot be naturally expressed as a config toggle.
+**Reproducibility definition:** with the same config + seed, on-disk output matches after excluding uncontrollable randomness (wall-clock timing differences from machine load, GPU kernel selection, and other differences outside your control) — that is reproduction (§6). Reproduction is the basis for judging parameter placement: **whether the config.yaml backed up in the output directory (§8.5) alone can reproduce all on-disk output is the single standard for judging where a parameter belongs.**
+
+**Corollary 1: every parameter that participates in deciding output must live in the config file.** Otherwise the same config would produce different results under different CLI flags — the one-to-one mapping between config and output breaks, and the §8.5 "back up config.yaml and reproduce" promise fails.
+
+**Corollary 2: CLI flags and config fields have zero intersection.** A parameter has exactly one source of truth (§1.4). A mechanism where "the config holds a value and the CLI overrides it" is forbidden — override means two sources of truth. Adding a new command is acceptable when it represents a fundamentally different lifecycle operation (training vs. exporting) that cannot be naturally expressed as a config toggle, but the command itself is subject to this section.
+
+**CLI is allowed these parameters only (closed whitelist, applies to every CLI command):**
+1. **Input-locating parameters**: point at input files or data (`--config`, `--data`, `--limit`, `--checkpoint`) — they locate input, they are not configuration content;
+2. **Runtime-environment parameters**: never written to disk, never part of output, only affect "where it runs" (`--gpus`, `--master_port`);
+3. **Run-boundary parameters**: do not produce a complete run output (`--smoke` smoke test — equivalent to a max_steps=1 config, no training semantics changed).
+
+**Judgment criteria (technique):** for any parameter X — under the same config + seed, if different values of X change the existence, location, or controllable content of any on-disk output, X must move into the config.
+
+**Output constraint (technique):** every CLI command's on-disk output is decided by the config — "output-locating" flags (`--output`, `--output-dir`, etc.) are forbidden. Tool commands (validate/evaluate/analyze, not part of training output) are equally constrained, with three options only: print without writing to disk; accept `--config` and write into a config-decided directory; or demote to a scripts/ script (§10.2).
+
+**Poka-yoke (technique):**
+- The CLI whitelist is enumerated once in code and locked by tests — a new CLI flag must pass a "no-disk-diff" test (run twice with the same config, only X differs, assert identical on-disk output)
+- Log and record files must not contain runtime-environment metadata (GPU IDs, host paths, container names) — they are not reproducible and not output
+- Custom environment variables must not carry configuration or path parameters (§7.1): only standard CUDA/NCCL/PyTorch infrastructure variables are allowed; host-path injection goes through CLI flags (e.g. run.sh `--model-dir`)
 
 ### 10.2 CLI vs. Scripts Boundary
 
-**CLI is the stable user-facing interface. Scripts are temporary developer tools.** CLI parameters and output formats are contracts — don't change them casually. Scripts are one-off, experimental, deletable at any time, with no backward compatibility obligations. If a script is used repeatedly, by people beyond the original developer, it should be promoted to a CLI subcommand.
+**CLI is the stable user-facing interface. Scripts are temporary developer tools.** CLI parameters and output formats are contracts — don't change them casually. Scripts are one-off, experimental, deletable at any time, with no backward compatibility obligations.
+
+**Institutionalization criteria:** a script becomes an institutionalized interface the moment any of these holds — it must then be promoted to a CLI subcommand or deleted:
+- Tests exist for it in tests/
+- It is referenced by the README or docs/
+- It is used repeatedly by workflows or beyond the original developer
+
+scripts/ keeps only one-off, experimental, non-institutionalized tools. Scripts promoted to CLI subcommands are subject to §10.1 (input-locating flags + config-decided output).
 
 ---
 

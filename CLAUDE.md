@@ -3,8 +3,8 @@
 ## Bilingual Sync Requirement
 
 The BADGE constitution exists in two versions:
-- `BADGE-constitution-v1.11.0.en.md` — English
-- `BADGE-constitution-v1.11.0.zh-CN.md` — Chinese
+- `BADGE-constitution-v1.12.0.en.md` — English
+- `BADGE-constitution-v1.12.0.zh-CN.md` — Chinese
 
 **Any change to one version MUST be reflected in the other.** The two files are semantic mirrors — not word-for-word translations, but the same content, same structure, same clauses, same version number. When editing one, always update the other in the same commit.
 
@@ -85,3 +85,4 @@ Scripts are zero-dependency (bash + grep + git only). They define the exact matc
 v1.10.0 — task boundaries (§1.5), technique-layer completions: directory organization (§8.1), model purity (§9.1), naming as documentation (§12.2), debugging simplicity (§13.4).
 v1.10.1 — fix: check_future_annotations detects self-referencing return types (§8.6); docs/ boundary clarified (§17.2); script fixes: recursive config search, *_TEMP_* pattern, BuildKit cache, sha256 in base64 scan.
 v1.11.0 — documentation boundaries (§1.6): details in comments, structure in docs; Mermaid-only diagrams (§17.2); file-header responsibility declarations (§12.4); class-path mirroring naming (§12.2); work log for continuous handover, `work_log_current.md` + `work_log_history.md` (§17.5, §16.2 exception). New checks: check_class_file_naming.sh (§12.2), check_file_header.sh (§12.4), check_docs_ascii.sh (§17.2).
+v1.12.0 — config-output reproducibility boundary (§10.1 rewritten): output = everything written to disk (location included), reproducibility defined as on-disk match excluding uncontrollable randomness, CLI closed whitelist (input-locating / runtime-environment / run-boundary parameters only), output-locating flags forbidden, CLI/config zero intersection (§6 litmus test aligned). §10.2 institutionalization criteria: tested/referenced/repeatedly-used scripts must be promoted to CLI or deleted.
