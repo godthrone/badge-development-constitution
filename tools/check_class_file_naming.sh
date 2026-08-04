@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# check_class_file_naming.sh — Verify single-class file names match class
-# names per §12.2 (class-path mirroring).
+# check_class_file_naming.sh — Verify single-class file names encode the
+# functional part of the class name per §12.2 (class-path mirroring).
 # Part of BADGE Constitution §12.2
 #
-# §12.2: "In a non-class-directory, a single-class file's name must match
-# the class name one-to-one — PascalCase class name converted to snake_case."
+# §12.2: "Class name CamelCase words decompose into path components —
+# package → directory → filename (snake_case), one word per level.
+# The directory hierarchy provides domain context; the filename only
+# needs to encode the functional part, not the full flattened class name."
+#
+# Check: the filename (without .py) must be a suffix of the full class
+# name converted to snake_case.  This ensures the functional part of the
+# class name is reflected in the filename, while the directory hierarchy
+# carries the domain prefix.
 #
 # Exemptions (per §12.2):
 #   - Class directories (§8.3): a sibling adapter.py means the directory
@@ -78,10 +85,17 @@ while IFS= read -r file; do
     DIR=$(dirname "$file")
     [ -f "$DIR/adapter.py" ] && continue
 
-    EXPECTED=$(to_snake "$CLASS")
+    EXPECTED_FULL=$(to_snake "$CLASS")
     BASENAME=$(basename "$file")
-    if [ "$BASENAME" != "$EXPECTED.py" ]; then
-        echo "  [FAIL] $file: single class '$CLASS' → expected file name '$EXPECTED.py' (§12.2 class-path mirroring)"
+    BASENAME_NOEXT="${BASENAME%.py}"
+    # The filename (without .py) must be a suffix of the full snake_case
+    # class name.  The directory hierarchy carries the domain prefix.
+    # Exact match (full class name flattened) OR suffix match (directory
+    # hierarchy carries the domain prefix, filename carries the functional part).
+    if [ "${EXPECTED_FULL}" = "${BASENAME_NOEXT}" ] || [ "${EXPECTED_FULL}" != "${EXPECTED_FULL%_${BASENAME_NOEXT}}" ]; then
+        :
+    else
+        echo "  [FAIL] $file: single class '$CLASS' (full snake: ${EXPECTED_FULL}) → expected file name to be a suffix of '${EXPECTED_FULL}.py' (§12.2 class-path mirroring)"
         FAIL=1
     fi
 done <<< "$PY_FILES"

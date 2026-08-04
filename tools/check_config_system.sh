@@ -107,7 +107,8 @@ if [ -f "$PROJECT_ROOT/src"/*/cli.py ] 2>/dev/null || [ -f "$PROJECT_ROOT/src"/*
             echo "$CLI_OVERRIDES" | while IFS= read -r line; do
                 echo "  $line"
             done
-            echo "         CLI should accept only --config + infrastructure params (§10.1)."
+            echo "         CLI should accept only --config + parameters that meet the three principles (§10.1):"
+	            echo "         input-locating, runtime-environment, or run-boundary. Review each manually."
         fi
     fi
 fi

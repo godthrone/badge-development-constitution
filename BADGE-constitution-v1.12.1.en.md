@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.12.0
+# The BADGE Constitution v1.12.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -364,17 +364,19 @@ Multiple implementations of the same type are managed through a registry (string
 
 **Corollary 2: CLI flags and config fields have zero intersection.** A parameter has exactly one source of truth (§1.4). A mechanism where "the config holds a value and the CLI overrides it" is forbidden — override means two sources of truth. Adding a new command is acceptable when it represents a fundamentally different lifecycle operation (training vs. exporting) that cannot be naturally expressed as a config toggle, but the command itself is subject to this section.
 
-**CLI is allowed these parameters only (closed whitelist, applies to every CLI command):**
-1. **Input-locating parameters**: point at input files or data (`--config`, `--data`, `--limit`, `--checkpoint`) — they locate input, they are not configuration content;
-2. **Runtime-environment parameters**: never written to disk, never part of output, only affect "where it runs" (`--gpus`, `--master_port`);
-3. **Run-boundary parameters**: do not produce a complete run output (`--smoke` smoke test — equivalent to a max_steps=1 config, no training semantics changed).
+**CLI parameters follow three principles (applies to every CLI command):**
+1. **Input-locating parameters**: point at input files or data — they locate input, they are not configuration content. `--config` is the canonical example; others like `--data`, `--limit`, `--checkpoint` must be judged by project semantics;
+2. **Runtime-environment parameters**: never written to disk, never part of output, only affect "where it runs" (e.g. `--gpus`, `--master_port`);
+3. **Run-boundary parameters**: do not produce a complete run output (e.g. `--smoke` smoke test — equivalent to a max_steps=1 config, no training semantics changed).
+
+**`--config` is the only explicitly named parameter** — other parameter names vary by project and must be reviewed against the three principles: under the same config + seed, does a different value of this parameter change on-disk output? If yes, it must move into config.
 
 **Judgment criteria (technique):** for any parameter X — under the same config + seed, if different values of X change the existence, location, or controllable content of any on-disk output, X must move into the config.
 
 **Output constraint (technique):** every CLI command's on-disk output is decided by the config — "output-locating" flags (`--output`, `--output-dir`, etc.) are forbidden. Tool commands (validate/evaluate/analyze, not part of training output) are equally constrained, with three options only: print without writing to disk; accept `--config` and write into a config-decided directory; or demote to a scripts/ script (§10.2).
 
 **Poka-yoke (technique):**
-- The CLI whitelist is enumerated once in code and locked by tests — a new CLI flag must pass a "no-disk-diff" test (run twice with the same config, only X differs, assert identical on-disk output)
+- The CLI parameter list is enumerated once in code and locked by tests — a new CLI flag must pass a "no-disk-diff" test (run twice with the same config, only X differs, assert identical on-disk output)
 - Log and record files must not contain runtime-environment metadata (GPU IDs, host paths, container names) — they are not reproducible and not output
 - Custom environment variables must not carry configuration or path parameters (§7.1): only standard CUDA/NCCL/PyTorch infrastructure variables are allowed; host-path injection goes through CLI flags (e.g. run.sh `--model-dir`)
 
@@ -419,7 +421,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 **Naming as documentation:** File names are the first line of documentation for a codebase. From directory hierarchy and file names alone, a reader should be able to infer the file's purpose, its owning module, and its inheritance relationships. File names are not labels for yourself — they are navigation signals for future readers (including AI agents). When a file must be renamed for a new reader to understand its responsibility, the original naming was a failure.
 
-**Class-path mirroring:** A class name should encode two pieces of information — its **domain** and its **function**. The domain must map to a directory level in the path; the function must map to a file level in the path. `Qwen35Adapter` should live at `.../qwen35_36/adapter.py`, not scattered inside `utils.py`. The mechanical rule follows: **in a non-class-directory, a single-class file's name must match the class name one-to-one** — the PascalCase class name converted to snake_case (`Qwen35Adapter` → `qwen35_adapter.py`); the two differ only in naming style. Exemptions: inside class directories (§8.3), files are named by functional domain and the directory name carries class-name locality; mixin classes (`_`-prefixed or `*Mixin`-suffixed) are named by function (`_Qwen35GenerationMethods` in `generation.py`, `CheckpointMixin` in `checkpoint.py`); same-family multi-class files (§8.4) are named by functional family (`Qwen35*StageOp` classes in `ops.py`); data-container types (frozen dataclass, pydantic models) are attached to the function family that operates on them and are named by that family (`CompareResult` in `compare.py`); test files are named after the module under test (§11.2), and their helper classes are exempt.
+**Class-path mirroring:** A class name should encode two pieces of information — its **domain** and its **function**. The domain must map to a directory level in the path; the function must map to a file level in the path. `Qwen35Adapter` should live at `.../qwen35_36/adapter.py`, not scattered inside `utils.py`. The mechanical rule follows: **a class name's CamelCase words decompose into path components — package → directory → filename (snake_case), one word per level.** `GraspoFlowTrainer` → `graspo/flow/trainer/trainer.py` (`Graspo`=package, `Flow`=directory, `Trainer`=file), `GRASPORippleLoss` → `graspo/ripple/loss.py` (`Ripple`=directory, `Loss`=file). **The directory hierarchy already provides domain context; the filename only needs to encode the functional part** — `graspo_flow_trainer.py` or `graspo_ripple_loss.py` would be redundant, repeating path information already encoded in the directory structure. Exemptions: inside class directories (§8.3), files are named by functional domain and the directory name carries class-name locality; mixin classes (`_`-prefixed or `*Mixin`-suffixed) are named by function (`_Qwen35GenerationMethods` in `generation.py`, `CheckpointMixin` in `checkpoint.py`); same-family multi-class files (§8.4) are named by functional family (`Qwen35*StageOp` classes in `ops.py`); data-container types (frozen dataclass, pydantic models) are attached to the function family that operates on them and are named by that family (`CompareResult` in `compare.py`); test files are named after the module under test (§11.2), and their helper classes are exempt.
 
 **Why constrain classes but not functions?** Functions get their domain context from the file that contains them — locality is the file's job. Classes are self-locating units referenced across files, and a class may outgrow into a directory (§8.3) — a class name must carry its own locality.
 
@@ -429,7 +431,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 `README.md` and `README.zh-CN.md` are bilingual — the project's front door is accessible to both the English and Chinese developer communities, the two most active language groups in open source.
 
-All other files — comments, docstrings, architecture documentation, config annotations — use **either Chinese or English, at the author's discretion**. No other languages are permitted. Choose one language per file and stay consistent within that file.
+All other files — comments, docstrings, architecture documentation, config annotations — use **either Chinese or English, at the author's discretion**. No other languages are permitted. Keep language broadly consistent within a file; a small amount of technical terms, code references, or structural separators may remain in English.
 
 **Config template comments** (`config_example.yaml`) default to **English** — the config template is a user-facing interface, and English is the common language of the global developer community.
 
