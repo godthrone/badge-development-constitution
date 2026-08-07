@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.12.1
+# The BADGE Constitution v1.13.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -96,6 +96,16 @@ What is forbidden: using `hasattr` to probe business interfaces in your own proj
 Data must be validated when crossing boundaries. Validate all config fields at load time, reject unknown fields, check required fields. Validate request format before sending, validate response structure on receipt. Check before writing output — don't overwrite existing data, don't leak sensitive information. Errors are intercepted at the boundary — illegal data never enters the system, sensitive data never leaves it.
 
 **A critical distinction:** boundary validation that rejects an illegal request (e.g. missing config) is not a "fallback" — it's a **defense line**. Defense lines block. Fallbacks route around. Don't confuse them.
+
+### 2.4 Operational Foolproofing
+
+**Principle:** A destructive operation must make "what is about to happen" visible to the operator before execution. Deletion commands (files, directories, images, containers, database records, etc.) must not rely on implicit wildcard expansion — the result of wildcard expansion is invisible to the operator before execution, and this is the root cause of accidental deletion. The way to foolproof is not to trust the operator to be careful; it is to make it impossible for the operator not to see.
+
+**Rule:** Before executing any deletion command, first list the targets with a listing command (`ls`, `docker images`, `git branch`, etc.), confirm they are correct, then delete using specific names one by one. **Wildcards (`*`, `?`, `[...]` and other shell glob patterns) are strictly forbidden in deletion commands.**
+
+**Technique (wildcard exception handling):** When the number of files to delete is genuinely large and a wildcard is warranted, output the full deletion command to the user for manual review and execution. AI assistants must not automatically execute deletion commands containing wildcards. This is not a matter of judgment — it is a design constraint. Just like the car rev limiter in the opening of §2: it's not about distrusting the driver; it's about giving no one the opportunity to make a mistake.
+
+**Litmus test:** Before executing a deletion, can you name every single target that will be deleted? If not, the operation does not comply with this clause.
 
 ---
 
@@ -405,7 +415,17 @@ The `tests/` directory tree mirrors the `src/` directory tree. Finding a test fi
 
 ### 11.3 Testing Standards
 
-Unit tests cover public interfaces, with external dependencies mocked. End-to-end tests cover the full pipeline. Parametrized tests cover boundary conditions. Test function names describe three elements: what was done, under what conditions, with what expected result. Every test is independent — no dependency on execution order.
+Unit tests cover public interfaces, with external dependencies mocked. End-to-end tests cover the full pipeline. Parametrized tests cover boundary conditions. Test function names describe three elements: what was done, under what conditions, with what expected result. Every test is independent — no dependency on execution order. For the methodology of how tests drive algorithm development, see §11.4.
+
+### 11.4 Test-Data-Driven Development
+
+For adaptation algorithms in complex scenarios (e.g. model adapters, protocol converters, format compatibility layers), the completeness of generalized scenarios is extremely difficult to exhaustively guarantee through formal analysis. In such cases, test-data-driven development is an effective alternative path.
+
+**Principle:** Use continuously enriched test scenarios as empirical anchor points for the algorithm, in place of formal completeness proofs. The richer the test scenarios, the higher the marginal cost of "cheating" through hardcoded branches, and the algorithm is forced toward genuine logical generalization. However, this is not "add an if for each new case" — each batch of new test scenarios should be followed by an abstraction refactor, so the algorithm covers more scenarios with simpler logic, rather than stacking patches on a branching tree.
+
+**Rule:** Cheating and hardcoding to pass test data is forbidden. Specifically: do not add hardcoded branches in the algorithm targeting specific test inputs; do not relax assertions in tests to "pass" them; when a new test scenario fails, cover it by refactoring the algorithm's logic, not by appending conditional branches to existing logic.
+
+**Technique:** Start from a small set of typical scenarios, progressively expand to boundary and edge cases, and after each iteration, examine whether the algorithm's logic has become simpler or more complex. If the algorithm's line count grows linearly with the number of test scenarios, cheating or patch accumulation is at work — re-abstract. The sign of convergence: new test scenarios pass without modifying the algorithm's logic.
 
 ---
 
@@ -542,6 +562,33 @@ docker build --build-arg VERSION="${VERSION}" -t "${IMAGE_NAME}" -f docker/Docke
 ```
 
 - **build.sh version:** The version MUST be obtained via `git describe --tags`, not hardcoded. The `IMAGE_NAME` environment variable override remains available for manual testing, but the default MUST come from git tags.
+
+**Proxy configuration must not enter the image:** When a proxy is needed during builds to access external networks (e.g. `HTTP_PROXY`, `HTTPS_PROXY`), proxy environment variables **must not** be written into the Dockerfile via `ENV`. Pass them via `--build-arg` in `build.sh` and declare them only as `ARG` in the Dockerfile, so the final image contains no residual proxy configuration. `ARG` values do not persist into the final image; `ENV` values do — a running container that inherits unreachable proxy environment variables will suffer network failures. Internal proxy addresses also constitute secret information as defined in §15.1 — writing them into a Dockerfile is equivalent to permanently embedding internal addresses in git history.
+
+**Anti-pattern (forbidden):**
+```dockerfile
+ENV HTTP_PROXY=http://proxy.internal.example.com:8080
+ENV HTTPS_PROXY=http://proxy.internal.example.com:8080
+```
+
+**Correct pattern (recommended):**
+In Dockerfile:
+```dockerfile
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+```
+
+In build.sh:
+```bash
+docker build \
+    --build-arg HTTP_PROXY="${HTTP_PROXY:-}" \
+    --build-arg HTTPS_PROXY="${HTTPS_PROXY:-}" \
+    --build-arg NO_PROXY="${NO_PROXY:-}" \
+    -t "${IMAGE_NAME}" -f docker/Dockerfile .
+```
+
+This rule applies to all configuration that is only needed at build time and must not persist into the runtime image — proxy settings are the most common case, but it also covers private pip mirror URLs, build cache configuration, and similar. Litmus test: is this configuration still needed when the container runs? If not, it must not appear in the final image.
 
 ---
 

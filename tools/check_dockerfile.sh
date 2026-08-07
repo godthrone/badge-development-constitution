@@ -8,6 +8,7 @@
 #   - Two-stage build (dependencies + source layers)
 #   - uv is used for dependency installation (not pip install -r requirements.txt)
 #   - build.sh or docker/build.sh exists
+#   - No proxy ENV directives (proxy must use --build-arg per §14.3)
 #
 # Complemented by: check_docker_version.sh (build.sh tag verification)
 #                  check_reproducibility.sh (SHA256 digest check)
@@ -97,6 +98,20 @@ elif [ -f "$PROJECT_ROOT/docker/build.sh" ]; then
     echo "  [OK] docker/build.sh exists"
 else
     echo "  [WARN] No build.sh found — recommend encapsulating build command (§14.3)."
+fi
+
+# ─── 8. Proxy ENV check ──────────────────────────────────────────────────
+
+PROXY_ENV=$(grep -inE '^\s*ENV\s+(HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy)\b' "$DOCKERFILE" 2>/dev/null || true)
+if [ -n "$PROXY_ENV" ]; then
+    echo "[FAIL] check_dockerfile: Proxy environment variables found in ENV directive."
+    echo "         Proxy settings must be passed via --build-arg in build.sh, not ENV in Dockerfile."
+    echo "         ENV variables persist in the final image and will break networking"
+    echo "         in environments without the proxy (§14.3)."
+    echo "$PROXY_ENV" | while IFS= read -r line; do echo "  $line"; done
+    FAIL=1
+else
+    echo "  [OK] No proxy ENV directives found (proxy passed via ARG only)"
 fi
 
 echo ""
