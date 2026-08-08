@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check_secrets.sh — Scan tracked files for secrets (§15.1)
+# check_secrets.sh — Scan tracked files and (optionally) git history for secrets (§15.1)
 # Part of BADGE Constitution §15.1
 #
 # Checks for:
@@ -10,29 +10,36 @@
 #   - Internal file paths, SSH connection strings
 #   - .env tracked by git
 #
-# Usage: ./check_secrets.sh [project_root]
+# Usage:
+#   ./check_secrets.sh [project_root]              scan current tree + git history
+#   ./check_secrets.sh --no-history [project_root]  scan current working tree only
 #   project_root defaults to the git repo root of the current directory.
 
 set -euo pipefail
 
-PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
+# ─── Argument parsing ────────────────────────────────────────────────────
+
+HISTORY_MODE=true
+PROJECT_ROOT=""
+for arg in "${@}"; do
+    case "$arg" in
+        --no-history) HISTORY_MODE=false ;;
+        -*) echo "Usage: check_secrets.sh [--no-history] [project_root]" >&2; exit 2 ;;
+        *) PROJECT_ROOT="$arg" ;;
+    esac
+done
+
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"
 
-# Collect tracked files
+HAS_GIT=false
 if git rev-parse --git-dir &>/dev/null; then
-    FILES=$(git ls-files --cached --others --exclude-standard 2>/dev/null || true)
-    if [ -z "$FILES" ]; then
-        echo "[PASS] check_secrets: No tracked files found."
-        exit 0
-    fi
-else
-    echo "[SKIP] check_secrets: Not a git repository."
-    exit 0
+    HAS_GIT=true
 fi
 
 FAIL=0
 
-# ─── Pattern definitions ───────────────────────────────────────────────
+# ─── Pattern definitions ─────────────────────────────────────────────────
 
 # IPv4 address (catches 10.x, 172.16-31.x, 192.168.x, and any internal IP)
 IPV4_PATTERN='(^|[^0-9])([0-9]{1,3}\.){3}[0-9]{1,3}($|[^0-9])'
@@ -85,7 +92,7 @@ PRIVATE_IP_PATTERNS=(
     '192\.168\.[0-9]{1,3}\.[0-9]{1,3}'
 )
 
-# ─── Helper ─────────────────────────────────────────────────────────────
+# ─── Helpers ─────────────────────────────────────────────────────────────
 
 grep_tracked() {
     local pattern="$1"
@@ -104,6 +111,67 @@ print_matches() {
         FAIL=1
     fi
 }
+
+# ─── Git history stream builder ──────────────────────────────────────────
+#
+# Builds a temp file of all added lines from the entire git history.
+# Each line is formatted as: <commit_short>:<file>:<line_content>
+# This is scanned once, then all patterns are applied to it — much faster
+# than running git log per pattern.
+
+_build_history_stream() {
+    local stream="$1"
+    if ! $HAS_GIT; then
+        return 1
+    fi
+    git log --all -p --format="%H" 2>/dev/null | awk '
+        /^commit /  { commit=substr($0,8,9) }
+        /^---\//   { next }
+        /^\+\+\+ /  { file=$0; sub(/^\+\+\+ b\//, "", file) }
+        /^\+/       { if ($0 !~ /^\+\+\+/) print commit ":" file ":" substr($0,2) }
+    ' > "$stream"
+}
+
+grep_history() {
+    local stream="$1"
+    local pattern="$2"
+    local grep_opts="${3:--nE}"
+    if [ -s "$stream" ]; then
+        grep $grep_opts "$pattern" "$stream" 2>/dev/null || true
+    fi
+}
+
+# Filter out common false positives from history scan results.
+# Placeholder usernames (user, admin, test), demo hostnames (gpu-host, server),
+# standard Docker paths, and version strings in lockfiles.
+_filter_history_false_positives() {
+    grep -vE \
+        -e '/home/(user|admin|test|example)/' \
+        -e 'ssh (user|admin|test|example)@' \
+        -e '@(gpu-host|localhost|example\.com|server\.example)' \
+        -e ':/root/\.(local|cache|config)/' \
+        -e ':/root/\.local/bin' \
+        -e ':docker/Dockerfile' \
+        -e 'RUN --mount=type=cache,target=/root/' \
+        || true
+}
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 1: Current working tree scan (always runs)
+# ─────────────────────────────────────────────────────────────────────────
+
+if $HAS_GIT; then
+    FILES=$(git ls-files --cached --others --exclude-standard 2>/dev/null || true)
+    if [ -z "$FILES" ]; then
+        echo "[PASS] check_secrets: No tracked files found."
+        if ! $HISTORY_MODE; then
+            exit 0
+        fi
+    fi
+else
+    echo "[SKIP] check_secrets: Not a git repository."
+    exit 0
+fi
 
 # ─── Scan: IP addresses ──────────────────────────────────────────────────
 
@@ -246,6 +314,149 @@ echo "Scanning for cloud credential references..."
 AWS_CRED_MATCHES=$(grep_tracked '~/.aws/credentials\|AWS_ACCESS_KEY_ID\|AWS_SECRET_ACCESS_KEY\|GOOGLE_APPLICATION_CREDENTIALS\|AZURE_CLIENT_SECRET' | \
     grep -v '\.env-example' | grep -v 'badge-development-constitution/' || true)
 print_matches "Cloud credential reference" "$AWS_CRED_MATCHES"
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 2: Git history scan (only when --history is passed)
+# ─────────────────────────────────────────────────────────────────────────
+
+if $HISTORY_MODE; then
+    echo ""
+    echo "─── Scanning git history for secrets ───"
+
+    HIST_STREAM=$(mktemp)
+    trap "rm -f '$HIST_STREAM'" EXIT
+
+    _build_history_stream "$HIST_STREAM"
+
+    if [ ! -s "$HIST_STREAM" ]; then
+        echo "[PASS] check_secrets (history): No git history to scan."
+    else
+        HISTORY_FAIL=0
+
+        # ── History: Private IPs ──
+
+        echo "Scanning history for private IPs..."
+        HIST_IP=$(grep_history "$HIST_STREAM" "$IPV4_PATTERN")
+        HIST_IP=$(echo "$HIST_IP" | grep -v '0\.0\.0\.0' | grep -v '127\.0\.0\.1' | \
+            grep -v '255\.255\.255\.255' | grep -v 'files\.pythonhosted\.org' | \
+            grep -v ':uv\.lock:' | grep -v 'version.*=.*"[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+"' || true)
+        HIST_PRIVATE_IP=$(echo "$HIST_IP" | grep -E "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" | \
+            _filter_history_false_positives || true)
+        if [ -n "$HIST_PRIVATE_IP" ]; then
+            echo "[FAIL] check_secrets (history): Private/internal IPs in git history:"
+            echo "$HIST_PRIVATE_IP" | head -30 | while IFS= read -r line; do
+                echo "  $line"
+            done
+            COUNT=$(echo "$HIST_PRIVATE_IP" | wc -l)
+            if [ "$COUNT" -gt 30 ]; then
+                echo "  ... and $((COUNT - 30)) more lines"
+            fi
+            HISTORY_FAIL=1
+        fi
+
+        # ── History: API keys ──
+
+        echo "Scanning history for API keys and tokens..."
+        for pattern in "${KEY_PATTERNS[@]}"; do
+            HIST_KEY=$(grep_history "$HIST_STREAM" "$pattern" | \
+                grep -v 'badge-development-constitution/' | grep -v '\.env-example' || true)
+            if [ -n "$HIST_KEY" ]; then
+                echo "[FAIL] check_secrets (history): API key/token in git history:"
+                echo "$HIST_KEY" | head -10 | while IFS= read -r line; do
+                    echo "  $line"
+                done
+                HISTORY_FAIL=1
+            fi
+        done
+
+        # ── History: Hardcoded credentials ──
+
+        echo "Scanning history for hardcoded credentials..."
+        for pattern in "${CREDENTIAL_PATTERNS[@]}"; do
+            HIST_CRED=$(grep_history "$HIST_STREAM" "$pattern" | \
+                grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' || true)
+            if [ -n "$HIST_CRED" ]; then
+                echo "[FAIL] check_secrets (history): Hardcoded credential in git history:"
+                echo "$HIST_CRED" | head -10 | while IFS= read -r line; do
+                    echo "  $line"
+                done
+                HISTORY_FAIL=1
+            fi
+        done
+
+        # ── History: SSH strings ──
+
+        echo "Scanning history for SSH strings..."
+        HIST_SSH=$(grep_history "$HIST_STREAM" 'ssh.*@[0-9]' | \
+            grep -v 'badge-development-constitution/' | _filter_history_false_positives || true)
+        if [ -n "$HIST_SSH" ]; then
+            echo "[FAIL] check_secrets (history): SSH connection string in git history:"
+            echo "$HIST_SSH" | head -10 | while IFS= read -r line; do
+                echo "  $line"
+            done
+            HISTORY_FAIL=1
+        fi
+
+        HIST_SSH_USER=$(grep_history "$HIST_STREAM" 'ssh\s+\w+@[a-zA-Z0-9.-]+' | \
+            grep -v 'badge-development-constitution/' | _filter_history_false_positives || true)
+        if [ -n "$HIST_SSH_USER" ]; then
+            echo "[FAIL] check_secrets (history): SSH user@host in git history:"
+            echo "$HIST_SSH_USER" | head -10 | while IFS= read -r line; do
+                echo "  $line"
+            done
+            HISTORY_FAIL=1
+        fi
+
+        # ── History: Internal paths ──
+
+        echo "Scanning history for internal paths..."
+        for path_pattern in "${INTERNAL_PATH_PATTERNS[@]}"; do
+            HIST_PATH=$(grep_history "$HIST_STREAM" "$path_pattern" | \
+                grep -v 'badge-development-constitution/' | \
+                grep -v 'RUN --mount=type=cache,target=/root/.cache' | \
+                _filter_history_false_positives || true)
+            if [ -n "$HIST_PATH" ]; then
+                echo "[FAIL] check_secrets (history): Internal path ($path_pattern) in git history:"
+                echo "$HIST_PATH" | head -10 | while IFS= read -r line; do
+                    echo "  $line"
+                done
+                HISTORY_FAIL=1
+            fi
+        done
+
+        # ── History: JWT tokens ──
+
+        echo "Scanning history for JWT tokens..."
+        HIST_JWT=$(grep_history "$HIST_STREAM" "$JWT_PATTERN" | \
+            grep -v 'badge-development-constitution/' || true)
+        if [ -n "$HIST_JWT" ]; then
+            echo "[FAIL] check_secrets (history): JWT token in git history:"
+            echo "$HIST_JWT" | head -10 | while IFS= read -r line; do
+                echo "  $line"
+            done
+            HISTORY_FAIL=1
+        fi
+
+        # ── History: .env files that were once tracked ──
+
+        echo "Scanning history for .env files..."
+        if git log --all --diff-filter=A --name-only --format="" -- '.env' 2>/dev/null | grep -q '.'; then
+            echo "[FAIL] check_secrets (history): .env file was tracked in git history:"
+            git log --all --diff-filter=A --name-only --oneline -- '.env' 2>/dev/null | head -10 | while IFS= read -r line; do
+                echo "  $line"
+            done
+            HISTORY_FAIL=1
+        fi
+
+        # ── History: Result ──
+
+        if [ $HISTORY_FAIL -eq 0 ]; then
+            echo "[PASS] check_secrets (history): No secrets found in git history."
+        else
+            FAIL=1
+        fi
+    fi
+fi
 
 # ─── Result ──────────────────────────────────────────────────────────────
 

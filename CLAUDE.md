@@ -3,8 +3,8 @@
 ## Bilingual Sync Requirement
 
 The BADGE constitution exists in two versions:
-- `BADGE-constitution-v1.13.0.en.md` — English
-- `BADGE-constitution-v1.13.0.zh-CN.md` — Chinese
+- `BADGE-constitution-v1.14.0.en.md` — English
+- `BADGE-constitution-v1.14.0.zh-CN.md` — Chinese
 
 **Any change to one version MUST be reflected in the other.** The two files are semantic mirrors — not word-for-word translations, but the same content, same structure, same clauses, same version number. When editing one, always update the other in the same commit.
 
@@ -88,3 +88,4 @@ v1.11.0 — documentation boundaries (§1.6): details in comments, structure in 
 v1.12.0 — config-output reproducibility boundary (§10.1 rewritten): output = everything written to disk (location included), reproducibility defined as on-disk match excluding uncontrollable randomness, CLI closed whitelist (input-locating / runtime-environment / run-boundary parameters only), output-locating flags forbidden, CLI/config zero intersection (§6 litmus test aligned). §10.2 institutionalization criteria: tested/referenced/repeatedly-used scripts must be promoted to CLI or deleted.
 v1.12.1 — §12.2 class-path mirroring rule relaxed: filename only needs to encode the functional part of the class name, directory hierarchy carries domain prefix. `GraspoFlowTrainer` → `graspo/flow/trainer/trainer.py` (not `graspo_flow_trainer.py`). check_class_file_naming.sh updated to suffix-match logic.
 v1.13.0 — new §2.4 operational foolproofing: destructive operations must list targets before deletion, wildcards forbidden in deletion commands. New §11.4 test-data-driven development: for complex adaptation algorithms, use continuously enriched test scenarios to force convergence toward logical generalization. §14.3 proxy configuration: proxy must not be baked into Dockerfile via ENV; pass via --build-arg in build.sh. Fixes: CLAUDE.md "22 checks" → "25 checks", check_version.sh description corrected.
+v1.14.0 — check_secrets.sh gains git history scan (default on, --no-history to skip): streams all added lines from full git history through the same pattern suite, with false-positive filters for placeholder usernames, demo hostnames, and Dockerfile standard paths. check_all.sh switches to history-by-default and passes --no-history through.

@@ -3,6 +3,7 @@
 # Part of BADGE Constitution
 #
 # Usage: ./check_all.sh [project_root]
+#        ./check_all.sh --no-history [project_root]   skip git history scan (faster)
 #   project_root defaults to the git repo root of the current directory.
 #
 # Exit code: 0 if all checks pass, 1 if any check fails.
@@ -10,10 +11,23 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
+
+# ─── Argument parsing ────────────────────────────────────────────────────
+
+NO_HISTORY_FLAG=""
+PROJECT_ROOT=""
+for arg in "${@}"; do
+    case "$arg" in
+        --no-history) NO_HISTORY_FLAG="--no-history" ;;
+        -*) echo "Usage: check_all.sh [--no-history] [project_root]" >&2; exit 2 ;;
+        *) PROJECT_ROOT="$arg" ;;
+    esac
+done
+
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 
 # Dynamically read version from the English constitution
-VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.13.0.en.md" 2>/dev/null || echo "unknown")
+VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.14.0.en.md" 2>/dev/null || echo "unknown")
 
 echo "============================================"
 echo " BADGE Constitution v$VERSION — Compliance Check"
@@ -29,10 +43,11 @@ FAILED_CHECKS=()
 run_check() {
     local name="$1"
     local script="$2"
+    shift 2
     echo "── $name ──"
     # Capture exit code
     local exit_code=0
-    "$script" "$PROJECT_ROOT" || exit_code=$?
+    "$script" "$PROJECT_ROOT" "$@" || exit_code=$?
     if [ $exit_code -eq 0 ]; then
         PASS_COUNT=$((PASS_COUNT + 1))
     else
@@ -109,7 +124,7 @@ run_check "Docker Image Version (§14.3)"       "$SCRIPT_DIR/check_docker_versio
 # ============================================================================
 
 # §15.1 — Secrets Scan
-run_check "Secrets Scan (§15.1)"               "$SCRIPT_DIR/check_secrets.sh"
+run_check "Secrets Scan (§15.1)"               "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG
 
 # §XVI — Temporary Files
 run_check "Temporary Files (§XVI)"             "$SCRIPT_DIR/check_local_files.sh"
