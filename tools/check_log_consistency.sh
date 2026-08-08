@@ -55,7 +55,7 @@ if [ -d "$PROJECT_ROOT/src" ]; then
     #   open(".../train.log")
     #   "train.log"
     #   'rollouts.readable.jsonl'
-    CODE_LOG_NAMES=$(grep -rhoE "['\"]([a-zA-Z0-9_./-]+\.(log|jsonl|txt))['\"]" \
+    CODE_LOG_NAMES=$(grep -rhoE "['\"]([a-zA-Z0-9_./-]+\.(log|jsonl|txt|json))['\"]" \
         "$PROJECT_ROOT/src/" 2>/dev/null | \
         tr -d "'\"" | \
         sed 's|.*/||' | \
