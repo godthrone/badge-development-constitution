@@ -43,7 +43,6 @@ fi
 REQUIRED_DIRS=(
     "tests:TDD directory"
     "docker:Docker build directory"
-    "scripts:Utility scripts directory"
 )
 
 for entry in "${REQUIRED_DIRS[@]}"; do
@@ -56,6 +55,14 @@ for entry in "${REQUIRED_DIRS[@]}"; do
         FAIL=1
     fi
 done
+
+# ─── 2b. Optional: scripts/ (v1.14.1: §10.2 institutionalization) ───────
+# scripts/ is optional — once all tools are promoted to CLI or deleted
+# (§10.2), the directory is legitimately absent. Kept only as a
+# compatibility note so a present scripts/ still passes.
+if [ -d "$PROJECT_ROOT/scripts" ]; then
+    echo "  [OK] scripts/ — utility scripts directory (optional, §10.2)"
+fi
 
 # ─── 3. Config directory or file ────────────────────────────────────────
 

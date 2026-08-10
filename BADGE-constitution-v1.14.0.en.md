@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.14.0
+# The BADGE Constitution v1.14.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -198,7 +198,7 @@ Every project provides a `config_example.yaml` containing all fields, comments, 
 
 Config parameters are the boundary between the user and the system. Poorly designed parameters can't be fixed by better documentation — users will be misled by ambiguous names, overwhelmed by redundant knobs, and trapped by coupled parameters. Three principles of parameter design:
 
-**1. No useless parameters.** If a value can be derived automatically, don't make the user specify it. A parameter that is uniquely determined by other parameters should not exist — every extra parameter is one more opportunity for user error. `total_steps` can be derived from `max_steps × optimize_iterations_per_step × rollout_group_size`, so don't expose it. `num_layers` is known from the model config file, so don't ask the user to fill it in. The principle: **the user should only specify what they genuinely care about and what the system cannot decide for them.**
+**1. No useless parameters.** If a value can be derived automatically, don't make the user specify it. A parameter that is uniquely determined by other parameters should not exist — every extra parameter is one more opportunity for user error. `decay_steps` is the decay span the user genuinely cares about; don't make them derive it from training length. `num_layers` is known from the model config file, so don't ask the user to fill it in. The principle: **the user should only specify what they genuinely care about and what the system cannot decide for them.**
 
 **2. Orthogonal parameters.** Parameters should be independent of each other — adjusting one should not change the semantics of another. If changing `warmup_steps` requires also changing `total_steps` for the scheduler to work correctly, the two parameters are coupled and the design is flawed. Orthogonal configuration lets users independently optimize each dimension without maintaining a mental "parameter linkage table."
 
@@ -231,7 +231,7 @@ project/
 │   ├── core/
 │   ├── backends/
 │   └── e2e/                 # End-to-end tests
-├── scripts/                 # One-off utility scripts
+├── scripts/                 # One-off utility scripts (optional: may be absent once all tools are institutionalized, §10.2)
 ├── .local/                  # Temporary local files (never committed, see §XVI)
 ├── docker/                  # Docker build
 ├── pyproject.toml
@@ -377,7 +377,7 @@ Multiple implementations of the same type are managed through a registry (string
 **CLI parameters follow three principles (applies to every CLI command):**
 1. **Input-locating parameters**: point at input files or data — they locate input, they are not configuration content. `--config` is the canonical example; others like `--data`, `--limit`, `--checkpoint` must be judged by project semantics;
 2. **Runtime-environment parameters**: never written to disk, never part of output, only affect "where it runs" (e.g. `--gpus`, `--master_port`);
-3. **Run-boundary parameters**: do not produce a complete run output (e.g. `--smoke` smoke test — equivalent to a max_steps=1 config, no training semantics changed).
+3. **Run-boundary parameters**: do not produce a complete run output (e.g. `--smoke` smoke test — equivalent to a one-step config, no training semantics changed).
 
 **`--config` is the only explicitly named parameter** — other parameter names vary by project and must be reviewed against the three principles: under the same config + seed, does a different value of this parameter change on-disk output? If yes, it must move into config.
 
