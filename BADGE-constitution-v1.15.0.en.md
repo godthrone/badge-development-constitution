@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.14.1
+# The BADGE Constitution v1.15.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -44,6 +44,8 @@ Every piece of information in the system has exactly **one** authoritative sourc
 "The value can come from three places" sounds flexible, but in practice the user changes a parameter, finds it didn't take effect, and spends an afternoon debugging. Flexibility here isn't a feature — it's a bug factory.
 
 **Litmus test:** If someone asks "where does this value come from?", can you give the unique answer in one second? If not, there are too many sources.
+
+> This principle extends to deployment workflows: on deployment machines, the git repository is the sole source of code — see §14.4.
 
 ### 1.5 Task Boundaries: Decomposition is Execution
 
@@ -152,6 +154,23 @@ A new user clones the project and gets results in two commands. No extra system 
 
 **Litmus test:** How many steps does it take for a new user to go from clone to first output? If it's more than 3, rethink.
 
+### 4.1 Startup Script
+
+**Principle:** If a project requires a shell script as the user entry point (wrapping Docker startup, environment variable setup, CLI parameter passing, etc.), that script must be placed at the project root so the user can spot it immediately without searching the directory tree.
+
+**Rule:**
+- At most **one** startup script at the project root, recommended name `run.sh`. This is the project's first interface to the user — after cloning, `ls` reveals it immediately.
+- This script is part of the user contract and is subject to §10.2 institutionalization criteria: it is referenced by the README, used repeatedly by workflows, and is a stable interface — do not casually change its parameter signature.
+- CLI parameters passed by this script must obey the three principles of §10.1 — only input-locating parameters (e.g. `--config`), runtime-environment parameters (e.g. `--gpus`), and run-boundary parameters (e.g. `--smoke`). All output-affecting parameters must go into the config file and must not be hardcoded in `run.sh`.
+- This script does not belong to the `scripts/` directory (§10.2) — `scripts/` holds temporary developer tools, while `run.sh` is a stable user-facing entry point. The two must not be confused.
+
+**Technique:**
+- The minimal `run.sh`: set necessary environment variables, then call `python -m project --config "$@"`, letting the user override the config path via the command line.
+- If the project also has Docker deployment (§14.3), `run.sh` may wrap the `docker run` command so the user can start the project without knowing Docker details.
+- If the project does not need a shell wrapper (i.e. `pip install` followed by `python -m project` works directly), `run.sh` is not required. Not every project needs one.
+
+**Litmus test:** After cloning, can a new user find the startup entry point within 5 seconds? Seeing `run.sh` with a single `ls` is a pass. If they need to `cd scripts/`, scan the README, or search, it's a failure.
+
 ---
 
 ## V. Correct First, Optimize Later
@@ -216,6 +235,7 @@ Config parameters are the boundary between the user and the system. Poorly desig
 
 ```
 project/
+├── run.sh                   # Startup script (present if needed, see §4.1)
 ├── src/project_name/        # Source code, src-layout
 │   ├── __init__.py          # Version + public API re-exports
 │   ├── __main__.py          # python -m entry point
@@ -244,6 +264,8 @@ project/
 ```
 
 **Directory organization principle:** The directory structure is a navigation system for the codebase, not a filing cabinet. From directory hierarchy and file names alone, a reader should roughly understand what the code does, which module it belongs to, and its inheritance relationships — without opening any files. A directory should not contain more than 10 code files of distinct responsibilities. When it does, the directory contains multiple independently-nameable sub-domains — create categorized sub-directories and group files by functional domain. This is not a hard limit, but a signal: when you see the 11th file, ask yourself "can this directory's responsibility still be described in a single sentence?"
+
+> The directory layout template shows both `README.md` and `README.zh-CN.md`. For projects exempt under §17.6, a single `README.md` is sufficient.
 
 **`cli.py` may be upgraded to a `cli/` directory:** When the CLI logic is complex enough to warrant multiple sub-modules (e.g. subcommand dispatch, training worker process entry point), follow the same logic as §8.3 (Class-to-Directory) — `cli/__init__.py` maintains external transparency, so consumers only see `graspo.cli:main` and are unaware whether the implementation is a single file or a directory.
 
@@ -389,6 +411,7 @@ Multiple implementations of the same type are managed through a registry (string
 - The CLI parameter list is enumerated once in code and locked by tests — a new CLI flag must pass a "no-disk-diff" test (run twice with the same config, only X differs, assert identical on-disk output)
 - Log and record files must not contain runtime-environment metadata (GPU IDs, host paths, container names) — they are not reproducible and not output
 - Custom environment variables must not carry configuration or path parameters (§7.1): only standard CUDA/NCCL/PyTorch infrastructure variables are allowed; host-path injection goes through CLI flags (e.g. run.sh `--model-dir`)
+- `run.sh` (§4.1) CLI parameters are equally subject to the three principles of this clause — it is a config launcher, not a config substitute
 
 ### 10.2 CLI vs. Scripts Boundary
 
@@ -400,6 +423,8 @@ Multiple implementations of the same type are managed through a registry (string
 - It is used repeatedly by workflows or beyond the original developer
 
 scripts/ keeps only one-off, experimental, non-institutionalized tools. Scripts promoted to CLI subcommands are subject to §10.1 (input-locating flags + config-decided output).
+
+**Root startup scripts are not `scripts/`:** `run.sh` (§4.1) and `build.sh` (§14.3) are stable user-facing entry points placed at the project root. They do not belong to the `scripts/` directory. Their lifecycle is synchronized with the project — the "temporary tool" designation does not apply.
 
 ---
 
@@ -449,7 +474,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 ### 12.3 Language Convention
 
-`README.md` and `README.zh-CN.md` are bilingual — the project's front door is accessible to both the English and Chinese developer communities, the two most active language groups in open source.
+**Except as exempted by §17.6**, `README.md` and `README.zh-CN.md` are bilingual — the project's front door is accessible to both the English and Chinese developer communities, the two most active language groups in open source.
 
 All other files — comments, docstrings, architecture documentation, config annotations — use **either Chinese or English, at the author's discretion**. No other languages are permitted. Keep language broadly consistent within a file; a small amount of technical terms, code references, or structural separators may remain in English.
 
@@ -590,6 +615,28 @@ docker build \
 
 This rule applies to all configuration that is only needed at build time and must not persist into the runtime image — proxy settings are the most common case, but it also covers private pip mirror URLs, build cache configuration, and similar. Litmus test: is this configuration still needed when the container runs? If not, it must not appear in the final image.
 
+> For constraints on the source of code used during image builds, see §14.4 — regardless of where the image is built, the source code must come from a definite git commit.
+
+### 14.4 Code Sync: One-Way Flow
+
+**Principle:** Code modifications happen in the development environment; the deployment environment only receives code. The flow of code from development machine to deployment machine is one-way — the dev machine is the source of modifications, the deployment machine is the destination. This is §1.4 (Single Source of Truth) extended to the deployment workflow: code content and modification behavior each have their own single authoritative source.
+
+Editing code directly on a deployment machine is a breeding ground for engineering disasters — a fix is made and forgotten, then overwritten on the next deploy; two people edit the same file on the dev machine and the deployment machine, and when it's time to merge, no one can say which version is correct. Code on a deployment machine must be **traceable and reproducible**, which means it must come from a definite git commit, not from someone's impromptu edits in an SSH session.
+
+**Rule:**
+- Code on a deployment machine **must** come from a definite git commit (via `git clone`, `git pull`, or `git checkout <tag>`). Direct editing of source files on deployment machines is forbidden.
+- The **only** allowed form of code modification on a deployment machine is: dev machine edit → git commit → git push → deployment machine git pull.
+- "Manually sync back to the dev machine" after editing on a deployment machine is forbidden — this is not synchronization; it is dual sources of truth.
+- Docker image builds are recommended to happen on the dev machine or CI environment (push image to registry, deployment machine pulls image). Building on the deployment machine from git-pulled code is also acceptable, but building from manually modified code on the deployment machine is forbidden.
+
+**Technique:**
+- Set the project directory on deployment machines to read-only (for non-root users), physically preventing direct edits at the filesystem level — this is foolproof design (§2) applied to deployment.
+- Deployment scripts (`deploy.sh` or CI pipeline) should start from `git checkout <tag>`, ensuring every deployment's code version is explicit.
+- If temporary debugging is needed during deployment, reproduce the issue on the dev machine, modify the code, commit, push, and deploy the new version — never take the "edit on deployment machine then sync back" path.
+- Keep the `.git` directory on deployment machines so you can verify via `git status` that the working tree is clean, and confirm the running version with `git log -1`.
+
+**Litmus test:** On the deployment machine, does `git status` show clean? Can you say which version on the dev machine corresponds to the commit shown by `git log -1`? If either answer is "no," code sync is broken.
+
 ---
 
 # Layer 3: Security and Project Governance
@@ -667,7 +714,7 @@ If a file has long-term value to the project, turn it into formal documentation 
 
 ### 17.1 Bilingual Documentation
 
-`README.md` (English) and `README.zh-CN.md` (Chinese) must be **content mirrors**, not just structural mirrors. The same operation instructions, configuration descriptions, and FAQ entries must exist in both versions — one version must never contain information absent from the other. Both READMEs must be updated simultaneously on every release.
+**Except as exempted by §17.6**, `README.md` (English) and `README.zh-CN.md` (Chinese) must be **content mirrors**, not just structural mirrors. The same operation instructions, configuration descriptions, and FAQ entries must exist in both versions — one version must never contain information absent from the other. Both READMEs must be updated simultaneously on every release.
 
 Chapter structure: Introduction → Quick Start → Data Format → Configuration Reference → Output Description → Development Guide → FAQ.
 
@@ -705,6 +752,22 @@ Relationship with git: the git commit log is the authoritative record of changes
 **When to update:** at the end of each working session or when a phase completes — append 3–5 lines to the event section and refresh the state section. Projects that use AI assistants place a pointer to `work_log_current.md` in `CLAUDE.md` (§17.3).
 
 **Litmus test:** Can a newcomer (human or AI) fully continue the work reading only the work log and the codebase, without asking the original author? If not, the log is incomplete.
+
+### 17.6 Single-Language and Private Projects
+
+**Principle:** Bilingual READMEs (§12.3, §17.1) serve a clear goal: letting open-source projects reach both the English and Chinese developer communities. When that goal does not exist, the bilingual requirement no longer applies — the project should choose the language of its widest target audience and stay consistent.
+
+**Rule:** A project meeting either of the following conditions may keep only a single `README.md`, with language kept consistent (Chinese or English at the author's discretion):
+
+1. **Private project**: the project is not pushed to any public repository (GitHub, GitLab, Gitee, etc.) and is used only within an intranet or private repository.
+2. **Single-language audience project**: the target user community is clearly a single-language group (e.g. Chinese-only or English-only), and the maintainer judges that a bilingual README would not yield practical community coverage benefits.
+
+**Technique:**
+- Exempt projects should clearly state the document language in the sole README (e.g. "This document is in Chinese") to avoid reader confusion.
+- Choose the language based on the target audience: Chinese for Chinese-speaking communities, English for English-speaking communities.
+- If the project later becomes open-source or expands its audience, add a bilingual README at that point — this is not debt; it is a scope change.
+
+**Litmus test:** Does the project's target audience include both Chinese and English-speaking communities? If not, and the project is not in a public repository, a bilingual README produces no practical value.
 
 ---
 
