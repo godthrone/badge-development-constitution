@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.15.0
+# The BADGE Constitution v1.16.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -45,7 +45,7 @@ Every piece of information in the system has exactly **one** authoritative sourc
 
 **Litmus test:** If someone asks "where does this value come from?", can you give the unique answer in one second? If not, there are too many sources.
 
-> This principle extends to deployment workflows: on deployment machines, the git repository is the sole source of code — see §14.4.
+> This principle extends to deployment workflows: on deployment machines, the development machine is the sole source of code — see §14.4.
 
 ### 1.5 Task Boundaries: Decomposition is Execution
 
@@ -615,27 +615,27 @@ docker build \
 
 This rule applies to all configuration that is only needed at build time and must not persist into the runtime image — proxy settings are the most common case, but it also covers private pip mirror URLs, build cache configuration, and similar. Litmus test: is this configuration still needed when the container runs? If not, it must not appear in the final image.
 
-> For constraints on the source of code used during image builds, see §14.4 — regardless of where the image is built, the source code must come from a definite git commit.
+> For constraints on the source of code used during image builds, see §14.4 — regardless of where the image is built, the source code must come from a definite version from the development machine.
 
 ### 14.4 Code Sync: One-Way Flow
 
 **Principle:** Code modifications happen in the development environment; the deployment environment only receives code. The flow of code from development machine to deployment machine is one-way — the dev machine is the source of modifications, the deployment machine is the destination. This is §1.4 (Single Source of Truth) extended to the deployment workflow: code content and modification behavior each have their own single authoritative source.
 
-Editing code directly on a deployment machine is a breeding ground for engineering disasters — a fix is made and forgotten, then overwritten on the next deploy; two people edit the same file on the dev machine and the deployment machine, and when it's time to merge, no one can say which version is correct. Code on a deployment machine must be **traceable and reproducible**, which means it must come from a definite git commit, not from someone's impromptu edits in an SSH session.
+Editing code directly on a deployment machine is a breeding ground for engineering disasters — a fix is made and forgotten, then overwritten on the next deploy; two people edit the same file on the dev machine and the deployment machine, and when it's time to merge, no one can say which version is correct. Code on a deployment machine must be **traceable and reproducible**, which means it must come from a definite version on the development machine, not from someone's impromptu edits in an SSH session on the deployment machine. The deployment machine may not have git access (network isolation, security policies, etc.) — this does not affect the principle: after committing on the dev machine, package the code (tar/zip) and scp it to the deployment machine, and it is still code from a definite version. The key is not the transport mechanism; the key is that code modifications happen only on the dev machine, and the deployment machine only receives code.
 
 **Rule:**
-- Code on a deployment machine **must** come from a definite git commit (via `git clone`, `git pull`, or `git checkout <tag>`). Direct editing of source files on deployment machines is forbidden.
-- The **only** allowed form of code modification on a deployment machine is: dev machine edit → git commit → git push → deployment machine git pull.
+- Code on a deployment machine **must** come from a definite version on the development machine. Direct editing of source files on deployment machines is forbidden. Preferred method: dev machine git commit → deployment machine git pull (when git is accessible from the deployment machine). Alternative method: dev machine git commit → package (tar/zip) → scp/rsync to deployment machine (when git is inaccessible from the deployment machine).
+- The **only** allowed form of code modification on a deployment machine is: dev machine edit → dev machine git commit → sync to deployment machine (git pull or scp/rsync). Regardless of the transport method, the code version on the deployment machine must be traceable to a definite commit on the dev machine.
 - "Manually sync back to the dev machine" after editing on a deployment machine is forbidden — this is not synchronization; it is dual sources of truth.
-- Docker image builds are recommended to happen on the dev machine or CI environment (push image to registry, deployment machine pulls image). Building on the deployment machine from git-pulled code is also acceptable, but building from manually modified code on the deployment machine is forbidden.
+- Docker image builds are recommended to happen on the dev machine or CI environment (push image to registry, deployment machine pulls image). Building on the deployment machine from code synced from the dev machine is also acceptable, but building from manually modified code on the deployment machine is forbidden.
 
 **Technique:**
 - Set the project directory on deployment machines to read-only (for non-root users), physically preventing direct edits at the filesystem level — this is foolproof design (§2) applied to deployment.
-- Deployment scripts (`deploy.sh` or CI pipeline) should start from `git checkout <tag>`, ensuring every deployment's code version is explicit.
-- If temporary debugging is needed during deployment, reproduce the issue on the dev machine, modify the code, commit, push, and deploy the new version — never take the "edit on deployment machine then sync back" path.
-- Keep the `.git` directory on deployment machines so you can verify via `git status` that the working tree is clean, and confirm the running version with `git log -1`.
+- Deployment scripts (`deploy.sh` or CI pipeline) should start from obtaining a definite version of the code — either `git checkout <tag>` (when git is accessible from the deployment machine) or scp a packaged file from a specific commit on the dev machine (when git is inaccessible). Either way, the deployment script should record the version identifier (commit hash or tag) for this deployment.
+- If temporary debugging is needed during deployment, reproduce the issue on the dev machine, modify the code, commit, and deploy the new version — never take the "edit on deployment machine then sync back" path.
+- If the deployment machine has git access, keeping the `.git` directory is recommended so you can verify via `git status` that the working tree is clean, and confirm the running version with `git log -1`. If the deployment machine cannot access git, the deployment script should record the version identifier in a `VERSION` file in the deployment directory.
 
-**Litmus test:** On the deployment machine, does `git status` show clean? Can you say which version on the dev machine corresponds to the commit shown by `git log -1`? If either answer is "no," code sync is broken.
+**Litmus test:** Can the code on the deployment machine be traced to a definite version on the development machine (git commit or version marker in the packaged file)? Are there any source code modifications on the deployment machine that were not committed on the dev machine? If the first answer is "yes" and the second is "no," code sync is healthy.
 
 ---
 
