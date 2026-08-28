@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.16.0
+# The BADGE Constitution v1.17.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -700,7 +700,7 @@ A file belongs in `.local/` if it meets any of these criteria:
 
 If a file has long-term value to the project, turn it into formal documentation under `docs/`. If it only has short-term value to you or the current phase, put it in `.local/`.
 
-**The one exception: the work log (§17.5).** It has long-term value but necessarily contains environment information (working environment and tooling notes), so its only home is `.local/` — it must never be promoted to a `docs/` document. This is part of the data boundary (§1.4): environment information never enters tracked files.
+**The one exception: the work log (§17.5).** It has long-term value but necessarily contains environment information (resources and environment), so its only home is `.local/` — it must never be promoted to a `docs/` document. This is part of the data boundary (§1.4): environment information never enters tracked files.
 
 ### 16.3 Relationship with `scripts/`
 
@@ -744,8 +744,8 @@ Handover is not an event; it is a continuous state. Instead of writing a compres
 
 The work log consists of two files under `.local/`, never committed to git (they necessarily contain environment information, §16.2):
 
-- **`work_log_current.md` — the state section, read at every session.** It holds only the latest values, updated in place, never pruned: current progress, next tasks, current major difficulties and problems, planned solutions to try, working environment and tooling notes. Keep it under about 100 lines — it carries the "understand the state in 30 seconds" responsibility.
-- **`work_log_history.md` — the event section, read on demand.** Completed tasks and resolved problems are appended incrementally with timestamps (entries start with `YYYY-MM-DD`), newest at the end. When the log grows long, prune selectively: delete from the head (oldest) entries that are **already absorbed into code or docs and no longer worth referencing**; important decision context may be kept forever. **Pruning is a trade-off, not a truncation** — if after pruning a successor cannot understand the current state faster than from reading git log, you pruned too much.
+- **`work_log_current.md` — the state section, read at every session.** It holds only the latest values, updated in place, never pruned. Organized into the following sections: current progress, current major difficulties and problems, task plan (checklist format, `[ ]` todo / `[x]` done), unresolved questions (decision points requiring user confirmation), planned solutions to try, resources and environment (servers, GPUs, available tool scripts, etc.), technical conventions and tooling notes (frameworks, design patterns, coding conventions). Keep it under about 100 lines — it carries the "understand the state in 30 seconds" responsibility.
+- **`work_log_history.md` — the event section, read on demand.** User original requests, completed tasks, and resolved problems are appended incrementally with timestamps (entries start with `YYYY-MM-DD HH:MM`), newest at the end. When the log grows long, prune selectively: delete from the head (oldest) entries that are **already absorbed into code or docs and no longer worth referencing**; important decision context may be kept forever. **Pruning is a trade-off, not a truncation** — if after pruning a successor cannot understand the current state faster than from reading git log, you pruned too much.
 
 Relationship with git: the git commit log is the authoritative record of changes (immutable, §17.4); the work log is the narrative layer of decision context (selectively compressible). The log records what git doesn't — why, difficulties, plans, next steps. The log is not a Changelog replacement and carries no authority; every statement in it should be cross-verifiable against git or the code.
 
