@@ -27,7 +27,7 @@ done
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 
 # Dynamically read version from the English constitution
-VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.14.1.en.md" 2>/dev/null || echo "unknown")
+VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.17.0.en.md" 2>/dev/null || echo "unknown")
 
 echo "============================================"
 echo " BADGE Constitution v$VERSION — Compliance Check"
