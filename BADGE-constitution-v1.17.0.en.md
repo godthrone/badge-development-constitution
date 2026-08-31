@@ -245,7 +245,7 @@ project/
 │   ├── core/                # Computation layer: pure logic, zero infrastructure
 │   ├── backends/            # Infrastructure layer: distributed, GPU, network
 │   └── domain/              # Domain logic layer (omit if not needed)
-├── configs/                 # Example configs
+├── configs/                 # Example configs (required for long-running services; batch/training tasks may omit — place example configs in samples/configs/ instead)
 ├── docs/                    # Architecture documentation
 ├── tests/                   # Tests (mirrors source tree)
 │   ├── core/
@@ -262,6 +262,8 @@ project/
 ├── LICENSE
 └── .gitignore
 ```
+
+**`configs/` directory:** Long-running services (e.g., API services, web applications) require `configs/` for runtime configuration. Batch/training tasks (e.g., model training, data processing scripts) receive configuration via CLI arguments — place example configs in `samples/configs/` instead; a root-level `configs/` is not required.
 
 **Directory organization principle:** The directory structure is a navigation system for the codebase, not a filing cabinet. From directory hierarchy and file names alone, a reader should roughly understand what the code does, which module it belongs to, and its inheritance relationships — without opening any files. A directory should not contain more than 10 code files of distinct responsibilities. When it does, the directory contains multiple independently-nameable sub-domains — create categorized sub-directories and group files by functional domain. This is not a hard limit, but a signal: when you see the 11th file, ask yourself "can this directory's responsibility still be described in a single sentence?"
 
