@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.17.0
+# The BADGE Constitution v1.18.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
