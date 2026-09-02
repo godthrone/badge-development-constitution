@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.18.0
+# The BADGE Constitution v1.19.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -92,6 +92,16 @@ No magic in the code. State is explicit. Data flow is visible. Dependencies are 
 3. **Duck-typing**: determining object type without introducing a hard dependency (e.g. distinguishing tensor from plain numeric values)
 
 What is forbidden: using `hasattr` to probe business interfaces in your own project — that means the interface contract is unclear. Use ABC or Protocol to define explicit interfaces instead.
+
+**Null-value semantics: `None` is the only legal null value.** Using `0`, `-1`, `""`, `[]`, `{}`, or any other non-None value to express "absent/not-provided/invalid" semantics is prohibited. `None` is the only value in Python's type system with "null" semantics. Using other sentinel values bypasses the type checker's null detection and introduces ambiguity — is `-1` an "invalid port" or "port number -1"? Is `0` "not set" or "length zero"? `None` has no such ambiguity.
+
+**Exception:** Natural zero points of numeric types (e.g., counter `0`, probability `0.0`) are not "null" semantics and are not subject to this rule. Using `-1` as a sentinel is only permitted when the value carries clear, irreplaceable domain semantics (e.g., POSIX error code `-1`) that cannot be expressed with `None`. Such exceptions must be justified in a comment.
+
+**`= None` must be paired with `Optional` annotation.** When a parameter or attribute defaults to `None`, the type annotation must include `Optional` (i.e., `x: Optional[str] = None`, not `x: str = None`). The type annotation is part of the contract — `str = None` tells the type checker "this value is always a str", but at runtime it may be `None`, which is a self-contradictory contract.
+
+**Null-value checking:** When checking Optional values, use `is None` / `is not None`, not `if not x`. `if not x` treats `0`, `False`, `""`, and `[]` all as "empty", causing logic errors. `is None` matches only `None`, with no semantic ambiguity.
+
+**Litmus test:** Does the codebase use `0`, `-1`, `""`, or other non-None values with "null/invalid" semantics? If so, does each have a comment justifying the choice? Are all `= None` defaults paired with `Optional` annotations?
 
 ### 2.3 Boundary Validation as Foolproofing
 
@@ -460,7 +470,50 @@ For adaptation algorithms in complex scenarios (e.g. model adapters, protocol co
 
 ### 12.1 Type Annotations
 
-Union types: `str | None`, not `Optional[str]`. `py.typed` marker file present. Line width: 100. Target Python: 3.11+. `from __future__ import annotations` is used only when circular imports prevent type annotations from being evaluated (see 8.6).
+**Principle:** Type annotations are not decoration — they are contracts. Every function signature is a type contract — callers can understand input and output types without reading the implementation. When you change a type, mypy forces you to review every affected file — this is not a maintenance burden, it is a fail-safe device (§2.1) applied at the type level.
+
+**Rules:**
+
+1. **Every function must have complete parameter and return type annotations.** This includes public methods, private methods (`_` prefix), and utility functions. Only the following are exempt:
+   - `__init__` methods may omit the return annotation (`-> None` is the Python convention and can be omitted)
+   - Abstract methods may annotate the return as `None` or omit it (subclasses may return different types)
+   - Functions in one-off debugging scripts
+
+2. **Class attributes must be annotated at the declaration site.** Instance attributes first assigned in `__init__` should use PEP 526 annotation syntax:
+   ```python
+   self.running_models: dict[str, InferenceFramework] = {}
+   ```
+
+3. **Optional types must use the `Optional[X]` syntax.** Import `Optional` from `typing` and use `Optional[str]` rather than `str | None`. The `Optional` keyword is more explicit than `| None` — it clearly tells the reader "this value may not exist", whereas `| None` can be easily overlooked.
+
+4. **Replace complex nested types with classes.** Anonymous nested types like `dict[str, list[tuple[int, float]]]` should not exist — replace them with pydantic BaseModel or dataclass. Classes have named fields and docstrings; when you need to change the structure, you only change the class definition. This is friendly to both humans and AI.
+   ```python
+   # ❌ Prohibited
+   def process(data: dict[str, list[tuple[int, float]]]) -> dict[str, float]:
+       ...
+
+   # ✅ Correct
+   class SamplePoint(BaseModel):
+       index: int
+       value: float
+
+   class ProcessingInput(BaseModel):
+       samples: dict[str, list[SamplePoint]]
+
+   class ProcessingOutput(BaseModel):
+       results: dict[str, float]
+
+   def process(data: ProcessingInput) -> ProcessingOutput:
+       ...
+   ```
+
+5. **The `py.typed` marker file must exist** under `src/package_name/` (PEP 561).
+
+6. **mypy type checking** is already required by §11.1; the `[tool.mypy]` section must be configured in `pyproject.toml` (see §20 skeleton). Type annotations + mypy together form a complete fail-safe device — neither is sufficient alone.
+
+7. `from __future__ import annotations` should only be used when circular imports prevent type annotation evaluation (see §8.6).
+
+**Litmus test:** Open any function — can you accurately state the type of every parameter and the return type just from the signature? If not, the annotations are incomplete. Are there any anonymous nested types (e.g., `dict[str, list[tuple[...]]]`)? If so, they should be replaced with classes.
 
 ### 12.2 Naming
 

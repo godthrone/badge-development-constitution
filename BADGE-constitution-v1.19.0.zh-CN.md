@@ -1,4 +1,4 @@
-# BADGE 开发宪法 v1.18.0
+# BADGE 开发宪法 v1.19.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — 边界与守护工程开发宪法
 >
@@ -92,6 +92,16 @@ AI 时代，代码是第一文档——AI 直接读写代码，维护一份与�
 3. **Duck-typing 类型判断**：在不引入硬依赖的前提下判断对象类型（如区分 tensor 和普通数值）
 
 禁止的是用 `hasattr` 探测自己项目的业务接口——那意味着接口契约不清晰，应该用 ABC 或 Protocol 定义明确的接口。
+
+**空值语义：None 是唯一合法空值。** 禁止使用 `0`、`-1`、`""`、`[]`、`{}` 等非 None 值来表达"不存在/未提供/无效"的语义。None 是 Python 类型系统中唯一具有"空"语义的值，使用其他哨兵值会绕过类型检查器的空值检测，引入歧义——`-1` 是"无效端口"还是"端口号 -1"？`0` 是"未设置"还是"长度为零"？None 没有这种歧义。
+
+**例外：** 数值的自然零点（如计数器的 `0`、概率的 `0.0`）不属于"空值"语义，不受此约束。`-1` 用作哨兵值仅在以下情况允许：该值在领域内有明确的、不可替代的语义（如 POSIX 错误码 `-1`），且该语义无法用 None 表达。此类例外必须在注释中说明理由。
+
+**`= None` 必须配合 `Optional` 标注。** 当参数或属性的默认值为 `None` 时，类型标注必须包含 `Optional`（即 `x: Optional[str] = None`，而非 `x: str = None`）。类型标注是契约的一部分——`str = None` 告诉类型检查器"这个值永远是 str"，但运行时它可能是 None，这是自相矛盾的契约。
+
+**空值检查：** 检查 Optional 值时使用 `is None` / `is not None`，不使用 `if not x`。`if not x` 会将 `0`、`False`、`""`、`[]` 都当作"空"，导致逻辑错误。`is None` 精确匹配 None，语义无歧义。
+
+**判断标准：** 代码中是否存在 `0`、`-1`、`""` 等非 None 值被用作"空/无效"语义？如果存在，是否每个都有注释说明理由？`= None` 的默认值是否都配合了 `Optional` 标注？
 
 ### 2.3 边界校验即防呆
 
@@ -457,7 +467,50 @@ pytest 运行测试，ruff 格式化 + lint（`ruff format` + `ruff check --fix`
 
 ### 12.1 类型标注
 
-联合类型用 `str | None`，不用 `Optional[str]`。`py.typed` 标记文件。行宽 100，目标 Python 3.11+。`from __future__ import annotations` 仅在出现循环导入导致类型注解无法求值时使用（见 8.6）。
+**原则：** 类型标注不是装饰，是契约。每一个函数签名都是一份类型契约——调用方不需要读实现就能知道输入输出类型。修改类型时，mypy 会强制你 review 所有受影响文件——这不是维护负担，是防呆装置（§2.1）在类型层面的具体体现。
+
+**规则：**
+
+1. **所有函数必须有完整的参数和返回值类型标注。** 包括公开方法、私有方法（`_` 前缀）、工具函数。仅以下情况可豁免：
+   - `__init__` 方法可以不标注返回值（Python 惯例 `-> None` 可省略）
+   - 抽象方法的返回值可标注为 `None` 或省略（子类可能返回不同内容）
+   - 一次性调试脚本中的函数
+
+2. **类属性必须在声明处标注类型。** 在 `__init__` 中首次赋值的实例属性，使用 PEP 526 语法标注类型：
+   ```python
+   self.running_models: dict[str, InferenceFramework] = {}
+   ```
+
+3. **可选类型统一使用 `Optional[X]` 语法。** 从 `typing` 导入 `Optional`，使用 `Optional[str]` 而非 `str | None`。`Optional` 的语义比 `| None` 更显式——它明确告诉读者"这个值可能不存在"，而 `| None` 容易被眼睛跳过。
+
+4. **复杂嵌套类型用类代替。** `dict[str, list[tuple[int, float]]]` 这种匿名嵌套类型不应该存在——用 pydantic BaseModel 或 dataclass 代替。类有字段名、有 docstring，修改时只改类定义即可，所有引用处自动同步。对人和 AI 都友好。
+   ```python
+   # ❌ 禁止
+   def process(data: dict[str, list[tuple[int, float]]]) -> dict[str, float]:
+       ...
+
+   # ✅ 正确
+   class SamplePoint(BaseModel):
+       index: int
+       value: float
+
+   class ProcessingInput(BaseModel):
+       samples: dict[str, list[SamplePoint]]
+
+   class ProcessingOutput(BaseModel):
+       results: dict[str, float]
+
+   def process(data: ProcessingInput) -> ProcessingOutput:
+       ...
+   ```
+
+5. **`py.typed` 标记文件必须存在**于 `src/package_name/` 下（PEP 561）。
+
+6. **mypy 类型检查**已在 §11.1 中要求，`pyproject.toml` 中须配置 `[tool.mypy]` 段（见 §20 骨架）。类型标注 + mypy 才构成完整的防呆装置——缺一不可。
+
+7. `from __future__ import annotations` 仅在出现循环导入导致类型注解无法求值时使用（见 §8.6）。
+
+**判断标准：** 任意打开一个函数，能否仅凭签名就准确说出每个参数的类型和返回值的类型？如果不能，标注不完整。代码中是否存在匿名嵌套类型（如 `dict[str, list[tuple[...]]]`）？如果存在，应替换为类。
 
 ### 12.2 命名
 
