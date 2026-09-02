@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.19.0
+# The BADGE Constitution v1.20.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -211,9 +211,39 @@ A project run on any two machines with identical hardware should produce **bit-f
 
 ## VII. Configuration System
 
-### 7.1 Single YAML Entry Point
+### 7.1 Single Configuration Entry Point
 
-All configuration lives in a single YAML file, organized by functional domain. No environment variables (NVIDIA's `CUDA_VISIBLE_DEVICES`, `NCCL_*` are already messy enough — don't add to them). No implicit CLI-overrides-config priority chains. Configuration is configuration, environment is environment — keep them separate.
+**Principle:** All configuration lives in a single TOML file, organized by functional domain. TOML is the standard configuration format of the Python ecosystem (same format as `pyproject.toml`), with a type system that natively supports nested tables and arrays. Do not use environment variables to override configuration values (NVIDIA's `CUDA_VISIBLE_DEVICES` and `NCCL_*` are already messy enough), and do not use CLI arguments to implicitly override the configuration file. Configuration is configuration, environment is environment — keep them separate.
+
+> This constitution targets Python projects. This section and all subsequent concrete rules (file format, package manager, type annotation syntax, etc.) are anchored in the Python ecosystem. The design philosophy (Layer 1) is language-agnostic and can be applied to other languages by analogy.
+
+**Layered Configuration Pattern:** When a project needs to separate secret configuration (internal IPs, keys, etc.) from public configuration, use a two-layer TOML approach with deep dict merge:
+
+- **Base configuration** (`config.toml`, git-tracked): Contains **all fields**. Non-secret fields have production-grade defaults; secret fields are left empty (`""`, `0`, `[]`). This is the **single authoritative source** of the configuration structure — every field is defined here, and reading this file gives you the complete configuration schema.
+- **Override configuration** (`config.override.toml`, gitignored, deployment machine only): Overrides only the secret fields in the base configuration. Copy from the `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones".
+- **Merge rule:** On startup, load the base configuration into a dict, then load the override configuration, and **deep merge** them into a single dict — leaf values from the override dict replace leaf values at the same path in the base dict. After merging, there is only **one configuration** in the program, eliminating any ambiguity of "two configuration sources".
+
+```toml
+# config.toml — base configuration (git-tracked), contains all fields
+[device]
+type = "isaac_sim"
+robot_type = "nova_carter"
+
+[streaming]
+encoder = "h264"
+h264_fps = 30
+
+[task.llm]
+endpoint = ""        # secret field, empty, overridden at deployment
+model = ""           # secret field, empty, overridden at deployment
+
+# config.override.toml — override configuration (gitignored), only secret fields
+[task.llm]
+endpoint = "http://10.1.xxx.xxx:8000/v1"
+model = "qwen3-27b"
+```
+
+**Litmus test:** Does the base configuration contain every field (no omissions)? Can you understand the complete configuration schema by reading only the base configuration? Does the override configuration only override fields that already exist in the base configuration (no new fields)? After merging, does the program have only one configuration (single downstream consumer)?
 
 ### 7.2 Validate at Load Time
 
@@ -722,7 +752,22 @@ Every commit must pass the following checks. These checks should be integrated i
 
 ### 15.2 Secrets Management
 
-The only authoritative location for secrets is the `.env` file — local, never committed. (If the project has no non-infrastructure environment variables — see §19.2 for the definition of infrastructure-only projects — `.env` and `.env-example` are not required.) No code, documentation, config template, or example file may contain literal secret values. If a piece of information should not appear on GitHub after open-sourcing, it must not appear in any tracked file, period.
+Secret information must not enter git. Secrets include: keys, passwords, tokens, internal IPs, internal domain names — any information you would not want to appear on GitHub after open-sourcing.
+
+**Secrets storage (choose one):**
+
+1. **`.env` file** (for secrets that are flat, independent key-value pairs): e.g., `API_KEY`, `DATABASE_URL`. Store in `KEY=VALUE` format in `.env` (local, not tracked). `.env-example` serves as a template in git, listing all required environment variable names and descriptions, without real values.
+
+2. **TOML override file** (for secrets nested within configuration structures): e.g., `[task.llm].endpoint`, `[database].password`. Use `config.override.toml` (gitignored), following the §7.1 layered configuration pattern — the base TOML contains all fields (secret fields left empty), and the override TOML only fills in the secret values. The program deep-merges them into a single dict on startup.
+
+**Selection criteria:** Flat, independent key-value secrets → `.env`. Secrets nested within configuration structures → TOML override. **Mixing both approaches for the same field is prohibited** — each secret field must have exactly one source.
+
+**Rules:**
+- No literal secret values may appear in any code, documentation, configuration templates (including `.sample` and `.env-example`), or example files
+- `.env` and override files must be excluded in `.gitignore`
+- Template files (`.env-example` or `config.override.sample.toml`) must be tracked in git, using placeholders (e.g., `REPLACE_ME`) to guide deployers
+
+**Litmus test:** Can an outsider clone the project and run it (in degraded mode) without access to any secrets? Does the git history contain any secret information?
 
 ### 15.3 Post-Leak Response
 
