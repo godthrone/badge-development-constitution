@@ -8,11 +8,22 @@
 #   - No environment variable overrides for config values
 #   - Template is well-commented
 #
-# Usage: ./check_config_system.sh [project_root]
+# Usage: ./check_config_system.sh [--class=A|B|C] [project_root]
+#   --class=B: relax YAML config check (advisory, not mandatory), relax __main__.py check
 
 set -euo pipefail
 
-PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
+CLASS="A"
+PROJECT_ROOT=""
+for arg in "${@}"; do
+    case "$arg" in
+        --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        -*) echo "Usage: check_config_system.sh [--class=A|B|C] [project_root]" >&2; exit 2 ;;
+        *) PROJECT_ROOT="$arg" ;;
+    esac
+done
+
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"
 
 FAIL=0
@@ -48,9 +59,13 @@ if [ -n "$CONFIG_EXAMPLE" ] && [ -f "$CONFIG_EXAMPLE" ]; then
 elif [ -n "$CONFIGS_DIR" ] && [ -d "$CONFIGS_DIR" ] && [ -n "$(ls -A "$CONFIGS_DIR" 2>/dev/null)" ]; then
     echo "  [OK] configs/ directory with example configs found at $CONFIGS_DIR"
 else
-    echo "[FAIL] check_config_system: No config_example.yaml or configs/ found (§7.3)."
-    echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
-    FAIL=1
+    if [ "$CLASS" = "B" ]; then
+        echo "  [WARN] No config_example.yaml or configs/ found (§7.3) — advisory for Class B."
+    else
+        echo "[FAIL] check_config_system: No config_example.yaml or configs/ found (§7.3)."
+        echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
+        FAIL=1
+    fi
 fi
 
 # ─── 2. Check for pydantic config loading ───────────────────────────────
@@ -103,12 +118,19 @@ if [ -f "$PROJECT_ROOT/src"/*/cli.py ] 2>/dev/null || [ -f "$PROJECT_ROOT/src"/*
         CLI_OVERRIDES=$(grep -nE "add_argument\('--(?!gpu|master_port|help)" $CLI_FILES 2>/dev/null | \
             grep -v 'config' | head -5 || true)
         if [ -n "$CLI_OVERRIDES" ]; then
-            echo "  [WARN] CLI has non-infrastructure arguments that may override config:"
-            echo "$CLI_OVERRIDES" | while IFS= read -r line; do
-                echo "  $line"
-            done
-            echo "         CLI should accept only --config + parameters that meet the three principles (§10.1):"
-	            echo "         input-locating, runtime-environment, or run-boundary. Review each manually."
+            if [ "$CLASS" = "B" ]; then
+                echo "  [INFO] CLI has non-infrastructure arguments (relaxed for Class B):"
+                echo "$CLI_OVERRIDES" | while IFS= read -r line; do
+                    echo "  $line"
+                done
+            else
+                echo "  [WARN] CLI has non-infrastructure arguments that may override config:"
+                echo "$CLI_OVERRIDES" | while IFS= read -r line; do
+                    echo "  $line"
+                done
+                echo "         CLI should accept only --config + parameters that meet the three principles (§10.1):"
+                        echo "         input-locating, runtime-environment, or run-boundary. Review each manually."
+            fi
         fi
     fi
 fi

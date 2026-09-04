@@ -2,9 +2,15 @@
 # check_all.sh — Run all BADGE Constitution compliance checks
 # Part of BADGE Constitution
 #
-# Usage: ./check_all.sh [project_root]
+# Usage: ./check_all.sh [options] [project_root]
 #        ./check_all.sh --no-history [project_root]   skip git history scan (faster)
+#        ./check_all.sh --class=A|B|C [project_root]  select check class
 #   project_root defaults to the git repo root of the current directory.
+#
+# Classes:
+#   --class A  (default) Run all checks
+#   --class B  Skip §17.1 bilingual checks (exemption), relax YAML/__main__.py checks
+#   --class C  Only run §15, §16, §17.3-§17.5, §19.1-§19.3 checks
 #
 # Exit code: 0 if all checks pass, 1 if any check fails.
 
@@ -15,22 +21,37 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ─── Argument parsing ────────────────────────────────────────────────────
 
 NO_HISTORY_FLAG=""
+CLASS="A"
 PROJECT_ROOT=""
 for arg in "${@}"; do
     case "$arg" in
         --no-history) NO_HISTORY_FLAG="--no-history" ;;
-        -*) echo "Usage: check_all.sh [--no-history] [project_root]" >&2; exit 2 ;;
+        --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        --class) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [project_root]" >&2; exit 2 ;;
+        -*) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
 done
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 
-# Dynamically read version from the English constitution
-VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$SCRIPT_DIR/../BADGE-constitution-v1.18.0.en.md" 2>/dev/null || echo "unknown")
+# Dynamically detect latest constitution file (sorted by version)
+CONSTITUTION_FILE=$(ls "$SCRIPT_DIR/../BADGE-constitution-v"*.en.md 2>/dev/null | sort -V | tail -1)
+if [ -n "$CONSTITUTION_FILE" ]; then
+    VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$CONSTITUTION_FILE" 2>/dev/null || echo "unknown")
+else
+    VERSION="unknown"
+fi
+
+CLASS_LABEL=""
+case "$CLASS" in
+    A) CLASS_LABEL=" (Class A — Full)" ;;
+    B) CLASS_LABEL=" (Class B — Relaxed)" ;;
+    C) CLASS_LABEL=" (Class C — Security & Governance)" ;;
+esac
 
 echo "============================================"
-echo " BADGE Constitution v$VERSION — Compliance Check"
+echo " BADGE Constitution v$VERSION — Compliance Check$CLASS_LABEL"
 echo " Project: $PROJECT_ROOT"
 echo "============================================"
 echo ""
@@ -61,6 +82,8 @@ run_check() {
 # Layer 1: Design Philosophy
 # ============================================================================
 
+if [ "$CLASS" = "A" ] || [ "$CLASS" = "B" ]; then
+
 # §2.2 — Explicitness: hasattr / **kwargs misuse
 run_check "hasattr / **kwargs Usage (§2.2)"   "$SCRIPT_DIR/check_hasattr_kwargs.sh"
 
@@ -72,10 +95,18 @@ run_check "hasattr / **kwargs Usage (§2.2)"   "$SCRIPT_DIR/check_hasattr_kwargs
 run_check "Reproducibility (§6)"               "$SCRIPT_DIR/check_reproducibility.sh"
 
 # §7 — Configuration System
-run_check "Configuration System (§7.1-7.3)"    "$SCRIPT_DIR/check_config_system.sh"
+if [ "$CLASS" = "B" ]; then
+    run_check "Configuration System (§7.1-7.3)"    "$SCRIPT_DIR/check_config_system.sh" --class=B
+else
+    run_check "Configuration System (§7.1-7.3)"    "$SCRIPT_DIR/check_config_system.sh"
+fi
 
 # §8.1 — Directory Layout
-run_check "Directory Layout (§8.1)"            "$SCRIPT_DIR/check_directory_layout.sh"
+if [ "$CLASS" = "B" ]; then
+    run_check "Directory Layout (§8.1)"            "$SCRIPT_DIR/check_directory_layout.sh" --class=B
+else
+    run_check "Directory Layout (§8.1)"            "$SCRIPT_DIR/check_directory_layout.sh"
+fi
 
 # §8.2 — File Size
 run_check "File Size (§8.2)"                   "$SCRIPT_DIR/check_file_size.sh"
@@ -119,17 +150,21 @@ run_check "Dockerfile (§14.3)"                 "$SCRIPT_DIR/check_dockerfile.sh
 # §14.3 — Docker Image Version
 run_check "Docker Image Version (§14.3)"       "$SCRIPT_DIR/check_docker_version.sh"
 
+fi  # end class A/B Layer 1-2
+
 # ============================================================================
 # Layer 3: Security and Project Governance
 # ============================================================================
 
-# §15.1 — Secrets Scan
+# §15.1 — Secrets Scan (all classes)
 run_check "Secrets Scan (§15.1)"               "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG
 
-# §XVI — Temporary Files
+# §XVI — Temporary Files (all classes)
 run_check "Temporary Files (§XVI)"             "$SCRIPT_DIR/check_local_files.sh"
 
-# §17.1 — README Parity
+if [ "$CLASS" = "A" ]; then
+
+# §17.1 — README Parity (class A only; class B/C exempt per §17.6)
 run_check "README Parity (§17.1)"              "$SCRIPT_DIR/check_readme_parity.sh"
 
 # §17.2 — Docs ASCII Diagrams (warn-only)
@@ -138,10 +173,30 @@ run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh
 # §18.1 — Legacy Cleanup
 run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
 
-# §8.7 — Constitution Refs in Source
+elif [ "$CLASS" = "B" ]; then
+
+echo "── README Parity (§17.1) ──"
+echo "  [SKIP] §17.6 exemption: bilingual README check skipped for Class B projects."
+echo ""
+
+# §17.2 — Docs ASCII Diagrams (warn-only)
+run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh"
+
+# §18.1 — Legacy Cleanup
+run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
+
+elif [ "$CLASS" = "C" ]; then
+
+echo "── README Parity (§17.1) ──"
+echo "  [SKIP] §17.6 exemption: bilingual README check skipped for Class C projects."
+echo ""
+
+fi  # end class-specific §17 checks
+
+# §8.7 — Constitution Refs in Source (all classes)
 run_check "Constitution References (§8.7)"     "$SCRIPT_DIR/check_constitution_refs.sh"
 
-# §19.2 — .gitignore Coverage
+# §19.2 — .gitignore Coverage (all classes)
 run_check ".gitignore Coverage (§19.2)"        "$SCRIPT_DIR/check_gitignore.sh"
 
 # ============================================================================
@@ -149,7 +204,7 @@ run_check ".gitignore Coverage (§19.2)"        "$SCRIPT_DIR/check_gitignore.sh"
 # ============================================================================
 
 echo "============================================"
-echo " Summary"
+echo " Summary (Class $CLASS)"
 echo "============================================"
 echo "  Passed: $PASS_COUNT"
 echo "  Failed: $FAIL_COUNT"

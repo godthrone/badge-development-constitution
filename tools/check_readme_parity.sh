@@ -13,12 +13,30 @@
 #   8. No Changelog section (§17.4)
 #   9. Same version references in both
 #
-# Usage: ./check_readme_parity.sh [project_root]
+# Usage: ./check_readme_parity.sh [--class=A|B|C] [project_root]
+#   --class=B or --class=C: skip check per §17.6 (single-language / private project exemption)
 
 set -euo pipefail
 
-PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
+CLASS="A"
+PROJECT_ROOT=""
+for arg in "${@}"; do
+    case "$arg" in
+        --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        -*) echo "Usage: check_readme_parity.sh [--class=A|B|C] [project_root]" >&2; exit 2 ;;
+        *) PROJECT_ROOT="$arg" ;;
+    esac
+done
+
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"
+
+# §17.6 exemption: B/C class projects may skip bilingual README check
+if [ "$CLASS" = "B" ] || [ "$CLASS" = "C" ]; then
+    echo "[SKIP] check_readme_parity: §17.6 exemption — bilingual README check skipped for Class $CLASS project."
+    echo "         Single-language or private projects are exempt from bilingual requirements."
+    exit 0
+fi
 
 README_EN="$PROJECT_ROOT/README.md"
 README_CN="$PROJECT_ROOT/README.zh-CN.md"

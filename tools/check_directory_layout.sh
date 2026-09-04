@@ -11,11 +11,22 @@
 #   - docs/ directory exists
 #   - Key config files at root level
 #
-# Usage: ./check_directory_layout.sh [project_root]
+# Usage: ./check_directory_layout.sh [--class=A|B|C] [project_root]
+#   --class=B: relax README.zh-CN.md requirement (advisory only per §17.6)
 
 set -euo pipefail
 
-PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
+CLASS="A"
+PROJECT_ROOT=""
+for arg in "${@}"; do
+    case "$arg" in
+        --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        -*) echo "Usage: check_directory_layout.sh [--class=A|B|C] [project_root]" >&2; exit 2 ;;
+        *) PROJECT_ROOT="$arg" ;;
+    esac
+done
+
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"
 
 FAIL=0
@@ -107,7 +118,11 @@ for entry in "${ROOT_FILES[@]}"; do
         echo "  [OK] $file — $desc"
     else
         if [ "$file" = "README.zh-CN.md" ]; then
-            echo "  [WARN] $file not found (bilingual docs required by §17.1)"
+            if [ "$CLASS" = "B" ] || [ "$CLASS" = "C" ]; then
+                echo "  [INFO] $file not found (bilingual docs exempt per §17.6 for Class $CLASS)"
+            else
+                echo "  [WARN] $file not found (bilingual docs required by §17.1)"
+            fi
         else
             echo "[FAIL] check_directory_layout: $file not found ($desc required by §8.1/§19.2)."
             FAIL=1

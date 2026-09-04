@@ -24,6 +24,7 @@ REQUIRED=(
     "*.pyc"             "Python bytecode (or *.py[cod])"
     ".venv/"            "Virtual environment"
     "venv/"             "Virtual environment (alt name)"
+    "venvs/"            "Virtual environments directory"
     ".pytest_cache/"    "pytest cache"
     ".mypy_cache/"      "mypy cache"
     ".ruff_cache/"      "ruff cache"
@@ -31,13 +32,18 @@ REQUIRED=(
     "build/"            "Build artifacts"
     "*.egg-info/"       "Build artifacts"
     ".env"              "Environment config"
+    "*.env"             "Environment config files (e.g. .env.prod)"
     "outputs/"          "Output directory"
     ".idea/"            "IDE config"
     ".vscode/"          "IDE config"
     "CLAUDE.md"         "AI assistant file"
     "AGENTS.md"         "AI assistant file"
+    "CLAUDE.zh-CN.md"   "AI assistant Chinese file"
     ".DS_Store"         "macOS system file"
     ".local/"           "Temporary local files"
+    "config.override.toml"  "Secret config override (§7.1)"
+    "my_config*.toml"   "Personal config files"
+    "*.local.toml"      "Local config overrides"
 )
 
 # Read .gitignore content
@@ -82,13 +88,6 @@ echo "Checking .gitignore coverage..."
 for ((i=0; i<${#REQUIRED[@]}; i+=2)); do
     check_pattern "${REQUIRED[$i]}" "${REQUIRED[$i+1]}"
 done
-
-# Also check that CLAUDE.zh-CN.md is covered
-if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -qF "CLAUDE.zh-CN.md" 2>/dev/null; then
-    echo "  [OK] AI assistant Chinese file (CLAUDE.zh-CN.md)"
-else
-    echo "  [WARN] CLAUDE.zh-CN.md not explicitly in .gitignore (covered by CLAUDE.md pattern if using glob)"
-fi
 
 # ─── .env-example check (conditional per §19.2) ────────────────────────────
 #

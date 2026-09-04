@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.21.0
+# The BADGE Constitution v2.0.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -6,6 +6,45 @@
 > This constitution is the distillation of engineering taste — it tells you *why* a design is right, not just *what* to do.
 >
 > **The three-layer structure of this constitution:** Principles tell you why a design is right. Rules tell you what you must do. Techniques tell you how to do it. Principles without rules are empty words. Rules without techniques are unenforceable. Techniques without principles leave you not knowing why you're doing them. All three are essential — none is optional.
+
+---
+
+# Layer 0: Project Classification and Compliance Scope
+
+The BADGE Constitution classifies projects into three categories, each with a different scope of applicable clauses. This constitution targets Python projects, and its design philosophy (Layer 1) is language-agnostic and can be applied to other languages by analogy.
+
+## Three Project Categories
+
+- **Category A (Open-source Python projects)**: Public repositories, community audience. The full constitution applies (§1–§20).
+- **Category B (Closed-source Python projects)**: Private repositories, internal teams. Core clauses are mandatory (security, foolproofing, reproducibility); some clauses may be relaxed (bilingual README exemption, YAML format suggestions are non-mandatory, `__main__.py` may be exempt for Docker-deployed projects).
+- **Category C (Other infrastructure projects)**: Non-standard Python packages, data repositories, DevOps tools, documentation projects, etc. Only design principles (§1–§6) must be followed; §7–§20 are optional. However, clauses within §7–§20 that are engineering embodiments of the design principles (§15 Secrets Management, §16 `.local/`, §17.3–§17.5 Documentation System, §19.1–§19.3 Open Source Management) remain mandatory.
+
+## Classification Determination
+
+A project has a `pyproject.toml` and builds a Python package → Category A (public repository) or Category B (private repository). Otherwise → Category C. If it's not A or B, it's C.
+
+## Conflict Resolution
+
+When a project's current state conflicts with a constitutional clause, use the three-question framework:
+1. What is the project's core objective?
+2. How can this project align with BADGE design principles and philosophy?
+3. Does the specific constitutional clause help achieve BADGE design principles and philosophy, or does it impose unnecessary burden that violates the project's core objective? Is this restriction reasonable?
+
+## Litmus Tests by Category
+
+**Category A litmus test**: Is this clause necessary for the open-source community?
+
+**Category B litmus test**: Is this clause about making the team safer and more efficient, or about satisfying the open-source community? The former must be kept; the latter may be relaxed.
+
+**Category C litmus test**: Is this clause a concrete engineering embodiment of BADGE design principles (§1–§6), or is it a detailed requirement specific to Python software projects? The former must be followed; the latter is exempt for Category C.
+
+## Compliance Detection
+
+Project classification is not hardcoded within the project itself. When running compliance detection scripts, the classification is passed via a command-line argument (e.g., `--class A`), allowing flexible adjustment of the detection level.
+
+## YAML Configuration Format
+
+New projects should use TOML as the configuration format. Existing projects using YAML should not be changed unless actively migrated. The constitution does not mandate migration for existing YAML projects, but recommends migrating during refactoring.
 
 ---
 
@@ -181,6 +220,21 @@ A new user clones the project and gets results in two commands. No extra system 
 
 **Litmus test:** After cloning, can a new user find the startup entry point within 5 seconds? Seeing `run.sh` with a single `ls` is a pass. If they need to `cd scripts/`, scan the README, or search, it's a failure.
 
+### 4.2 Startup Script Localization
+
+**Principle:** `run.sh` should work in any deployment environment without modification.
+
+**Rule:**
+- Mount paths must use environment variables, with `${VAR:-default}` fallback values for defaults.
+- When localization is needed, the user sets environment variables (which are not committed to git), or creates a copy under `.local/` as `run.local.sh`.
+- `run.local.sh` is the localized variant — it is gitignored and may contain environment-specific overrides. The base `run.sh` remains the authoritative, portable entry point.
+
+**Technique:**
+- The recommended pattern: `run.sh` defines all paths and settings via `${VAR:-default}`. Users who need to customize create a `.local/run.local.sh` that exports the necessary environment variables before calling `run.sh`.
+- Alternatively, users may set environment variables in their shell profile or a `.env` file (gitignored, see §15.2).
+
+**Litmus test:** Can a new deployment environment start the project by running `./run.sh` without editing the script? If environment variables must be set first, are they clearly documented with reasonable defaults?
+
 ---
 
 ## V. Correct First, Optimize Later
@@ -217,31 +271,38 @@ A project run on any two machines with identical hardware should produce **bit-f
 
 > This constitution targets Python projects. This section and all subsequent concrete rules (file format, package manager, type annotation syntax, etc.) are anchored in the Python ecosystem. The design philosophy (Layer 1) is language-agnostic and can be applied to other languages by analogy.
 
-**Layered Configuration Pattern:** When a project needs to separate secret configuration (internal IPs, keys, etc.) from public configuration, use a two-layer TOML approach with deep dict merge:
+**Layered Configuration Pattern:** When a project needs to separate deployment configuration from public configuration, use a two-layer TOML approach with deep dict merge. Deployment configuration includes two categories of fields:
 
-- **Base configuration** (`config.toml`, git-tracked): Contains **all fields**. Non-secret fields have production-grade defaults; secret fields are left empty (`""`, `0`, `[]`). This is the **single authoritative source** of the configuration structure — every field is defined here, and reading this file gives you the complete configuration schema.
-- **Override configuration** (`config.override.toml`, gitignored, deployment machine only): Overrides only the secret fields in the base configuration. Copy from the `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones".
+- **Secret fields**: keys, passwords, tokens, internal IPs — must not appear in git-tracked files.
+- **Environment fields**: API endpoint URLs, model names, external service addresses — these vary by deployment environment but are not secrets per se.
+
+- **Base configuration** (`config.toml`, git-tracked): Contains **all fields**. Non-deployment fields have production-grade defaults. Secret fields are left empty (`""`, `0`, `[]`). Environment fields have **development defaults** (e.g., `"http://localhost:8000"`, `"local-model"`) rather than being left empty — this ensures the project runs out of the box in a development environment. This is the **single authoritative source** of the configuration structure — every field is defined here, and reading this file gives you the complete configuration schema.
+- **Override configuration** (recommended location: `.local/config.override.toml`, gitignored, deployment machine only): Overrides only the fields that need deployment-specific values. Copy from the `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones". The template only needs to contain the fields that require overriding, not a mirror of all fields.
 - **Merge rule:** On startup, load the base configuration into a dict, then load the override configuration, and **deep merge** them into a single dict — leaf values from the override dict replace leaf values at the same path in the base dict. After merging, there is only **one configuration** in the program, eliminating any ambiguity of "two configuration sources".
+
+**Override file location:** The recommended location for the override file is `.local/config.override.toml`. Other locations are supported via an explicit `--override` parameter passed by the user. The CLI auto-detection priority is: explicit `--override` parameter → `.local/` → adjacent path (backward compatible).
 
 ```toml
 # config.toml — base configuration (git-tracked), contains all fields
 [device]
-type = "isaac_sim"
-robot_type = "nova_carter"
+type = "simulation"
+robot_type = "general_robot"
 
 [streaming]
 encoder = "h264"
 h264_fps = 30
 
 [task.llm]
-endpoint = ""        # secret field, empty, overridden at deployment
-model = ""           # secret field, empty, overridden at deployment
+endpoint = ""                # secret field, empty, overridden at deployment
+model = "local-model"        # environment field, development default
 
-# config.override.toml — override configuration (gitignored), only secret fields
+# .local/config.override.toml — override configuration (gitignored), only deployment fields
 [task.llm]
 endpoint = "http://10.1.xxx.xxx:8000/v1"
-model = "qwen3-27b"
+model = "production-model"
 ```
+
+**TOML null-value handling:** TOML does not support `None`/null literals. To express "not provided" in the base configuration, use `""` (empty string). The program must uniformly convert `""` to `None` at load time. `""` is the serialized representation of `None`, not a business-meaningful empty string. For numeric and array fields, use `0` and `[]` as the "not provided" sentinels, and the program must convert them to `None` as well.
 
 **Litmus test:** Does the base configuration contain every field (no omissions)? Can you understand the complete configuration schema by reading only the base configuration? Does the override configuration only override fields that already exist in the base configuration (no new fields)? After merging, does the program have only one configuration (single downstream consumer)?
 
@@ -292,7 +353,7 @@ project/
 │   ├── backends/
 │   └── e2e/                 # End-to-end tests
 ├── scripts/                 # One-off utility scripts (optional: may be absent once all tools are institutionalized, §10.2)
-├── .local/                  # Temporary local files (never committed, see §XVI)
+├── .local/                  # Local and temporary files (never committed, see §XVI)
 ├── docker/                  # Docker build
 ├── pyproject.toml
 ├── uv.lock
@@ -309,7 +370,7 @@ project/
 
 > The directory layout template shows both `README.md` and `README.zh-CN.md`. For projects exempt under §17.6, a single `README.md` is sufficient.
 
-**`cli.py` may be upgraded to a `cli/` directory:** When the CLI logic is complex enough to warrant multiple sub-modules (e.g. subcommand dispatch, training worker process entry point), follow the same logic as §8.3 (Class-to-Directory) — `cli/__init__.py` maintains external transparency, so consumers only see `graspo.cli:main` and are unaware whether the implementation is a single file or a directory.
+**`cli.py` may be upgraded to a `cli/` directory:** When the CLI logic is complex enough to warrant multiple sub-modules (e.g. subcommand dispatch, training worker process entry point), follow the same logic as §8.3 (Class-to-Directory) — `cli/__init__.py` maintains external transparency, so consumers only see `project_name.cli:main` and are unaware whether the implementation is a single file or a directory.
 
 **`domain/` may be omitted:** Not every project has an independent domain logic layer. If the domain logic naturally coheres within `core/` computation modules, or if the domain concepts are not yet stable enough to justify a separate layer, an empty directory is worse than no directory. The core principle of module boundaries (§1.1) is that a module's responsibility must be describable in a single sentence — if you cannot describe what `domain/` is responsible for, it should not exist.
 
@@ -324,8 +385,8 @@ A file of thousands of lines is hard to read, modify, and even slow for the IDE 
 When a class has so many methods that a single file bloats to hundreds or thousands of lines, don't force the methods into one file. Upgrade the class to a directory:
 
 ```
-backends/models/qwen35_36/
-├── __init__.py          # Re-exports Qwen35Adapter from adapter.py
+backends/models/model_adapter/
+├── __init__.py          # Re-exports ModelAdapter from adapter.py
 ├── adapter.py           # Main class definition + template method skeleton
 ├── forward.py           # Forward-pass methods
 ├── generation.py        # Generation/sampling methods
@@ -551,7 +612,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 **Naming as documentation:** File names are the first line of documentation for a codebase. From directory hierarchy and file names alone, a reader should be able to infer the file's purpose, its owning module, and its inheritance relationships. File names are not labels for yourself — they are navigation signals for future readers (including AI agents). When a file must be renamed for a new reader to understand its responsibility, the original naming was a failure.
 
-**Class-path mirroring:** A class name should encode two pieces of information — its **domain** and its **function**. The domain must map to a directory level in the path; the function must map to a file level in the path. `Qwen35Adapter` should live at `.../qwen35_36/adapter.py`, not scattered inside `utils.py`. The mechanical rule follows: **a class name's CamelCase words decompose into path components — package → directory → filename (snake_case), one word per level.** `GraspoFlowTrainer` → `graspo/flow/trainer/trainer.py` (`Graspo`=package, `Flow`=directory, `Trainer`=file), `GRASPORippleLoss` → `graspo/ripple/loss.py` (`Ripple`=directory, `Loss`=file). **The directory hierarchy already provides domain context; the filename only needs to encode the functional part** — `graspo_flow_trainer.py` or `graspo_ripple_loss.py` would be redundant, repeating path information already encoded in the directory structure. Exemptions: inside class directories (§8.3), files are named by functional domain and the directory name carries class-name locality; mixin classes (`_`-prefixed or `*Mixin`-suffixed) are named by function (`_Qwen35GenerationMethods` in `generation.py`, `CheckpointMixin` in `checkpoint.py`); same-family multi-class files (§8.4) are named by functional family (`Qwen35*StageOp` classes in `ops.py`); data-container types (frozen dataclass, pydantic models) are attached to the function family that operates on them and are named by that family (`CompareResult` in `compare.py`); test files are named after the module under test (§11.2), and their helper classes are exempt.
+**Class-path mirroring:** A class name should encode two pieces of information — its **domain** and its **function**. The domain must map to a directory level in the path; the function must map to a file level in the path. `ModelAdapter` should live at `.../models/adapter.py`, not scattered inside `utils.py`. The mechanical rule follows: **a class name's CamelCase words decompose into path components — package → directory → filename (snake_case), one word per level.** `FlowTrainer` → `flow/trainer/trainer.py` (`Flow`=directory, `Trainer`=file), `RippleLoss` → `ripple/loss.py` (`Ripple`=directory, `Loss`=file). **The directory hierarchy already provides domain context; the filename only needs to encode the functional part** — `flow_trainer.py` or `ripple_loss.py` would be redundant, repeating path information already encoded in the directory structure. Exemptions: inside class directories (§8.3), files are named by functional domain and the directory name carries class-name locality; mixin classes (`_`-prefixed or `*Mixin`-suffixed) are named by function (`_ModelGenerationMethods` in `generation.py`, `CheckpointMixin` in `checkpoint.py`); same-family multi-class files (§8.4) are named by functional family (`ModelStageOp` classes in `ops.py`); data-container types (frozen dataclass, pydantic models) are attached to the function family that operates on them and are named by that family (`CompareResult` in `compare.py`); test files are named after the module under test (§11.2), and their helper classes are exempt.
 
 **Why constrain classes but not functions?** Functions get their domain context from the file that contains them — locality is the file's job. Classes are self-locating units referenced across files, and a class may outgrow into a directory (§8.3) — a class name must carry its own locality.
 
@@ -744,7 +805,7 @@ Every commit must pass the following checks. These checks should be integrated i
 - Build artifacts, caches, virtual environments
 - IDE configuration files
 - AI assistant files (`CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`)
-- Temporary local files — all such files must live in `.local/` (see §XVI)
+- Local and temporary files — all such files must live in `.local/` (see §XVI)
 
 **3. Content review (human + AI assisted):**
 - No training data, user data, or private datasets
@@ -779,20 +840,25 @@ If secret information was ever committed to git history:
 
 ---
 
-## XVI. Temporary and Local Files
+## XVI. Local and Temporary Files
 
 Every project generates files that are useful during development but have no place in the permanent codebase — run logs, migration plans, deployment notes, personal experiments. Without a designated home, these files scatter across the repository, and sooner or later one of them gets committed with internal IPs or passwords still in it.
 
-### 16.1 `.local/` — The Sole Home for Temporary Files
+### 16.1 `.local/` — The Sole Home for Local and Temporary Files
 
-The `.local/` directory at the project root is the **only** permitted location for temporary files. It is excluded entirely in `.gitignore` — nothing inside it will ever be committed.
+The `.local/` directory at the project root is the **only** permitted location for local and temporary files. It is excluded entirely in `.gitignore` — nothing inside it will ever be committed.
 
-`.local/` is not a suggestion. It is a rule: any temporary file found in a tracked path outside `.local/` is a violation.
+`.local/` is not a suggestion. It is a rule: any local or temporary file found in a tracked path outside `.local/` is a violation.
+
+`.local/` carries two categories of files:
+- **Local deployment files** (long-term): deployment configuration overrides (`config.override.toml`, etc.), localized startup scripts (`run.local.sh`), and other deployment-specific artifacts that are not part of the permanent codebase but persist across sessions.
+- **Temporary files** (short-term): run logs, migration plans, deployment notes, personal experiments, debug logs, and other transient artifacts.
 
 ### 16.2 What Belongs in `.local/`
 
 A file belongs in `.local/` if it meets any of these criteria:
 - Contains runtime environment information (IPs, hostnames, container names, SSH users, internal paths)
+- Is a deployment configuration override (`config.override.toml`, etc.)
 - Describes a one-time operation (migration plans, deployment records, experiment tracking)
 - Is a personal note, debug log, or run monitor
 - Is temporary data or an experimental config
@@ -900,6 +966,7 @@ When users of an old version need to upgrade to the new architecture, provide a 
 - Direct commits to `main` / `master` are forbidden
 - All development happens on feature branches: `feature/<description>`, `fix/<description>`, `docs/<description>`
 - Merging to main requires a PR — at minimum, self-review the diff
+- **Solo projects:** a single-developer project may push directly to the main branch. Good commits are sufficient — the PR workflow overhead is unnecessary when there is no second pair of eyes to review. If the project later gains additional contributors, adopt the branch-and-PR workflow at that point.
 - Commit messages are **recommended** to be in English, format: `type: short description` (feat, fix, docs, refactor, test, chore). English is the de facto standard of the open source community — the `git log --oneline` toolchain is English-first, and it enables international contributors to understand the project's history. Projects whose primary contributor community uses another language (e.g. Chinese) may use that language, but should stay consistent within one repository.
 - **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be rewritten to fix message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. The exception is security: if a historical commit contains leaked secrets, history MUST be rewritten (see §15.3).
 - One commit does one thing
@@ -907,18 +974,19 @@ When users of an old version need to upgrade to the new architecture, provide a 
 ### 19.2 .gitignore Must Cover
 
 - Python runtime: `__pycache__/`, `*.pyc`
-- Virtual environments: `.venv/`, `venv/`
+- Virtual environments: `.venv/`, `venv/`, `venvs/`
 - Test and type check caches: `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`
 - Build artifacts: `dist/`, `build/`, `*.egg-info/`
-- Environment config: `.env` (keep `.env-example` if the project has
+- Environment config: `.env`, `*.env` (keep `.env-example` if the project has
   non-infrastructure environment variables; infrastructure-only projects —
   e.g. those using only standard CUDA/NCCL/PyTorch distributed env vars
   like `CUDA_VISIBLE_DEVICES`, `NCCL_*`, `PYTORCH_*`, `RANK`, `LOCAL_RANK`,
   `WORLD_SIZE`, `MASTER_ADDR`, `MASTER_PORT` — are exempt)
+- Configuration overrides: `config.override.toml`, `my_config*.toml`, `config.local.toml`, `*.local.toml`
 - Outputs and data: `outputs/`, `data/` (except sample data)
 - IDE: `.idea/`, `.vscode/`
 - AI assistants: `CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`
-- Temporary local files: `.local/`
+- Local and temporary files: `.local/`
 - System files: `.DS_Store`, `Thumbs.db`
 
 ### 19.3 Open Source License
