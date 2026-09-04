@@ -1,4 +1,4 @@
-# BADGE 开发宪法 v1.20.0
+# BADGE 开发宪法 v1.21.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — 边界与守护工程开发宪法
 >
@@ -200,7 +200,7 @@ AI 时代，代码是第一文档——AI 直接读写代码，维护一份与�
 **实现要点：**
 - 随机种子在配置文件中显式设定，不依赖系统时间或硬件状态
 - `uv.lock` 锁定所有依赖的精确版本，提交到 git
-- Docker base image 锁定具体 SHA256 digest（不是 tag，tag 可以被覆盖）
+- Docker base image 锁定具体版本标签（不用 `latest`；tag 可以被覆盖）
 - 每次运行的配置自动备份到输出目录，确保事后可复现
 
 **判断标准：** 两台机器、同一 config、同一 seed，产出是否一致？运行两次，产出是否一致？"一致"指排除不可控随机性后的落盘输出一致——判断参数归属时，以 §10.1 的复现定义为准。
@@ -629,7 +629,7 @@ DEBUG 给开发者排查 bug，INFO 给用户了解运行状态，WARNING 给用
 
 ### 14.3 Docker 必须支持
 
-每个项目必须提供 Docker 部署。Base image 锁定具体版本（不用 `latest`）；强烈建议锁定 SHA256 digest。Dockerfile 两层构建（依赖层 + 源码层），利用层缓存。依赖安装使用 `uv sync` 或 `uv pip install` 配合 `uv.lock`，确保容器内依赖版本与开发环境一致。`build.sh` 封装构建命令。
+每个项目必须提供 Docker 部署。Base image 锁定具体版本标签（不用 `latest`）。Dockerfile 两层构建（依赖层 + 源码层），利用层缓存。依赖安装使用 `uv sync` 或 `uv pip install` 配合 `uv.lock`，确保容器内依赖版本与开发环境一致。`build.sh` 封装构建命令。
 
 **Docker 层缓存设计：** 依赖层同时 COPY `uv.lock` 和 `pyproject.toml`。版本号由 `setuptools-scm` 从 git tag 推导（§8.7），`pyproject.toml` 中 `dynamic = ["version"]` 不包含版本号字符串，因此版本号变更不改变 `pyproject.toml` 的文件哈希。依赖层只在 `uv.lock` 或 `pyproject.toml` 真正变更时才重建——日常的版本号发布和代码修改都不会触发依赖层重建。
 

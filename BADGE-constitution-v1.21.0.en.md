@@ -1,4 +1,4 @@
-# The BADGE Constitution v1.20.0
+# The BADGE Constitution v1.21.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -200,7 +200,7 @@ A project run on any two machines with identical hardware should produce **bit-f
 **Implementation points:**
 - Random seed is explicitly set in the config file, never dependent on system time or hardware state
 - `uv.lock` locks exact versions of all dependencies, committed to git
-- Docker base image is pinned to a specific SHA256 digest (not a tag — tags can be overwritten)
+- Docker base image is pinned to a specific version tag (not `latest` — tags can be overwritten)
 - Configuration for each run is automatically backed up to the output directory, ensuring post-hoc reproducibility
 
 **Litmus test:** Two machines, same config, same seed — identical output? Two runs, identical output? "Identical" means identical on-disk output after excluding uncontrollable randomness — when judging parameter placement, use the reproducibility definition in §10.1.
@@ -632,7 +632,7 @@ All projects use `uv` as the sole package manager. `.python-version` pins the Py
 
 ### 14.3 Docker Required
 
-Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`); a SHA256 digest is strongly recommended. Dockerfile uses two-stage caching (dependencies layer + source layer). Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions as the development environment. `build.sh` encapsulates the build command.
+Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`). Dockerfile uses two-stage caching (dependencies layer + source layer). Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions as the development environment. `build.sh` encapsulates the build command.
 
 **Docker layer cache design:** The dependency layer copies both `uv.lock` and `pyproject.toml`. The version number is derived by `setuptools-scm` from git tags (§8.7), and `pyproject.toml` uses `dynamic = ["version"]` (no version string in the file), so version bumps do not change `pyproject.toml`'s file hash. The dependency layer is only rebuilt when `uv.lock` or `pyproject.toml` actually changes — routine version releases and code changes never trigger a dependency layer rebuild.
 
