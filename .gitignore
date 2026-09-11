@@ -1,6 +1,49 @@
-.local/
+# Python runtime
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+venvs/
+
+# Test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Environment config
+.env
+*.env
+
+# Config overrides (§7.1)
+config.override.toml
+my_config*.toml
+config.local.toml
+*.local.toml
+
+# Outputs and data (example data excepted)
+outputs/
+data/
+!data/sample/
+
+# IDE
+.idea/
+.vscode/
+
+# AI assistant files (local-only, §17.3)
 CLAUDE.md
 AGENTS.md
 CLAUDE.zh-CN.md
+
+# Local and temporary files (§16)
+.local/
+
+# System files
 .DS_Store
 Thumbs.db

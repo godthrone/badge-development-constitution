@@ -1,4 +1,4 @@
-# The BADGE Constitution v2.0.0
+# The BADGE Constitution v2.1.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -16,7 +16,7 @@ The BADGE Constitution classifies projects into three categories, each with a di
 ## Three Project Categories
 
 - **Category A (Open-source Python projects)**: Public repositories, community audience. The full constitution applies (§1–§20).
-- **Category B (Closed-source Python projects)**: Private repositories, internal teams. Core clauses are mandatory (security, foolproofing, reproducibility); some clauses may be relaxed (bilingual README exemption, YAML format suggestions are non-mandatory, `__main__.py` may be exempt for Docker-deployed projects).
+- **Category B (Closed-source Python projects)**: Private repositories, internal teams. Core clauses are mandatory (security, foolproofing, reproducibility); some clauses may be relaxed (bilingual README exemption, config-format suggestions are non-mandatory, `__main__.py` may be exempt for Docker-deployed projects).
 - **Category C (Other infrastructure projects)**: Non-standard Python packages, data repositories, DevOps tools, documentation projects, etc. Only design principles (§1–§6) must be followed; §7–§20 are optional. However, clauses within §7–§20 that are engineering embodiments of the design principles (§15 Secrets Management, §16 `.local/`, §17.3–§17.5 Documentation System, §19.1–§19.3 Open Source Management) remain mandatory.
 
 ## Classification Determination
@@ -42,7 +42,7 @@ When a project's current state conflicts with a constitutional clause, use the t
 
 Project classification is not hardcoded within the project itself. When running compliance detection scripts, the classification is passed via a command-line argument (e.g., `--class A`), allowing flexible adjustment of the detection level.
 
-## YAML Configuration Format
+## Configuration Format: TOML First
 
 New projects should use TOML as the configuration format. Existing projects using YAML should not be changed unless actively migrated. The constitution does not mandate migration for existing YAML projects, but recommends migrating during refactoring.
 
@@ -95,6 +95,8 @@ When facing a complex problem, the human instinct is to "solve everything at onc
 **Rule:** A sub-task must be independently completable and produce a verifiable result. Sub-tasks communicate through explicit input/output interfaces — never through shared implicit state. The caller must be able to determine whether a sub-task succeeded solely from its output.
 
 **Technique (AI-assisted development):** Break a large task into multiple specific, single-responsibility sub-tasks. Dispatch them to agents in parallel, each producing independently verifiable results. Aggregate at the end. Benefits: saves context window, yields more detailed output, reduces total elapsed time, and each sub-task's correctness is independently verifiable.
+
+**Granularity fit:** Decomposition granularity is determined by task complexity — simple tasks are not split by force. For how to assess complexity and pick the least-effort execution path, see §6.1.
 
 **Litmus test:** Can a sub-task be completed independently and produce a verifiable result without relying on the context of other sub-tasks? If not, the decomposition isn't fine enough. After a sub-task completes, can the caller determine success solely from its output? If not, the output boundary is unclear.
 
@@ -261,6 +263,29 @@ A project run on any two machines with identical hardware should produce **bit-f
 
 ---
 
+### 6.1 Simple First: Assess, Then Act
+
+**Principle:** Assess task complexity and risk before starting. In the absence of irreversible risk, start from the simplest path — if a simple method solves it, do not use a complex one. Simple operations are hard to get wrong; this is Occam's razor applied to engineering execution, and one of the means of foolproofing (§2) and raising task success rate.
+
+This clause constrains the **method of execution** (depth of investigation, implementation path, tool choice), not the **standard of delivery** — the completeness of the deliverable's design is not lowered by this clause.
+
+**Three assessment questions:**
+1. How complex is the task — does it require extensive analysis and verification before acting?
+2. If it goes wrong, is the consequence recoverable/reversible?
+3. Is there a simpler, ready-made entry point or approach?
+
+**Entry point first:** Look for existing scripts, README, docs, and other entry points in the directory the user gave you; build the full picture first, then decide whether to read the source in depth.
+
+**Technique:** For simple tasks, just do it; stop when verification passes, and don't run multiple rounds of repetitive analysis on the same thing. Execution cost (time, tokens) is a resource worth managing — a light recommendation, not a hard constraint.
+
+**Boundary:** If the chosen path is irreversible — data changes, destructive operations, external delivery — simple-first does not apply; validate fully before acting (destructive operations see §2.4).
+
+**Escalation signal:** Only escalate to root-cause investigation when a simple approach fails once, or the same problem recurs.
+
+**Litmus test:** If your chosen execution path is wrong, can later verification correct it? If yes, trying the simple path first is fine; if not (irreversible), validate fully first.
+
+---
+
 # Layer 2: Engineering Standards
 
 ## VII. Configuration System
@@ -310,9 +335,11 @@ model = "production-model"
 
 All validation happens at config load time, not scattered across usage points. Pydantic's `extra="forbid"` rejects misspelled field names. `model_validate()` checks all field types and constraints in one pass. Validation failure exits immediately with a clear error message — which field, what was expected, what was received.
 
+**Two-way config contract:** The config file is the user-side contract and the pydantic model is the code-side contract; the two must correspond one-to-one. Every field that appears in config must be defined in the model and actually used; every field defined in the model must have a corresponding config source. **A field that is declared but never consumed is a "phantom config"** — the user changes it believing it takes effect, while nothing happens; this is more insidious than a missing field.
+
 ### 7.3 Template as Documentation
 
-Every project provides a `config_example.yaml` containing all fields, comments, and defaults. Users copy it, change a few values, and go. The template file itself is a working configuration — well-commented, sensible defaults, covering 80% of use cases.
+Every project provides a `config_example.toml` containing all fields, comments, and defaults. Users copy it, change a few values, and go. The template file itself is a working configuration — well-commented, sensible defaults, covering 80% of use cases.
 
 ### 7.4 Config Parameter Design
 
@@ -326,7 +353,7 @@ Config parameters are the boundary between the user and the system. Poorly desig
 
 **3. Self-explanatory names.** Parameter names can be long, but must communicate their meaning at a glance — no documentation lookup required. `learning_rate` is better than `lr`. `warmup_steps` is better than `ws`. `min_lr_ratio` is better than `min_lr` (the latter reads as an absolute LR value, not a ratio). Abbreviations are only acceptable when the term is a universally recognized domain standard — such as `lr`, `tp`, `pp`, `lora`. Even then, prefer full names as top-level config keys — `learning_rate` is less ambiguous than `lr`.
 
-**Litmus test:** Show only the parameter name and comment to someone unfamiliar with the project. Can they accurately state what the parameter does? If they get the function right but the unit or range wrong, the name is good but the comment is insufficient. If they get the function wrong, the name itself is ambiguous.
+**Litmus test:** Show only the parameter name and comment to someone unfamiliar with the project. Can they accurately state what the parameter does? If they get the function right but the unit or range wrong, the name is good but the comment is insufficient. If they get the function wrong, the name itself is ambiguous. Beyond that: when you change this parameter, does the system behavior actually change as intended? If nothing changes, it was never wired into the code — a phantom config, not a naming problem.
 
 ---
 
@@ -429,13 +456,13 @@ Source code and data are assets. Run artifacts are consumables. The two must be 
 
 ```
 outputs/<run_name>/
-├── config.yaml           # Config backup for this run (full reproducibility)
+├── config.toml           # Config backup for this run (full reproducibility)
 ├── checkpoints/          # Model checkpoints
 ├── logs/                 # Logs, split by functional domain
 └── results/              # Final outputs (datasets, models, evaluation results)
 ```
 
-Each run automatically generates a unique `run_name` (default: timestamp-based), preventing accidental overwrites. After the run completes, the user can fully reproduce it from the `config.yaml` in `outputs/` — no need to hunt down the original config file.
+Each run automatically generates a unique `run_name` (default: timestamp-based), preventing accidental overwrites. After the run completes, the user can fully reproduce it from the config backup in `outputs/` — no need to hunt down the original config file. The backup uses the same format as the project config (for a TOML project, `config.toml`).
 
 ### 8.6 Imports and File Headers
 
@@ -448,7 +475,7 @@ The project's version number is **automatically derived from git tags via `setup
 - `pyproject.toml`'s `[tool.setuptools_scm]` section configures version derivation rules (tag format, prefix, etc.) — this is the **single configuration source** for the versioning mechanism
 - The actual version string does not live in any file — it is derived from `git describe --tags`. To release: `git tag vX.Y.Z`
 - **Forbidden:** defining `__version__` in `__init__.py` — creates two sources of truth
-- **Forbidden:** writing version numbers in comments in `config_example.yaml` — the template file is for users, not version records
+- **Forbidden:** writing version numbers in comments in `config_example.toml` — the template file is for users, not version records
 - **Forbidden:** hardcoding version strings in source code
 
 At runtime, use `importlib.metadata.version("package-name")`. For users to check the version: `git tag --sort=-v:refname | head -1` or `pip show package-name`.
@@ -493,9 +520,9 @@ Multiple implementations of the same type are managed through a registry (string
 
 **Principle: the config file is the sole description of run output.** Run output includes everything written to disk (model weights, datasets, evaluation results, log and record files) — the on-disk location is part of the output (output_dir and run_name are both config-driven); content sent to external systems counts as output too. The only exception: content printed directly to stdout without touching disk is not output.
 
-**Reproducibility definition:** with the same config + seed, on-disk output matches after excluding uncontrollable randomness (wall-clock timing differences from machine load, GPU kernel selection, and other differences outside your control) — that is reproduction (§6). Reproduction is the basis for judging parameter placement: **whether the config.yaml backed up in the output directory (§8.5) alone can reproduce all on-disk output is the single standard for judging where a parameter belongs.**
+**Reproducibility definition:** with the same config + seed, on-disk output matches after excluding uncontrollable randomness (wall-clock timing differences from machine load, GPU kernel selection, and other differences outside your control) — that is reproduction (§6). Reproduction is the basis for judging parameter placement: **whether the config.toml backed up in the output directory (§8.5) alone can reproduce all on-disk output is the single standard for judging where a parameter belongs.**
 
-**Corollary 1: every parameter that participates in deciding output must live in the config file.** Otherwise the same config would produce different results under different CLI flags — the one-to-one mapping between config and output breaks, and the §8.5 "back up config.yaml and reproduce" promise fails.
+**Corollary 1: every parameter that participates in deciding output must live in the config file.** Otherwise the same config would produce different results under different CLI flags — the one-to-one mapping between config and output breaks, and the §8.5 "back up config.toml and reproduce" promise fails.
 
 **Corollary 2: CLI flags and config fields have zero intersection.** A parameter has exactly one source of truth (§1.4). A mechanism where "the config holds a value and the CLI overrides it" is forbidden — override means two sources of truth. Adding a new command is acceptable when it represents a fundamentally different lifecycle operation (training vs. exporting) that cannot be naturally expressed as a config toggle, but the command itself is subject to this section.
 
@@ -624,7 +651,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 All other files — comments, docstrings, architecture documentation, config annotations — use **either Chinese or English, at the author's discretion**. No other languages are permitted. Keep language broadly consistent within a file; a small amount of technical terms, code references, or structural separators may remain in English.
 
-**Config template comments** (`config_example.yaml`) default to **English** — the config template is a user-facing interface, and English is the common language of the global developer community.
+**Config template comments** (`config_example.toml`) default to **English** — the config template is a user-facing interface, and English is the common language of the global developer community.
 
 **Commit messages** use **English** (see 19.1).
 
@@ -671,7 +698,7 @@ The specific filenames and module splits are defined by each project according t
 
 ### 13.4 Debugging: Simplicity is Reliability
 
-**Principle:** The complexity of your debugging tools must not exceed the complexity of the system being debugged. Debugging tools are themselves code, and they can have bugs too. When a complex logging framework, distributed tracing system, or async sampler becomes part of the problem, fall back to the simplest reliable tool.
+**Principle:** The complexity of your debugging tools must not exceed the complexity of the system being debugged. For the general execution methodology (simple first, assess before acting), see §6.1. Debugging tools are themselves code, and they can have bugs too. When a complex logging framework, distributed tracing system, or async sampler becomes part of the problem, fall back to the simplest reliable tool.
 
 **Technique:** `print()` + stdout redirection is the last and most reliable fallback. This is not a step backward — it is the fallback design principle (§3.1) applied to debugging: degrade to a simpler but more reliable approach to ensure that debugging information is never lost.
 
@@ -898,7 +925,7 @@ Split by topic under the `docs/` directory, each file focused on one concern. Th
 
 If a project uses AI coding assistants (e.g. Claude Code, GitHub Copilot), it may generate `CLAUDE.md` and `AGENTS.md` on demand for the assistant's use — high information density, structured format, helping AI understand the project's architecture and conventions. These files are **not committed to git** (excluded in `.gitignore`) — they are part of the local development environment. If the project does not use AI assistants, there is no need to create these files.
 
-Projects that use the work log (§17.5) should place a one-line pointer to `work_log_current.md` in `CLAUDE.md`, so AI discovers the log entry point at every session.
+Projects that use the work log (§17.5) should place a one-line pointer to `work_log_current.md` in `CLAUDE.md`, noting that its state section opens with the "User's Original Prompt" anchor, which must be read at the start of every session — so AI discovers both the log entry point and the intent anchor.
 
 ### 17.4 Version History
 
@@ -910,12 +937,14 @@ Handover is not an event; it is a continuous state. Instead of writing a compres
 
 The work log consists of two files under `.local/`, never committed to git (they necessarily contain environment information, §16.2):
 
-- **`work_log_current.md` — the state section, read at every session.** It holds only the latest values, updated in place, never pruned. Organized into the following sections: current progress, current major difficulties and problems, task plan (checklist format, `[ ]` todo / `[x]` done), unresolved questions (decision points requiring user confirmation), planned solutions to try, resources and environment (servers, GPUs, available tool scripts, etc.), technical conventions and tooling notes (frameworks, design patterns, coding conventions). Keep it under about 100 lines — it carries the "understand the state in 30 seconds" responsibility.
+- **`work_log_current.md` — the state section, read at every session.** It holds only the latest values, updated in place, never pruned; **the sole exception is the leading "User's Original Prompt" anchor — append-only, never overwritten**. Organized into the following sections: user's original prompt (one sentence recording the user's original task intent, frozen after first write, with new lines appended only when the user explicitly changes the goal; it is the intent anchor across sessions and context compactions, preventing drift in long tasks), current progress, current major difficulties and problems, task plan (checklist format, `[ ]` todo / `[x]` done), unresolved questions (decision points requiring user confirmation), planned solutions to try, resources and environment (servers, GPUs, available tool scripts, etc.), technical conventions and tooling notes (frameworks, design patterns, coding conventions). Keep it under about 100 lines — it carries the "understand the state in 30 seconds" responsibility.
 - **`work_log_history.md` — the event section, read on demand.** User original requests, completed tasks, and resolved problems are appended incrementally with timestamps (entries start with `YYYY-MM-DD HH:MM`), newest at the end. When the log grows long, prune selectively: delete from the head (oldest) entries that are **already absorbed into code or docs and no longer worth referencing**; important decision context may be kept forever. **Pruning is a trade-off, not a truncation** — if after pruning a successor cannot understand the current state faster than from reading git log, you pruned too much.
 
 Relationship with git: the git commit log is the authoritative record of changes (immutable, §17.4); the work log is the narrative layer of decision context (selectively compressible). The log records what git doesn't — why, difficulties, plans, next steps. The log is not a Changelog replacement and carries no authority; every statement in it should be cross-verifiable against git or the code.
 
-**When to update:** at the end of each working session or when a phase completes — append 3–5 lines to the event section and refresh the state section. Projects that use AI assistants place a pointer to `work_log_current.md` in `CLAUDE.md` (§17.3).
+Division of labor between the state-section anchor and the event section: the event section keeps the **verbatim original request** (prunable with history), while the state-section anchor keeps the **stable intent summary** (never pruned). Different purposes, no duplication.
+
+**When to update:** at the end of each working session or when a phase completes — append 3–5 lines to the event section and refresh the state section (the "User's Original Prompt" anchor stays unchanged unless the goal changes). Projects that use AI assistants place a pointer to `work_log_current.md` in `CLAUDE.md` (§17.3).
 
 **Litmus test:** Can a newcomer (human or AI) fully continue the work reading only the work log and the codebase, without asking the original author? If not, the log is incomplete.
 
@@ -944,7 +973,7 @@ Technical debt is the cancer of engineering quality. Today's shortcut becomes to
 ### 18.1 No Debt Left Behind
 
 - After the new architecture is online, tested, and stable, old code is **deleted immediately**. No "compatibility mode" kept around. No `legacy/` directory. No `# TODO: remove after v2` comments. The codebase contains exactly one current architecture.
-- When deleting old code, simultaneously update: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), config templates (`config_example.yaml` reflects the current architecture), documentation (architecture descriptions in README and docs/), tests (delete tests for the old architecture — don't keep them "just in case").
+- When deleting old code, simultaneously update: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), config templates (`config_example.toml` reflects the current architecture), documentation (architecture descriptions in README and docs/), tests (delete tests for the old architecture — don't keep them "just in case").
 - Version numbers are updated on every release, following `MAJOR.MINOR.PATCH`: architecture refactors and incompatible config changes bump MAJOR, new features bump MINOR, bug fixes bump PATCH.
 
 ### 18.2 Legacy System Migration
@@ -1006,7 +1035,6 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 dependencies = [
-    "pyyaml>=6.0",
     "pydantic>=2.0",
 ]
 

@@ -411,8 +411,12 @@ if $HISTORY_MODE; then
 
         echo "Scanning history for internal paths..."
         for path_pattern in "${INTERNAL_PATH_PATTERNS[@]}"; do
+            # Exclude the scanner's own source (mirrors the working-tree scan):
+            # INTERNAL_PATH_PATTERNS contains strings like /root/ and /var/log/,
+            # which would otherwise match their own definitions in history.
             HIST_PATH=$(grep_history "$HIST_STREAM" "$path_pattern" | \
                 grep -v 'badge-development-constitution/' | \
+                grep -v 'check_secrets\.sh' | \
                 grep -v 'RUN --mount=type=cache,target=/root/.cache' | \
                 _filter_history_false_positives || true)
             if [ -n "$HIST_PATH" ]; then

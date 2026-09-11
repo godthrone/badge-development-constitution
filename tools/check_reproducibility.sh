@@ -96,11 +96,13 @@ fi
 
 # ─── 4. Random seed hints ──────────────────────────────────────────────
 
-if [ -f "$PROJECT_ROOT/config_example.yaml" ]; then
-    if grep -qiE '^\s*(seed|random_seed):' "$PROJECT_ROOT/config_example.yaml" 2>/dev/null; then
-        echo "  [OK] Random seed appears in config_example.yaml"
+CFG_TEMPLATE="$PROJECT_ROOT/config_example.toml"
+[ -f "$CFG_TEMPLATE" ] || CFG_TEMPLATE="$PROJECT_ROOT/config_example.yaml"
+if [ -f "$CFG_TEMPLATE" ]; then
+    if grep -qiE '^\s*(seed|random_seed)\s*[:=]' "$CFG_TEMPLATE" 2>/dev/null; then
+        echo "  [OK] Random seed appears in config example"
     else
-        echo "  [WARN] No random seed field found in config_example.yaml."
+        echo "  [WARN] No random seed field found in config example."
         echo "         Random seed must be explicit in config, not dependent on system time (§6)."
     fi
 fi

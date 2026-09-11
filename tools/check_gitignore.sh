@@ -86,7 +86,9 @@ check_pattern() {
 echo "Checking .gitignore coverage..."
 
 for ((i=0; i<${#REQUIRED[@]}; i+=2)); do
-    check_pattern "${REQUIRED[$i]}" "${REQUIRED[$i+1]}"
+    # `|| true`: check_pattern returns 1 on a miss; with `set -e` that would abort
+    # the loop at the first missing entry and hide all remaining failures.
+    check_pattern "${REQUIRED[$i]}" "${REQUIRED[$i+1]}" || true
 done
 
 # ─── .env-example check (conditional per §19.2) ────────────────────────────
@@ -112,11 +114,17 @@ if [ -d "$PROJECT_ROOT/src" ]; then
     fi
 fi
 
-# Also check config_example.yaml for env-related fields
-if [ -f "$PROJECT_ROOT/config_example.yaml" ]; then
-    if grep -qiE 'env:|environment:' "$PROJECT_ROOT/config_example.yaml" 2>/dev/null; then
-        ENV_SECTION=$(grep -A 5 -E '^\s*env:' "$PROJECT_ROOT/config_example.yaml" 2>/dev/null | \
-            grep -vE '^\s*(#|$)' | grep -v '^\s*env:' | grep -v '\{\}' | grep -v '\[\]' || true)
+# Also check the config template for env-related fields (TOML preferred, YAML legacy)
+CFG_TEMPLATE="$PROJECT_ROOT/config_example.toml"
+[ -f "$CFG_TEMPLATE" ] || CFG_TEMPLATE="$PROJECT_ROOT/config_example.yaml"
+if [ -f "$CFG_TEMPLATE" ]; then
+    if grep -qiE 'env:|environment:|^\s*env\s*=|^\s*environment\s*=|^\s*\[(env|environment)\]' "$CFG_TEMPLATE" 2>/dev/null; then
+        # Strip the section/key header itself, blank/comment lines, and empty
+        # containers; whatever remains is real env content. Without stripping
+        # the [env] header, an empty TOML section counted as "has env vars".
+        ENV_SECTION=$(grep -A 5 -iE '^\s*(env|environment)\s*[:=]|^\s*\[(env|environment)\]' "$CFG_TEMPLATE" 2>/dev/null | \
+            grep -vE '^\s*(#|$)' | grep -viE '^\s*(env|environment)\s*[:=]' | \
+            grep -viE '^\s*\[(env|environment)\]' | grep -v '\{\}' | grep -v '\[\]' || true)
         if [ -n "$ENV_SECTION" ]; then
             IS_INFRA_ONLY=0
         fi

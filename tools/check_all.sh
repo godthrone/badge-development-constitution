@@ -66,9 +66,12 @@ run_check() {
     local script="$2"
     shift 2
     echo "── $name ──"
-    # Capture exit code
+    # Capture exit code.
+    # Invoke via `bash` rather than executing directly: the executable bit is not
+    # preserved on Windows/WSL checkouts (core.filemode=false), which would make
+    # every sub-check fail with "Permission denied".
     local exit_code=0
-    "$script" "$PROJECT_ROOT" "$@" || exit_code=$?
+    bash "$script" "$PROJECT_ROOT" "$@" || exit_code=$?
     if [ $exit_code -eq 0 ]; then
         PASS_COUNT=$((PASS_COUNT + 1))
     else
