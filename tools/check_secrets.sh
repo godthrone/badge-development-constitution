@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# check_secrets.sh — Scan tracked files and (optionally) git history for secrets (§15.1)
+# check_secrets.sh — Scan tracked files, git history, and commit metadata for
+# secrets and personal information (§15.1)
 # Part of BADGE Constitution §15.1
 #
 # Checks for:
@@ -9,22 +10,35 @@
 #   - JWT tokens, base64-encoded credentials
 #   - Internal file paths, SSH connection strings
 #   - .env tracked by git
+#   - Personal information (PII): emails, IM accounts, phone numbers, IDs
+#   - Commit metadata: personal emails in author/committer identities
 #
 # Usage:
-#   ./check_secrets.sh [project_root]              scan current tree + git history
-#   ./check_secrets.sh --no-history [project_root]  scan current working tree only
+#   ./check_secrets.sh [project_root]               tree + history + metadata
+#   ./check_secrets.sh --no-history [project_root]  working tree only
+#   ./check_secrets.sh --pii=off|warn|fail          PII severity for content and
+#                                                   git history (default: fail)
+#   ./check_secrets.sh --meta-pii=off|warn|fail     PII severity for commit
+#                                                   metadata (default: warn)
 #   project_root defaults to the git repo root of the current directory.
+#
+# Public repositories should run with --meta-pii=fail so that a personal
+# author/committer email fails the check (see §15.1 category 5).
 
 set -euo pipefail
 
 # ─── Argument parsing ────────────────────────────────────────────────────
 
 HISTORY_MODE=true
+PII_MODE="fail"        # content/history PII severity: off|warn|fail
+META_PII_MODE="warn"   # commit-metadata PII severity: off|warn|fail
 PROJECT_ROOT=""
 for arg in "${@}"; do
     case "$arg" in
         --no-history) HISTORY_MODE=false ;;
-        -*) echo "Usage: check_secrets.sh [--no-history] [project_root]" >&2; exit 2 ;;
+        --pii=off|--pii=warn|--pii=fail) PII_MODE="${arg#--pii=}" ;;
+        --meta-pii=off|--meta-pii=warn|--meta-pii=fail) META_PII_MODE="${arg#--meta-pii=}" ;;
+        -*) echo "Usage: check_secrets.sh [--no-history] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
 done
@@ -57,18 +71,18 @@ KEY_PATTERNS=(
     # OpenAI-style keys
     'sk-proj-[a-zA-Z0-9_-]{20,}'
     'sk-admin-[a-zA-Z0-9_-]{20,}'
-    # Generic API key patterns
-    'api[_-]?key[=:]\s*["'"'"'][a-zA-Z0-9_-]{16,}["'"'"']'
-    'api[_-]?secret[=:]\s*["'"'"'][a-zA-Z0-9_-]{16,}["'"'"']'
+    # Generic API key patterns (quotes optional; whitespace around = / : allowed)
+    'api[_-]?key\s*[=:]\s*["'"'"']?[a-zA-Z0-9_-]{16,}["'"'"']?'
+    'api[_-]?secret\s*[=:]\s*["'"'"']?[a-zA-Z0-9_-]{16,}["'"'"']?'
 )
 
-# Hardcoded credential patterns
+# Hardcoded credential patterns (whitespace around = / : allowed, e.g. TOML style)
 CREDENTIAL_PATTERNS=(
-    'password[=:]\s*["'"'"'][^"'"'"']{4,}["'"'"']'
-    'passwd[=:]\s*["'"'"'][^"'"'"']{4,}["'"'"']'
-    'secret[=:]\s*["'"'"'][a-zA-Z0-9_-]{8,}["'"'"']'
-    'token[=:]\s*["'"'"'][a-zA-Z0-9_-]{16,}["'"'"']'
-    'access[_-]?key[=:]\s*["'"'"'][a-zA-Z0-9]{8,}["'"'"']'
+    'password\s*[=:]\s*["'"'"'][^"'"'"']{4,}["'"'"']'
+    'passwd\s*[=:]\s*["'"'"'][^"'"'"']{4,}["'"'"']'
+    'secret\s*[=:]\s*["'"'"'][a-zA-Z0-9_-]{8,}["'"'"']'
+    'token\s*[=:]\s*["'"'"'][a-zA-Z0-9_-]{16,}["'"'"']'
+    'access[_-]?key\s*[=:]\s*["'"'"'][a-zA-Z0-9]{8,}["'"'"']'
 )
 
 # JWT token pattern (eyJ... base64url encoded header)
@@ -92,12 +106,34 @@ PRIVATE_IP_PATTERNS=(
     '192\.168\.[0-9]{1,3}\.[0-9]{1,3}'
 )
 
+# Personal information (PII) patterns — §15.1 category 4
+PII_EMAIL_PATTERN='[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+PII_PATTERNS=(
+    "$PII_EMAIL_PATTERN"
+    # Mainland China mobile number (11 digits, starts with 1[3-9])
+    '(^|[^0-9])1[3-9][0-9]{9}($|[^0-9])'
+    # Mainland China landline (area code + 7-8 digit number)
+    '(^|[^0-9])0[0-9]{2,3}-?[0-9]{7,8}($|[^0-9])'
+    # QQ / WeChat / other IM accounts (keyword required, to limit false positives)
+    '([Qq][Qq]|wechat|weixin|微信)[号:：= ]*[0-9]{5,12}'
+    'wxid_[a-zA-Z0-9_-]{5,}'
+    # Mainland China resident ID card (18 digits, last may be X)
+    '(^|[^0-9])[1-9][0-9]{5}(19|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]($|[^0-9])'
+)
+
+# Addresses that are legitimately public / documented, exempt from PII findings:
+# project mailboxes, example/reserved domains, placeholders, local addresses.
+PII_ALLOWLIST='(example\.(com|org|net)|@example\.|noreply@|users\.noreply\.github\.com|maintainers?@|git@github\.com|anthropic\.com|REPLACE_ME|your-?email|placeholder|@[a-zA-Z0-9.-]*\.local)'
+
 # ─── Helpers ─────────────────────────────────────────────────────────────
 
 grep_tracked() {
     local pattern="$1"
-    local grep_opts="${2:--nE}"
-    echo "$FILES" | xargs grep $grep_opts "$pattern" 2>/dev/null || true
+    # -e keeps patterns that begin with '-' (e.g. the PEM private-key header)
+    # from being parsed as grep options, which silently disabled that check.
+    # -H keeps the filename prefix even when only one file matches.
+    # -i lets keyword patterns match API_KEY / PASSWORD / TOKEN in any case.
+    echo "$FILES" | xargs grep -nEHi -e "$pattern" 2>/dev/null || true
 }
 
 print_matches() {
@@ -124,20 +160,27 @@ _build_history_stream() {
     if ! $HAS_GIT; then
         return 1
     fi
-    git log --all -p --format="%H" 2>/dev/null | awk '
-        /^commit /  { commit=substr($0,8,9) }
-        /^---\//   { next }
-        /^\+\+\+ /  { file=$0; sub(/^\+\+\+ b\//, "", file) }
-        /^\+/       { if ($0 !~ /^\+\+\+/) print commit ":" file ":" substr($0,2) }
+    # Added lines from every patch, tagged with the commit hash. The @@ marker
+    # is emitted by --format so the hash survives: --format replaces git's
+    # "commit <hash>" header, which the old awk parser never matched, leaving
+    # the commit field empty in every finding.
+    git log --all -p --format='@@BADGE-COMMIT %h @@' 2>/dev/null | awk '
+        /^@@BADGE-COMMIT / { commit=$2; next }
+        /^\+\+\+ /         { file=$0; sub(/^\+\+\+ b\//, "", file); next }
+        /^\+/              { if ($0 !~ /^\+\+\+/) print commit ":" file ":" substr($0,2) }
     ' > "$stream"
+    # Commit messages are part of what a push publishes — scan them as well.
+    git log --all --format='@@BADGE-COMMIT %h @@%n%B' 2>/dev/null | awk '
+        /^@@BADGE-COMMIT / { commit=$2; next }
+        { if (length($0) > 0) print commit ":" "(commit-message):" $0 }
+    ' >> "$stream"
 }
 
 grep_history() {
     local stream="$1"
     local pattern="$2"
-    local grep_opts="${3:--nE}"
     if [ -s "$stream" ]; then
-        grep $grep_opts "$pattern" "$stream" 2>/dev/null || true
+        grep -nEi -e "$pattern" "$stream" 2>/dev/null || true
     fi
 }
 
@@ -230,7 +273,7 @@ for pattern in "${CREDENTIAL_PATTERNS[@]}"; do
     CRED_RAW=$(grep_tracked "$pattern")
     # Exclude: comments, example configs, constitution docs
     CRED_MATCHES=$(echo "$CRED_RAW" | \
-        grep -v '^\s*#' | \
+        grep -vE '^[[:space:]]*#' | \
         grep -v '\.env-example' | \
         grep -v 'config_example\.yaml' | \
         grep -v 'badge-development-constitution/' | \
@@ -315,13 +358,45 @@ AWS_CRED_MATCHES=$(grep_tracked '~/.aws/credentials\|AWS_ACCESS_KEY_ID\|AWS_SECR
     grep -v '\.env-example' | grep -v 'badge-development-constitution/' || true)
 print_matches "Cloud credential reference" "$AWS_CRED_MATCHES"
 
+# ─── Scan: Personal information (PII) — §15.1 category 4 ─────────────────
+#
+# Severity controlled by --pii=off|warn|fail (default: fail). Emails and phone
+# numbers are high-false-positive categories, so PII_ALLOWLIST exempts project
+# mailboxes, example domains and explicit placeholders.
+
+if [ "$PII_MODE" != "off" ]; then
+    echo "Scanning for personal information (PII)..."
+    PII_HITS=""
+    for pattern in "${PII_PATTERNS[@]}"; do
+        HIT=$(grep_tracked "$pattern" | \
+            grep -vE "$PII_ALLOWLIST" | \
+            grep -v 'check_secrets\.sh' | \
+            grep -v '\.env-example' || true)
+        PII_HITS="${PII_HITS}${HIT}"$'\n'
+    done
+    PII_HITS=$(printf '%s' "$PII_HITS" | sed '/^$/d' | awk '!seen[$0]++')
+    if [ -n "$PII_HITS" ]; then
+        if [ "$PII_MODE" = "fail" ]; then
+            echo "[FAIL] check_secrets: Personal information (PII) found:"
+            FAIL=1
+        else
+            echo "[WARN] check_secrets: Personal information (PII) found (review manually):"
+        fi
+        echo "$PII_HITS" | head -20 | while IFS= read -r line; do echo "  $line"; done
+        PII_COUNT=$(printf '%s\n' "$PII_HITS" | wc -l)
+        if [ "$PII_COUNT" -gt 20 ]; then
+            echo "  ... and $((PII_COUNT - 20)) more lines"
+        fi
+    fi
+fi
+
 # ─────────────────────────────────────────────────────────────────────────
-# Phase 2: Git history scan (only when --history is passed)
+# Phase 2: Git history scan (default on; disable with --no-history)
 # ─────────────────────────────────────────────────────────────────────────
 
 if $HISTORY_MODE; then
     echo ""
-    echo "─── Scanning git history for secrets ───"
+    echo "─── Scanning git history for secrets and PII ───"
 
     HIST_STREAM=$(mktemp)
     trap "rm -f '$HIST_STREAM'" EXIT
@@ -388,7 +463,8 @@ if $HISTORY_MODE; then
 
         echo "Scanning history for SSH strings..."
         HIST_SSH=$(grep_history "$HIST_STREAM" 'ssh.*@[0-9]' | \
-            grep -v 'badge-development-constitution/' | _filter_history_false_positives || true)
+            grep -v 'badge-development-constitution/' | \
+            grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH" ]; then
             echo "[FAIL] check_secrets (history): SSH connection string in git history:"
             echo "$HIST_SSH" | head -10 | while IFS= read -r line; do
@@ -398,7 +474,8 @@ if $HISTORY_MODE; then
         fi
 
         HIST_SSH_USER=$(grep_history "$HIST_STREAM" 'ssh\s+\w+@[a-zA-Z0-9.-]+' | \
-            grep -v 'badge-development-constitution/' | _filter_history_false_positives || true)
+            grep -v 'badge-development-constitution/' | \
+            grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH_USER" ]; then
             echo "[FAIL] check_secrets (history): SSH user@host in git history:"
             echo "$HIST_SSH_USER" | head -10 | while IFS= read -r line; do
@@ -414,9 +491,14 @@ if $HISTORY_MODE; then
             # Exclude the scanner's own source (mirrors the working-tree scan):
             # INTERNAL_PATH_PATTERNS contains strings like /root/ and /var/log/,
             # which would otherwise match their own definitions in history.
+            # Commit messages are excluded here too: they legitimately discuss
+            # such paths (including these very pattern definitions), which would
+            # produce self-referential false positives. Content/patch lines are
+            # still scanned.
             HIST_PATH=$(grep_history "$HIST_STREAM" "$path_pattern" | \
                 grep -v 'badge-development-constitution/' | \
                 grep -v 'check_secrets\.sh' | \
+                grep -v '(commit-message):' | \
                 grep -v 'RUN --mount=type=cache,target=/root/.cache' | \
                 _filter_history_false_positives || true)
             if [ -n "$HIST_PATH" ]; then
@@ -452,19 +534,78 @@ if $HISTORY_MODE; then
             HISTORY_FAIL=1
         fi
 
+        # ── History: Personal information (PII) ──
+
+        if [ "$PII_MODE" != "off" ]; then
+            echo "Scanning history for personal information (PII)..."
+            HIST_PII=""
+            for pattern in "${PII_PATTERNS[@]}"; do
+                HIT=$(grep_history "$HIST_STREAM" "$pattern" | \
+                    grep -vE "$PII_ALLOWLIST" | \
+                    grep -v 'badge-development-constitution/' | \
+                    grep -v 'check_secrets\.sh' | \
+                    grep -v '\.env-example' || true)
+                HIST_PII="${HIST_PII}${HIT}"$'\n'
+            done
+            HIST_PII=$(printf '%s' "$HIST_PII" | sed '/^$/d' | awk '!seen[$0]++')
+            if [ -n "$HIST_PII" ]; then
+                if [ "$PII_MODE" = "fail" ]; then
+                    echo "[FAIL] check_secrets (history): Personal information (PII) in git history:"
+                    HISTORY_FAIL=1
+                else
+                    echo "[WARN] check_secrets (history): Personal information (PII) in git history (review manually):"
+                fi
+                echo "$HIST_PII" | head -20 | while IFS= read -r line; do echo "  $line"; done
+                HIST_PII_COUNT=$(printf '%s\n' "$HIST_PII" | wc -l)
+                if [ "$HIST_PII_COUNT" -gt 20 ]; then
+                    echo "  ... and $((HIST_PII_COUNT - 20)) more lines"
+                fi
+            fi
+        fi
+
         # ── History: Result ──
 
         if [ $HISTORY_FAIL -eq 0 ]; then
-            echo "[PASS] check_secrets (history): No secrets found in git history."
+            echo "[PASS] check_secrets (history): No secrets or PII found in git history."
         else
             FAIL=1
         fi
     fi
 fi
 
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 3: Commit metadata scan (author/committer identity) — §15.1 cat. 5
+# ─────────────────────────────────────────────────────────────────────────
+#
+# A push publishes commit metadata as well. Content/patch scans cannot see the
+# author/committer identity, so it is checked separately here. Default severity
+# is warn; public repositories should pass --meta-pii=fail.
+
+if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
+    echo ""
+    echo "─── Scanning commit metadata for personal emails ───"
+    META_RAW=$(git log --all --format='%h|%an <%ae>|%cn <%ce>' 2>/dev/null || true)
+    META_HITS=$(printf '%s\n' "$META_RAW" | grep -vE "$PII_ALLOWLIST" | grep -E "$PII_EMAIL_PATTERN" || true)
+    if [ -n "$META_HITS" ]; then
+        if [ "$META_PII_MODE" = "fail" ]; then
+            echo "[FAIL] check_secrets (metadata): Personal email in commit author/committer identity:"
+            FAIL=1
+        else
+            echo "[WARN] check_secrets (metadata): Personal email in commit author/committer identity (review manually):"
+        fi
+        echo "$META_HITS" | head -20 | while IFS= read -r line; do echo "  $line"; done
+        META_COUNT=$(printf '%s\n' "$META_HITS" | wc -l)
+        if [ "$META_COUNT" -gt 20 ]; then
+            echo "  ... and $((META_COUNT - 20)) more lines"
+        fi
+    else
+        echo "[PASS] check_secrets (metadata): No personal email in commit metadata."
+    fi
+fi
+
 # ─── Result ──────────────────────────────────────────────────────────────
 
 if [ $FAIL -eq 0 ]; then
-    echo "[PASS] check_secrets: No secrets found in tracked files."
+    echo "[PASS] check_secrets: No secrets or PII found in tracked files."
 fi
 exit $FAIL

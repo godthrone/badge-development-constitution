@@ -5,7 +5,11 @@
 # Usage: ./check_all.sh [options] [project_root]
 #        ./check_all.sh --no-history [project_root]   skip git history scan (faster)
 #        ./check_all.sh --class=A|B|C [project_root]  select check class
+#        ./check_all.sh --pii=off|warn|fail [project_root]
+#        ./check_all.sh --meta-pii=off|warn|fail [project_root]
 #   project_root defaults to the git repo root of the current directory.
+#   --pii / --meta-pii are passed through to check_secrets.sh (§15.1).
+#   Public repositories should use --meta-pii=fail.
 #
 # Classes:
 #   --class A  (default) Run all checks
@@ -21,14 +25,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ─── Argument parsing ────────────────────────────────────────────────────
 
 NO_HISTORY_FLAG=""
+PII_FLAGS=""
 CLASS="A"
 PROJECT_ROOT=""
 for arg in "${@}"; do
     case "$arg" in
         --no-history) NO_HISTORY_FLAG="--no-history" ;;
         --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
-        --class) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [project_root]" >&2; exit 2 ;;
-        -*) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [project_root]" >&2; exit 2 ;;
+        --class) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
+        --pii=off|--pii=warn|--pii=fail) PII_FLAGS="$PII_FLAGS $arg" ;;
+        --meta-pii=off|--meta-pii=warn|--meta-pii=fail) PII_FLAGS="$PII_FLAGS $arg" ;;
+        -*) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
 done
@@ -159,8 +166,8 @@ fi  # end class A/B Layer 1-2
 # Layer 3: Security and Project Governance
 # ============================================================================
 
-# §15.1 — Secrets Scan (all classes)
-run_check "Secrets Scan (§15.1)"               "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG
+# §15.1 — Secrets & PII scan (all classes)
+run_check "Secrets & PII Scan (§15.1)"         "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG $PII_FLAGS
 
 # §XVI — Temporary Files (all classes)
 run_check "Temporary Files (§XVI)"             "$SCRIPT_DIR/check_local_files.sh"

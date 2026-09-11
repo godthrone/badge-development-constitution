@@ -1,4 +1,4 @@
-# The BADGE Constitution v2.1.0
+# The BADGE Constitution v2.2.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -822,6 +822,8 @@ Security is not an afterthought bolted on before release. It is a design constra
 
 Every commit must pass the following checks. These checks should be integrated into CI or pre-commit hooks, executed by the companion `tools/` scripts, not left to human memory. The constitution defines the categories — the scripts define the exact patterns.
 
+> **A push publishes three things:** ① the content of tracked files; ② the entire git history (including deleted files); ③ commit metadata (author/committer names and emails) and commit messages. All three must be verified before pushing — scanning only the working tree is not enough.
+
 **1. Secrets scan:** No tracked file may contain any secret information. Secrets include:
 - Keys, passwords, tokens, private keys of any form
 - Internal IP addresses, internal domain names, internal file paths
@@ -837,6 +839,14 @@ Every commit must pass the following checks. These checks should be integrated i
 **3. Content review (human + AI assisted):**
 - No training data, user data, or private datasets
 - No internal resource references in README
+
+**4. Personal information (PII) scan:** No tracked file or git history may contain information that can be linked to a specific natural person, whether or not it falls under category 1:
+- Personal email addresses; instant-messaging accounts such as QQ or WeChat; mobile and landline phone numbers
+- National ID / passport numbers, bank card numbers, student IDs, employee badge numbers
+- A real name combined with other identity fields (anything that alone or in combination points to a specific person)
+- **Exemptions:** public project mailboxes (`noreply@`, maintainer mailboxes), example/reserved domains (`example.com`, `example.org`), and explicit placeholders (`REPLACE_ME`, `your-email@…`)
+
+**5. Commit metadata and message privacy:** For public repositories, `user.name` / `user.email` must not be a personal mailbox or an address containing a personal account (e.g. a QQ mailbox); use the hosting platform's `noreply` address or a project mailbox. Commit messages are scanned as well. Entry points: `git log --all --format='%an <%ae> %cn <%ce>'` covers metadata, `git log --all -p` covers committed content. See §15.3 for remediating historical leaks.
 
 ### 15.2 Secrets Management
 
@@ -854,8 +864,9 @@ Secret information must not enter git. Secrets include: keys, passwords, tokens,
 - No literal secret values may appear in any code, documentation, configuration templates (including `.sample` and `.env-example`), or example files
 - `.env` and override files must be excluded in `.gitignore`
 - Template files (`.env-example` or `config.override.sample.toml`) must be tracked in git, using placeholders (e.g., `REPLACE_ME`) to guide deployers
+- Personal information (email, phone numbers, instant-messaging accounts, etc.) that must exist in configuration follows the same `.env` / TOML override mechanism — it must not be hardcoded in the base config or templates
 
-**Litmus test:** Can an outsider clone the project and run it (in degraded mode) without access to any secrets? Does the git history contain any secret information?
+**Litmus test:** Can an outsider clone the project and run it (in degraded mode) without access to any secrets? Does the git history contain any secret or personal information?
 
 ### 15.3 Post-Leak Response
 
@@ -864,6 +875,8 @@ If secret information was ever committed to git history:
 - Use `BFG Repo-Cleaner` to thoroughly purge all traces, then rotate every leaked key
 - Confirm `LICENSE` file exists and is correct
 - Confirm README contains no references to internal resources
+
+If what leaked is personal information (PII) rather than a secret, the history-rewrite exception still applies (see §19.1). BFG only purges file content — it **cannot** change author/committer emails; doing that requires `git filter-repo --email-callback` (or `git filter-branch --env-filter`), with tags rewritten in step. Afterwards, force-push and ask the hosting platform to purge cached views; forks and third-party mirrors cannot be guaranteed.
 
 ---
 
@@ -997,7 +1010,7 @@ When users of an old version need to upgrade to the new architecture, provide a 
 - Merging to main requires a PR — at minimum, self-review the diff
 - **Solo projects:** a single-developer project may push directly to the main branch. Good commits are sufficient — the PR workflow overhead is unnecessary when there is no second pair of eyes to review. If the project later gains additional contributors, adopt the branch-and-PR workflow at that point.
 - Commit messages are **recommended** to be in English, format: `type: short description` (feat, fix, docs, refactor, test, chore). English is the de facto standard of the open source community — the `git log --oneline` toolchain is English-first, and it enables international contributors to understand the project's history. Projects whose primary contributor community uses another language (e.g. Chinese) may use that language, but should stay consistent within one repository.
-- **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be rewritten to fix message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. The exception is security: if a historical commit contains leaked secrets, history MUST be rewritten (see §15.3).
+- **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be rewritten to fix message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. The exception is security: if a historical commit contains leaked secrets or personal information, history MUST be rewritten (see §15.3).
 - One commit does one thing
 
 ### 19.2 .gitignore Must Cover

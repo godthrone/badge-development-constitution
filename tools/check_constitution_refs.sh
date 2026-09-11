@@ -5,7 +5,7 @@
 # Exempt: the constitution files themselves, docs/, CLAUDE.md and tools/
 # (they are part of the constitution's own content, not consumer project code).
 # The constitution-file exemption is version-independent on purpose: matching by
-# exact filename broke when the version in the filename was bumped (v2.0.0 -> v2.1.0).
+# exact filename broke when the version in the filename was bumped.
 #
 # Usage: ./check_constitution_refs.sh [project_root]
 

@@ -31,14 +31,18 @@ it is exercised as **Class C** (`--class=C`) — do not run the full Class A Pyt
       (`tools/`, `.gitignore`, work log, `docs/`).
 - [ ] Filename-based exemption / regex filters in `tools/` must be **version-independent**
       (prefix match, not exact filename). Regression source: `check_constitution_refs.sh` matched
-      `BADGE-constitution\.` and silently stopped exempting the constitution after the v2.1.0 rename.
+      `BADGE-constitution\.` and silently stopped exempting the constitution after a version rename.
 
 ## 3. Regression — consumer-facing tooling
 
 - [ ] `for f in tools/*.sh; do bash -n "$f"; done`
-- [ ] `bash tools/check_all.sh --class=C` (full run; on a WSL `/mnt/c` 9p mount prefer
-      `--no-history` or copy to a native disk first — heavy git-history scans can wedge 9p into a
-      fake read-only state).
+- [ ] `bash tools/check_all.sh --class=C --meta-pii=fail` (full run; on a WSL `/mnt/c` 9p mount
+      prefer `--no-history` or copy to a native disk first — heavy git-history scans can wedge 9p
+      into a fake read-only state). `--meta-pii=fail` makes a personal author/committer email a
+      hard failure; it is required for public repositories (§15.1 category 5).
+- [ ] Privacy audit before a public push: `git log --all --format='%an <%ae> %cn <%ce>' | sort -u`
+      must show only `noreply@` / project mailboxes. Content and history are covered by
+      `tools/check_secrets.sh` (PII patterns + allowlist).
 - [ ] Any tool that reads the config template must accept `config_example.toml` **and** legacy
       `config_example.yaml` (`check_config_system.sh`, `check_directory_layout.sh`,
       `check_gitignore.sh`, `check_reproducibility.sh`, `check_version.sh`).
