@@ -5,7 +5,7 @@
 # Checks for:
 #   - No __version__ in __init__.py
 #   - pyproject.toml uses either static version or dynamic=["version"] with setuptools-scm
-#   - No hardcoded version in the config example (TOML preferred, YAML legacy)
+#   - No hardcoded version in the base config (config.toml; legacy config_example.toml/.yaml accepted)
 #   - No standalone VERSION file
 #   - If setuptools-scm: git tags exist, tag_regex configured
 #
@@ -81,7 +81,8 @@ fi
 
 # ─── 3. Check config example doesn't have version ───────────────────────
 
-CONFIG_EXAMPLE="$PROJECT_ROOT/config_example.toml"
+CONFIG_EXAMPLE="$PROJECT_ROOT/config.toml"
+[ -f "$CONFIG_EXAMPLE" ] || CONFIG_EXAMPLE="$PROJECT_ROOT/config_example.toml"
 [ -f "$CONFIG_EXAMPLE" ] || CONFIG_EXAMPLE="$PROJECT_ROOT/config_example.yaml"
 if [ -f "$CONFIG_EXAMPLE" ]; then
     # YAML: version: 1.2.3   TOML: version = "1.2.3" (quotes; TOML has no bare dotted version)

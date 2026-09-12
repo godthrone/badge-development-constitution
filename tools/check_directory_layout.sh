@@ -5,7 +5,7 @@
 # Checks for:
 #   - src/ directory with package (src-layout)
 #   - tests/ directory exists
-#   - configs/ or config_example.toml/.yaml exists
+#   - config.toml (base) or legacy config_example.toml/.yaml, or configs/ exists
 #   - docker/ directory exists
 #   - scripts/ directory exists
 #   - docs/ directory exists
@@ -77,9 +77,10 @@ fi
 
 # ─── 3. Config directory or file ────────────────────────────────────────
 
-# Recursively search for config_example.toml/.yaml or configs/ directory.
+# Recursively search for config.toml (base config, preferred), legacy
+# config_example.toml/.yaml, or a configs/ directory.
 # Projects may place configs in subdirectories (e.g. samples/configs/).
-CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config_example.toml" -o -name "config_example.yaml" \) \
+CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
     -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
 CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
@@ -87,9 +88,9 @@ CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
     -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
 
 if [ -n "$CONFIG_EXAMPLE" ] || [ -n "$CONFIGS_DIR" ]; then
-    echo "  [OK] Config template exists (configs/ or config_example.toml/.yaml)"
+    echo "  [OK] Config template exists (config.toml, legacy config_example.*, or configs/)"
 else
-    echo "[FAIL] check_directory_layout: No configs/ directory or config_example.toml/.yaml found (§7.3)."
+    echo "[FAIL] check_directory_layout: No config.toml, configs/ directory, or legacy config_example.toml/.yaml found (§7.3)."
     echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
     FAIL=1
 fi
@@ -142,7 +143,7 @@ for entry in "${RECOMMENDED[@]}"; do
     if [ -d "$PROJECT_ROOT/$dir" ]; then
         echo "  [OK] $dir/ — $desc"
     else
-        echo "  [INFO] $dir/ not created yet — recommend: mkdir $dir ($desc, §XVI)"
+        echo "  [INFO] $dir/ not created yet — recommend: mkdir $dir ($desc, §16)"
     fi
 done
 

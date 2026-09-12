@@ -1,4 +1,4 @@
-# The BADGE Constitution v2.2.0
+# The BADGE Constitution v2.3.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -17,7 +17,7 @@ The BADGE Constitution classifies projects into three categories, each with a di
 
 - **Category A (Open-source Python projects)**: Public repositories, community audience. The full constitution applies (§1–§20).
 - **Category B (Closed-source Python projects)**: Private repositories, internal teams. Core clauses are mandatory (security, foolproofing, reproducibility); some clauses may be relaxed (bilingual README exemption, config-format suggestions are non-mandatory, `__main__.py` may be exempt for Docker-deployed projects).
-- **Category C (Other infrastructure projects)**: Non-standard Python packages, data repositories, DevOps tools, documentation projects, etc. Only design principles (§1–§6) must be followed; §7–§20 are optional. However, clauses within §7–§20 that are engineering embodiments of the design principles (§15 Secrets Management, §16 `.local/`, §17.3–§17.5 Documentation System, §19.1–§19.3 Open Source Management) remain mandatory.
+- **Category C (Other infrastructure projects)**: Non-standard Python packages, data repositories, DevOps tools, documentation projects, etc. Design principles (§1–§6) must be followed; §7–§20 do not apply by default, but the clauses within them that are engineering embodiments of the design principles (§15 Secrets Management, §16 `.local/`, §17.3–§17.5 Documentation System, §19.1–§19.3 Open Source Management) remain mandatory.
 
 ## Classification Determination
 
@@ -26,6 +26,7 @@ A project has a `pyproject.toml` and builds a Python package → Category A (pub
 ## Conflict Resolution
 
 When a project's current state conflicts with a constitutional clause, use the three-question framework:
+
 1. What is the project's core objective?
 2. How can this project align with BADGE design principles and philosophy?
 3. Does the specific constitutional clause help achieve BADGE design principles and philosophy, or does it impose unnecessary burden that violates the project's core objective? Is this restriction reasonable?
@@ -78,7 +79,7 @@ This idea comes from distributed systems like Flink and Hadoop — don't make en
 
 ### 1.4 Data Boundaries: Single Source of Truth
 
-Every piece of information in the system has exactly **one** authoritative source. Configuration comes from one file — no environment variable fallback chains. State is maintained in one place — no multi-copy synchronization. Data flows in one direction — no callbacks, no circular dependencies.
+Every piece of information in the system has exactly **one** authoritative source. Configuration has exactly one authoritative entry point (single source of truth) — no environment variable fallback chains (the narrow env-var exceptions are in §7.1). State is maintained in one place — no multi-copy synchronization. Data flows in one direction — no callbacks, no circular dependencies.
 
 "The value can come from three places" sounds flexible, but in practice the user changes a parameter, finds it didn't take effect, and spends an afternoon debugging. Flexibility here isn't a feature — it's a bug factory.
 
@@ -138,11 +139,13 @@ What is forbidden: using `hasattr` to probe business interfaces in your own proj
 
 **Exception:** Natural zero points of numeric types (e.g., counter `0`, probability `0.0`) are not "null" semantics and are not subject to this rule. Using `-1` as a sentinel is only permitted when the value carries clear, irreplaceable domain semantics (e.g., POSIX error code `-1`) that cannot be expressed with `None`. Such exceptions must be justified in a comment.
 
-**`= None` must be paired with `Optional` annotation.** When a parameter or attribute defaults to `None`, the type annotation must include `Optional` (i.e., `x: Optional[str] = None`, not `x: str = None`). The type annotation is part of the contract — `str = None` tells the type checker "this value is always a str", but at runtime it may be `None`, which is a self-contradictory contract.
+**Serialization-boundary exception (TOML):** TOML has no null literal. The base configuration may use `""`, `0`, and `[]` to mean "not provided", but only at the serialization/deserialization boundary, and the loader must immediately normalize them to `None` before any business code sees them (see §7.1). This exception does not apply to semantic expression inside Python code.
 
-**Null-value checking:** When checking Optional values, use `is None` / `is not None`, not `if not x`. `if not x` treats `0`, `False`, `""`, and `[]` all as "empty", causing logic errors. `is None` matches only `None`, with no semantic ambiguity.
+**`= None` must be paired with an optional type annotation.** When a parameter or attribute defaults to `None`, the annotation must be written `X | None` (i.e., `x: str | None = None`, not `x: str = None`). The type annotation is part of the contract — `str = None` tells the type checker "this value is always a str", but at runtime it may be `None`, which is a self-contradictory contract.
 
-**Litmus test:** Does the codebase use `0`, `-1`, `""`, or other non-None values with "null/invalid" semantics? If so, does each have a comment justifying the choice? Are all `= None` defaults paired with `Optional` annotations?
+**Null-value checking:** When checking values of an optional type (`X | None`), use `is None` / `is not None`, not `if not x`. `if not x` treats `0`, `False`, `""`, and `[]` all as "empty", causing logic errors. `is None` matches only `None`, with no semantic ambiguity.
+
+**Litmus test:** Does the codebase use `0`, `-1`, `""`, or other non-None values with "null/invalid" semantics? If so, does each have a comment justifying the choice? Are all `= None` defaults paired with `X | None` annotations?
 
 ### 2.3 Boundary Validation as Foolproofing
 
@@ -227,15 +230,16 @@ A new user clones the project and gets results in two commands. No extra system 
 **Principle:** `run.sh` should work in any deployment environment without modification.
 
 **Rule:**
-- Mount paths must use environment variables, with `${VAR:-default}` fallback values for defaults.
-- When localization is needed, the user sets environment variables (which are not committed to git), or creates a copy under `.local/` as `run.local.sh`.
-- `run.local.sh` is the localized variant — it is gitignored and may contain environment-specific overrides. The base `run.sh` remains the authoritative, portable entry point.
+- Localization should prefer `run.sh`'s own parameters (CLI flags, see §4.1 and §10.1) or a local override file under `.local/`; do not treat environment variables as the project's normal configuration channel (the narrow exceptions are in §7.1).
+- When localization is needed, the user creates `.local/run.local.sh`, which calls the base `run.sh` with explicit parameters. The base `run.sh` remains the authoritative, portable entry point.
+- `run.local.sh` is the localized variant — it is gitignored and only forwards parameters or overrides values; it must not duplicate the base logic.
+- Only when a third-party component (e.g. a Docker/container interface) accepts nothing but environment variables may `${VAR:-default}` be used inside that adapter boundary. Such usage must be centralized, explicit, and commented — never scattered.
 
 **Technique:**
-- The recommended pattern: `run.sh` defines all paths and settings via `${VAR:-default}`. Users who need to customize create a `.local/run.local.sh` that exports the necessary environment variables before calling `run.sh`.
-- Alternatively, users may set environment variables in their shell profile or a `.env` file (gitignored, see §15.2).
+- The recommended pattern: `run.sh` defines paths and settings as script variables with defaults and exposes matching `--xxx` flags. Users who need customization create `.local/run.local.sh`, e.g. `exec "$(dirname "$0")/../run.sh" --model-dir /data --port 8080`, passing localized values as parameters.
+- If a third-party tool can only be configured through environment variables, export them in `run.local.sh`, mark them as a "third-party adapter" in a comment, and keep the base `run.sh` independent of them.
 
-**Litmus test:** Can a new deployment environment start the project by running `./run.sh` without editing the script? If environment variables must be set first, are they clearly documented with reasonable defaults?
+**Litmus test:** Can a new deployment environment start the project without editing `run.sh`? If environment variables must be set first, is it confirmed to be an allowed §7.1 third-party adapter case, clearly documented, and with reasonable defaults?
 
 ---
 
@@ -292,17 +296,19 @@ This clause constrains the **method of execution** (depth of investigation, impl
 
 ### 7.1 Single Configuration Entry Point
 
-**Principle:** All configuration lives in a single TOML file, organized by functional domain. TOML is the standard configuration format of the Python ecosystem (same format as `pyproject.toml`), with a type system that natively supports nested tables and arrays. Do not use environment variables to override configuration values (NVIDIA's `CUDA_VISIBLE_DEVICES` and `NCCL_*` are already messy enough), and do not use CLI arguments to implicitly override the configuration file. Configuration is configuration, environment is environment — keep them separate.
+**Principle:** Configuration has exactly one authoritative entry point: a git-tracked base `config.toml` holds the defaults, organized by functional domain, optionally overlaid by a gitignored override configuration; after deep merge there is only one configuration in the program. TOML is the standard configuration format of the Python ecosystem (same format as `pyproject.toml`), with a type system that natively supports nested tables and arrays. Except for the exceptions this section explicitly allows, do not use environment variables to carry configuration values (NVIDIA's `CUDA_VISIBLE_DEVICES` and `NCCL_*` are already messy enough), and do not use CLI arguments to implicitly override the configuration file. Configuration is configuration, environment is environment — keep them separate.
 
 > This constitution targets Python projects. This section and all subsequent concrete rules (file format, package manager, type annotation syntax, etc.) are anchored in the Python ecosystem. The design philosophy (Layer 1) is language-agnostic and can be applied to other languages by analogy.
+
+**Environment-variable policy:** Environment variables are an invisible, hard-to-control configuration channel and must not be the single source of truth for configuration. They are allowed only for: ① standard infrastructure variables (`CUDA_VISIBLE_DEVICES`, `NCCL_*`, `PYTORCH_*`, `RANK`, etc.); ② third-party components that accept nothing but environment variables and cannot be adapted through configuration (an adapter layer for that component); ③ genuinely tiny projects that have exactly one configuration. Outside these three cases, environment variables must not carry configuration or path parameters (§10.1). Any configuration that arrives via environment variables must be read centrally at startup and normalized into the same configuration-loading path — never read ad hoc at usage sites. A user's own choice to keep local secrets in `.env` is not restricted by this policy, but the project must never treat it as the configuration source of truth (see §15.2).
 
 **Layered Configuration Pattern:** When a project needs to separate deployment configuration from public configuration, use a two-layer TOML approach with deep dict merge. Deployment configuration includes two categories of fields:
 
 - **Secret fields**: keys, passwords, tokens, internal IPs — must not appear in git-tracked files.
 - **Environment fields**: API endpoint URLs, model names, external service addresses — these vary by deployment environment but are not secrets per se.
 
-- **Base configuration** (`config.toml`, git-tracked): Contains **all fields**. Non-deployment fields have production-grade defaults. Secret fields are left empty (`""`, `0`, `[]`). Environment fields have **development defaults** (e.g., `"http://localhost:8000"`, `"local-model"`) rather than being left empty — this ensures the project runs out of the box in a development environment. This is the **single authoritative source** of the configuration structure — every field is defined here, and reading this file gives you the complete configuration schema.
-- **Override configuration** (recommended location: `.local/config.override.toml`, gitignored, deployment machine only): Overrides only the fields that need deployment-specific values. Copy from the `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones". The template only needs to contain the fields that require overriding, not a mirror of all fields.
+- **Base configuration** (`config.toml`, git-tracked, loaded by default at startup): Contains **all fields** and is the **single authoritative source** of the configuration schema. Non-deployment fields have production-grade defaults. Secret fields are left empty (`""`, `0`, `[]`, normalized to `None` at load time — see §2.2). Environment fields have **development defaults** (e.g., `"http://localhost:8000"`, `"local-model"`) rather than being left empty — this ensures the project runs out of the box in a development environment.
+- **Override configuration** (recommended location: `.local/config.override.toml`, gitignored, deployment machine only): Overrides only the fields that need deployment-specific values. Copy from the git-tracked `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones". By default the template lists only the common fields that need overriding; when the total number of config fields is small (roughly under 30), it may mirror all fields for easier comparison.
 - **Merge rule:** On startup, load the base configuration into a dict, then load the override configuration, and **deep merge** them into a single dict — leaf values from the override dict replace leaf values at the same path in the base dict. After merging, there is only **one configuration** in the program, eliminating any ambiguity of "two configuration sources".
 
 **Override file location:** The recommended location for the override file is `.local/config.override.toml`. Other locations are supported via an explicit `--override` parameter passed by the user. The CLI auto-detection priority is: explicit `--override` parameter → `.local/` → adjacent path (backward compatible).
@@ -339,7 +345,7 @@ All validation happens at config load time, not scattered across usage points. P
 
 ### 7.3 Template as Documentation
 
-Every project provides a `config_example.toml` containing all fields, comments, and defaults. Users copy it, change a few values, and go. The template file itself is a working configuration — well-commented, sensible defaults, covering 80% of use cases.
+The base `config.toml` is itself the template and the documentation: it contains all fields, comments, and defaults, and is a working configuration — well-commented, sensible defaults, covering 80% of use cases. The deployment override template `config.override.sample.toml` shows only the fields that need overriding (or all fields when there are fewer than about 30), using placeholders to guide deployers.
 
 ### 7.4 Config Parameter Design
 
@@ -364,6 +370,8 @@ Config parameters are the boundary between the user and the system. Poorly desig
 ```
 project/
 ├── run.sh                   # Startup script (present if needed, see §4.1)
+├── config.toml              # Base default config (git-tracked, contains all fields)
+├── config.override.sample.toml  # Override template (git-tracked, placeholders)
 ├── src/project_name/        # Source code, src-layout
 │   ├── __init__.py          # Version + public API re-exports
 │   ├── __main__.py          # python -m entry point
@@ -380,7 +388,7 @@ project/
 │   ├── backends/
 │   └── e2e/                 # End-to-end tests
 ├── scripts/                 # One-off utility scripts (optional: may be absent once all tools are institutionalized, §10.2)
-├── .local/                  # Local and temporary files (never committed, see §XVI)
+├── .local/                  # Local and temporary files (never committed, see §16)
 ├── docker/                  # Docker build
 ├── pyproject.toml
 ├── uv.lock
@@ -475,7 +483,7 @@ The project's version number is **automatically derived from git tags via `setup
 - `pyproject.toml`'s `[tool.setuptools_scm]` section configures version derivation rules (tag format, prefix, etc.) — this is the **single configuration source** for the versioning mechanism
 - The actual version string does not live in any file — it is derived from `git describe --tags`. To release: `git tag vX.Y.Z`
 - **Forbidden:** defining `__version__` in `__init__.py` — creates two sources of truth
-- **Forbidden:** writing version numbers in comments in `config_example.toml` — the template file is for users, not version records
+- **Forbidden:** writing version numbers in config comments (`config.toml`, `config.override.sample.toml`) — config files are for users, not version records
 - **Forbidden:** hardcoding version strings in source code
 
 At runtime, use `importlib.metadata.version("package-name")`. For users to check the version: `git tag --sort=-v:refname | head -1` or `pip show package-name`.
@@ -489,8 +497,8 @@ At runtime, use `importlib.metadata.version("package-name")`. For users to check
   constitution version is maintained only in the constitution repository itself.
   Scattering version references across project source files creates drift and
   violates the same single-source-of-truth principle that §8.7 applies to project
-  versions.  The constitution repo's own `CLAUDE.md` and `tools/` scripts are
-  exempt — they are part of the constitution's own content, not project code.
+  versions.  The constitution repo's own `tools/` scripts are exempt — they
+  are part of the constitution's own content, not project code.
 
 ---
 
@@ -540,7 +548,7 @@ Multiple implementations of the same type are managed through a registry (string
 **Poka-yoke (technique):**
 - The CLI parameter list is enumerated once in code and locked by tests — a new CLI flag must pass a "no-disk-diff" test (run twice with the same config, only X differs, assert identical on-disk output)
 - Log and record files must not contain runtime-environment metadata (GPU IDs, host paths, container names) — they are not reproducible and not output
-- Custom environment variables must not carry configuration or path parameters (§7.1): only standard CUDA/NCCL/PyTorch infrastructure variables are allowed; host-path injection goes through CLI flags (e.g. run.sh `--model-dir`)
+- Except for the §7.1 third-party adapter cases, custom environment variables must not carry configuration or path parameters; standard CUDA/NCCL/PyTorch infrastructure variables are unaffected; host-path injection goes through CLI flags (e.g. run.sh `--model-dir`)
 - `run.sh` (§4.1) CLI parameters are equally subject to the three principles of this clause — it is a config launcher, not a config substitute
 
 ### 10.2 CLI vs. Scripts Boundary
@@ -602,7 +610,7 @@ For adaptation algorithms in complex scenarios (e.g. model adapters, protocol co
    self.running_models: dict[str, InferenceFramework] = {}
    ```
 
-3. **Optional types must use the `Optional[X]` syntax.** Import `Optional` from `typing` and use `Optional[str]` rather than `str | None`. The `Optional` keyword is more explicit than `| None` — it clearly tells the reader "this value may not exist", whereas `| None` can be easily overlooked.
+3. **Optional types must use the `X | None` syntax (PEP 604).** Use `str | None` rather than `Optional[str]`. `| None` is the native syntax since Python 3.10, the standard form of PEP 604, and the recommended form for Python 3.14+ lazy annotation evaluation (PEP 649/749); `Optional` remains valid but is not the project convention, avoiding extra `typing` imports and `from __future__` boilerplate.
 
 4. **Replace complex nested types with classes.** Anonymous nested types like `dict[str, list[tuple[int, float]]]` should not exist — replace them with pydantic BaseModel or dataclass. Classes have named fields and docstrings; when you need to change the structure, you only change the class definition. This is friendly to both humans and AI.
    ```python
@@ -651,7 +659,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 All other files — comments, docstrings, architecture documentation, config annotations — use **either Chinese or English, at the author's discretion**. No other languages are permitted. Keep language broadly consistent within a file; a small amount of technical terms, code references, or structural separators may remain in English.
 
-**Config template comments** (`config_example.toml`) default to **English** — the config template is a user-facing interface, and English is the common language of the global developer community.
+**Config comments** (base `config.toml` and override template `config.override.sample.toml`) default to **English** — they are a user-facing interface, and English is the common language of the global developer community.
 
 **Commit messages** use **English** (see 19.1).
 
@@ -710,7 +718,7 @@ The specific filenames and module splits are defined by each project according t
 
 ### 14.1 License Constraints
 
-All dependencies must be MIT, Apache 2.0, or equivalent permissive licenses suitable for commercial use. GPL, AGPL, and other copyleft licenses are forbidden. Check license compatibility before introducing any new dependency.
+All dependencies must be MIT, Apache 2.0, or equivalent permissive licenses suitable for commercial use. GPL, AGPL, and other viral (copyleft) licenses are forbidden. Check license compatibility before introducing any new dependency.
 
 ### 14.2 Dependency Management: uv
 
@@ -833,8 +841,8 @@ Every commit must pass the following checks. These checks should be integrated i
 - `.env` file (only `.env-example` may be committed)
 - Build artifacts, caches, virtual environments
 - IDE configuration files
-- AI assistant files (`CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`)
-- Local and temporary files — all such files must live in `.local/` (see §XVI)
+- AI-assistant-generated local files (assistant-specific instruction/draft files; must be excluded in `.gitignore`)
+- Local and temporary files — all such files must live in `.local/` (see §16)
 
 **3. Content review (human + AI assisted):**
 - No training data, user data, or private datasets
@@ -852,19 +860,19 @@ Every commit must pass the following checks. These checks should be integrated i
 
 Secret information must not enter git. Secrets include: keys, passwords, tokens, internal IPs, internal domain names — any information you would not want to appear on GitHub after open-sourcing.
 
-**Secrets storage (choose one):**
+**Secrets storage (TOML override preferred; `.env` is an optional user-side channel):**
 
-1. **`.env` file** (for secrets that are flat, independent key-value pairs): e.g., `API_KEY`, `DATABASE_URL`. Store in `KEY=VALUE` format in `.env` (local, not tracked). `.env-example` serves as a template in git, listing all required environment variable names and descriptions, without real values.
+1. **`.env` file** (for third-party components that read nothing but environment variables, or for flat key-value cases the user explicitly chooses): e.g., `API_KEY`, `DATABASE_URL`. Store in `KEY=VALUE` format in `.env` (local, **never tracked**). `.env-example` serves as a template in git, listing all required environment variable names and descriptions, without real values. Per §7.1, `.env` is not the preferred source of truth for project configuration — anything that can go into the TOML override should not live here.
 
-2. **TOML override file** (for secrets nested within configuration structures): e.g., `[task.llm].endpoint`, `[database].password`. Use `config.override.toml` (gitignored), following the §7.1 layered configuration pattern — the base TOML contains all fields (secret fields left empty), and the override TOML only fills in the secret values. The program deep-merges them into a single dict on startup.
+2. **TOML override file** (for secrets nested within configuration structures): e.g., `[task.llm].endpoint`, `[database].password`. Use `.local/config.override.toml` (gitignored), following the §7.1 layered configuration pattern — the base TOML contains all fields (secret fields left empty), and the override TOML only fills in the secret values. The program deep-merges them into a single dict on startup.
 
-**Selection criteria:** Flat, independent key-value secrets → `.env`. Secrets nested within configuration structures → TOML override. **Mixing both approaches for the same field is prohibited** — each secret field must have exactly one source.
+**Selection criteria:** Prefer the TOML override (the single source of truth for configuration). Use `.env` only when a third-party component reads nothing but environment variables, or when the user explicitly chooses so. **Mixing both approaches for the same field is prohibited** — each secret field must have exactly one source.
 
 **Rules:**
 - No literal secret values may appear in any code, documentation, configuration templates (including `.sample` and `.env-example`), or example files
 - `.env` and override files must be excluded in `.gitignore`
 - Template files (`.env-example` or `config.override.sample.toml`) must be tracked in git, using placeholders (e.g., `REPLACE_ME`) to guide deployers
-- Personal information (email, phone numbers, instant-messaging accounts, etc.) that must exist in configuration follows the same `.env` / TOML override mechanism — it must not be hardcoded in the base config or templates
+- Personal information (email, phone numbers, instant-messaging accounts, etc.) that must exist in configuration should go into the TOML override (§7.1); use `.env` only when environment variables are genuinely required. It must not be hardcoded in the base config or templates
 
 **Litmus test:** Can an outsider clone the project and run it (in degraded mode) without access to any secrets? Does the git history contain any secret or personal information?
 
@@ -936,9 +944,9 @@ Split by topic under the `docs/` directory, each file focused on one concern. Th
 
 ### 17.3 AI Assistant Documentation
 
-If a project uses AI coding assistants (e.g. Claude Code, GitHub Copilot), it may generate `CLAUDE.md` and `AGENTS.md` on demand for the assistant's use — high information density, structured format, helping AI understand the project's architecture and conventions. These files are **not committed to git** (excluded in `.gitignore`) — they are part of the local development environment. If the project does not use AI assistants, there is no need to create these files.
+If a project uses AI coding assistants, it may generate assistant-specific local instruction files on demand (high information density, structured) to help AI understand the project's architecture and conventions. These files are **not committed to git** (excluded in `.gitignore`) — they are part of the local development environment. If the project does not use AI assistants, there is no need to create these files.
 
-Projects that use the work log (§17.5) should place a one-line pointer to `work_log_current.md` in `CLAUDE.md`, noting that its state section opens with the "User's Original Prompt" anchor, which must be read at the start of every session — so AI discovers both the log entry point and the intent anchor.
+Projects that use the work log (§17.5) should place a one-line pointer to `work_log_current.md` in the AI assistant's local instruction file, noting that its state section opens with the "User's Original Prompt" anchor, which must be read at the start of every session — so AI discovers both the log entry point and the intent anchor.
 
 ### 17.4 Version History
 
@@ -957,7 +965,7 @@ Relationship with git: the git commit log is the authoritative record of changes
 
 Division of labor between the state-section anchor and the event section: the event section keeps the **verbatim original request** (prunable with history), while the state-section anchor keeps the **stable intent summary** (never pruned). Different purposes, no duplication.
 
-**When to update:** at the end of each working session or when a phase completes — append 3–5 lines to the event section and refresh the state section (the "User's Original Prompt" anchor stays unchanged unless the goal changes). Projects that use AI assistants place a pointer to `work_log_current.md` in `CLAUDE.md` (§17.3).
+**When to update:** at the end of each working session or when a phase completes — append 3–5 lines to the event section and refresh the state section (the "User's Original Prompt" anchor stays unchanged unless the goal changes). Projects that use AI assistants place a pointer to `work_log_current.md` in the AI assistant's local instruction file (§17.3).
 
 **Litmus test:** Can a newcomer (human or AI) fully continue the work reading only the work log and the codebase, without asking the original author? If not, the log is incomplete.
 
@@ -985,8 +993,8 @@ Technical debt is the cancer of engineering quality. Today's shortcut becomes to
 
 ### 18.1 No Debt Left Behind
 
-- After the new architecture is online, tested, and stable, old code is **deleted immediately**. No "compatibility mode" kept around. No `legacy/` directory. No `# TODO: remove after v2` comments. The codebase contains exactly one current architecture.
-- When deleting old code, simultaneously update: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), config templates (`config_example.toml` reflects the current architecture), documentation (architecture descriptions in README and docs/), tests (delete tests for the old architecture — don't keep them "just in case").
+- After the new architecture is online, tested, and stable, old code is **deleted immediately**. No "compatibility mode" kept around. No `legacy/` directory. No `# TODO: remove after v2` comments. The codebase contains exactly one current architecture (migration scripts are an explicit exception, see §18.2).
+- When deleting old code, simultaneously update: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), config templates (`config.toml` and `config.override.sample.toml` reflect the current architecture), documentation (architecture descriptions in README and docs/), tests (delete tests for the old architecture — don't keep them "just in case").
 - Version numbers are updated on every release, following `MAJOR.MINOR.PATCH`: architecture refactors and incompatible config changes bump MAJOR, new features bump MINOR, bug fixes bump PATCH.
 
 ### 18.2 Legacy System Migration
@@ -995,7 +1003,7 @@ When users of an old version need to upgrade to the new architecture, provide a 
 
 - Migration scripts go in the `scripts/` directory, named as: `migrate_v1_to_v2.py`, `migrate_config_v2_to_v3.sh`
 - The script header comment states: source version → target version, what is being migrated (config file format, checkpoint format, data format), parts that cannot be auto-migrated (requiring manual user action)
-- Migration scripts are temporary tools — they serve only the current major version upgrade. The next major version may be served by a new migration script. Old migration scripts remain in `scripts/` for historical reference, as users may upgrade across multiple versions
+- Migration scripts are not the old-architecture code referred to in §18.1; they are modules in the new codebase responsible for upgrading old data/old configuration. Migration proceeds generation by generation: upgrading across several major versions may require running multiple migration scripts in order, so older migration scripts remain in `scripts/` as an upgrade chain for users who skip versions.
 
 **Litmus test:** When a new person clones the project, can they see traces of the old architecture? If so — leftover code, outdated comments, un-updated config templates — version management has failed.
 
@@ -1006,9 +1014,9 @@ When users of an old version need to upgrade to the new architecture, provide a 
 ### 19.1 Git Workflow
 
 - Direct commits to `main` / `master` are forbidden
+- **Solo projects:** a single-developer project may push directly to the main branch. Good commits are sufficient — the PR workflow overhead is unnecessary when there is no second pair of eyes to review. If the project later gains additional contributors, adopt the branch-and-PR workflow at that point.
 - All development happens on feature branches: `feature/<description>`, `fix/<description>`, `docs/<description>`
 - Merging to main requires a PR — at minimum, self-review the diff
-- **Solo projects:** a single-developer project may push directly to the main branch. Good commits are sufficient — the PR workflow overhead is unnecessary when there is no second pair of eyes to review. If the project later gains additional contributors, adopt the branch-and-PR workflow at that point.
 - Commit messages are **recommended** to be in English, format: `type: short description` (feat, fix, docs, refactor, test, chore). English is the de facto standard of the open source community — the `git log --oneline` toolchain is English-first, and it enables international contributors to understand the project's history. Projects whose primary contributor community uses another language (e.g. Chinese) may use that language, but should stay consistent within one repository.
 - **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be rewritten to fix message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. The exception is security: if a historical commit contains leaked secrets or personal information, history MUST be rewritten (see §15.3).
 - One commit does one thing
@@ -1019,15 +1027,14 @@ When users of an old version need to upgrade to the new architecture, provide a 
 - Virtual environments: `.venv/`, `venv/`, `venvs/`
 - Test and type check caches: `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`
 - Build artifacts: `dist/`, `build/`, `*.egg-info/`
-- Environment config: `.env`, `*.env` (keep `.env-example` if the project has
-  non-infrastructure environment variables; infrastructure-only projects —
-  e.g. those using only standard CUDA/NCCL/PyTorch distributed env vars
+- Environment config: `.env`, `*.env` **must always be ignored** (`.env` is never tracked, §15.1); `.env-example` is only needed when the project has non-infrastructure environment variables — infrastructure-only projects
+  (e.g. those using only standard CUDA/NCCL/PyTorch distributed env vars
   like `CUDA_VISIBLE_DEVICES`, `NCCL_*`, `PYTORCH_*`, `RANK`, `LOCAL_RANK`,
-  `WORLD_SIZE`, `MASTER_ADDR`, `MASTER_PORT` — are exempt)
+  `WORLD_SIZE`, `MASTER_ADDR`, `MASTER_PORT`) may omit `.env-example`
 - Configuration overrides: `config.override.toml`, `my_config*.toml`, `config.local.toml`, `*.local.toml`
 - Outputs and data: `outputs/`, `data/` (except sample data)
 - IDE: `.idea/`, `.vscode/`
-- AI assistants: `CLAUDE.md`, `AGENTS.md`, `CLAUDE.zh-CN.md`
+- AI assistant local files: assistant-specific local instruction/draft files (must be excluded in `.gitignore`)
 - Local and temporary files: `.local/`
 - System files: `.DS_Store`, `Thumbs.db`
 

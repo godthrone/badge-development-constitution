@@ -3,7 +3,7 @@
 # Part of BADGE Constitution §7.1, §7.2, §7.3
 #
 # Checks for:
-#   - config_example.toml (or legacy .yaml) exists
+#   - config.toml (base, preferred) or legacy config_example.toml/.yaml exists
 #   - Config loaded via pydantic (not manual yaml.load)
 #   - No environment variable overrides for config values
 #   - Template is well-commented
@@ -30,12 +30,13 @@ FAIL=0
 
 echo "Checking configuration system..."
 
-# ─── 1. config_example.toml (or legacy .yaml) exists ───────────────────
+# ─── 1. config.toml (base) or legacy config_example.* exists ───────────
 
-# Recursively search for config_example.toml/.yaml or configs/ directory.
+# Recursively search for config.toml (base config, preferred), legacy
+# config_example.toml/.yaml, or a configs/ directory.
 # TOML is preferred (§7.3); legacy .yaml projects remain supported.
 # Projects may place configs in subdirectories (e.g. samples/configs/).
-CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config_example.toml" -o -name "config_example.yaml" \) \
+CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
     -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
 CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
@@ -61,9 +62,9 @@ elif [ -n "$CONFIGS_DIR" ] && [ -d "$CONFIGS_DIR" ] && [ -n "$(ls -A "$CONFIGS_D
     echo "  [OK] configs/ directory with example configs found at $CONFIGS_DIR"
 else
     if [ "$CLASS" = "B" ]; then
-        echo "  [WARN] No config_example.toml/.yaml or configs/ found (§7.3) — advisory for Class B."
+        echo "  [WARN] No config.toml, legacy config_example.toml/.yaml, or configs/ found (§7.3) — advisory for Class B."
     else
-        echo "[FAIL] check_config_system: No config_example.toml/.yaml or configs/ found (§7.3)."
+        echo "[FAIL] check_config_system: No config.toml, legacy config_example.toml/.yaml, or configs/ found (§7.3)."
         echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
         FAIL=1
     fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check_secrets.sh — Scan tracked files, git history, and commit metadata for
+# check_secrets.sh — Scan tracked files, git history, and commit/tag metadata for
 # secrets and personal information (§15.1)
 # Part of BADGE Constitution §15.1
 #
@@ -11,19 +11,19 @@
 #   - Internal file paths, SSH connection strings
 #   - .env tracked by git
 #   - Personal information (PII): emails, IM accounts, phone numbers, IDs
-#   - Commit metadata: personal emails in author/committer identities
+#   - Commit/tag metadata: personal emails in author/committer/tagger identities
 #
 # Usage:
 #   ./check_secrets.sh [project_root]               tree + history + metadata
 #   ./check_secrets.sh --no-history [project_root]  working tree only
 #   ./check_secrets.sh --pii=off|warn|fail          PII severity for content and
 #                                                   git history (default: fail)
-#   ./check_secrets.sh --meta-pii=off|warn|fail     PII severity for commit
+#   ./check_secrets.sh --meta-pii=off|warn|fail     PII severity for commit/tag
 #                                                   metadata (default: warn)
 #   project_root defaults to the git repo root of the current directory.
 #
 # Public repositories should run with --meta-pii=fail so that a personal
-# author/committer email fails the check (see §15.1 category 5).
+# author/committer/tagger email fails the check (see §15.1 category 5).
 
 set -euo pipefail
 
@@ -199,6 +199,26 @@ _filter_history_false_positives() {
         || true
 }
 
+# Keep only lines that contain at least one email NOT matched by the PII
+# allowlist. A whole-line `grep -vE "$PII_ALLOWLIST"` would let an allowlisted
+# address (e.g. a noreply committer) on the same line mask a real personal
+# address — a false negative this helper avoids.
+filter_email_lines() {
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        local emails kept=0
+        emails=$(printf '%s\n' "$line" | grep -oE "$PII_EMAIL_PATTERN" || true)
+        while IFS= read -r e; do
+            [ -z "$e" ] && continue
+            if ! printf '%s\n' "$e" | grep -qE "$PII_ALLOWLIST"; then
+                kept=1
+                break
+            fi
+        done <<< "$emails"
+        [ "$kept" -eq 1 ] && printf '%s\n' "$line"
+    done
+}
+
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 1: Current working tree scan (always runs)
 # ─────────────────────────────────────────────────────────────────────────
@@ -367,11 +387,18 @@ print_matches "Cloud credential reference" "$AWS_CRED_MATCHES"
 if [ "$PII_MODE" != "off" ]; then
     echo "Scanning for personal information (PII)..."
     PII_HITS=""
-    for pattern in "${PII_PATTERNS[@]}"; do
-        HIT=$(grep_tracked "$pattern" | \
-            grep -vE "$PII_ALLOWLIST" | \
+    for i in "${!PII_PATTERNS[@]}"; do
+        pattern="${PII_PATTERNS[$i]}"
+        RAW=$(grep_tracked "$pattern" | \
             grep -v 'check_secrets\.sh' | \
             grep -v '\.env-example' || true)
+        if [ "$i" -eq 0 ]; then
+            # Email pattern: filter per-address so an allowlisted address on
+            # the same line cannot mask a personal one.
+            HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
+        else
+            HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+        fi
         PII_HITS="${PII_HITS}${HIT}"$'\n'
     done
     PII_HITS=$(printf '%s' "$PII_HITS" | sed '/^$/d' | awk '!seen[$0]++')
@@ -539,12 +566,17 @@ if $HISTORY_MODE; then
         if [ "$PII_MODE" != "off" ]; then
             echo "Scanning history for personal information (PII)..."
             HIST_PII=""
-            for pattern in "${PII_PATTERNS[@]}"; do
-                HIT=$(grep_history "$HIST_STREAM" "$pattern" | \
-                    grep -vE "$PII_ALLOWLIST" | \
+            for i in "${!PII_PATTERNS[@]}"; do
+                pattern="${PII_PATTERNS[$i]}"
+                RAW=$(grep_history "$HIST_STREAM" "$pattern" | \
                     grep -v 'badge-development-constitution/' | \
                     grep -v 'check_secrets\.sh' | \
                     grep -v '\.env-example' || true)
+                if [ "$i" -eq 0 ]; then
+                    HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
+                else
+                    HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                fi
                 HIST_PII="${HIST_PII}${HIT}"$'\n'
             done
             HIST_PII=$(printf '%s' "$HIST_PII" | sed '/^$/d' | awk '!seen[$0]++')
@@ -574,24 +606,30 @@ if $HISTORY_MODE; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
-# Phase 3: Commit metadata scan (author/committer identity) — §15.1 cat. 5
+# Phase 3: Commit/tag metadata scan — §15.1 cat. 5
 # ─────────────────────────────────────────────────────────────────────────
 #
-# A push publishes commit metadata as well. Content/patch scans cannot see the
-# author/committer identity, so it is checked separately here. Default severity
-# is warn; public repositories should pass --meta-pii=fail.
+# A push publishes commit metadata (author/committer) and annotated-tag
+# metadata (tagger). Content/patch scans cannot see identities, so they are
+# checked separately here. Each identity is emitted on its own line so the
+# allowlist cannot mask a personal address sitting next to a noreply one.
+# Default severity is warn; public repositories should pass --meta-pii=fail.
 
 if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
     echo ""
-    echo "─── Scanning commit metadata for personal emails ───"
-    META_RAW=$(git log --all --format='%h|%an <%ae>|%cn <%ce>' 2>/dev/null || true)
-    META_HITS=$(printf '%s\n' "$META_RAW" | grep -vE "$PII_ALLOWLIST" | grep -E "$PII_EMAIL_PATTERN" || true)
+    echo "─── Scanning commit/tag metadata for personal emails ───"
+    META_RAW=$(
+        git log --all --format='%h|author|%an <%ae>' 2>/dev/null
+        git log --all --format='%h|committer|%cn <%ce>' 2>/dev/null
+        git for-each-ref --format='%(refname)|tagger|%(taggername) %(taggeremail)' refs/tags 2>/dev/null
+    )
+    META_HITS=$(printf '%s\n' "$META_RAW" | filter_email_lines || true)
     if [ -n "$META_HITS" ]; then
         if [ "$META_PII_MODE" = "fail" ]; then
-            echo "[FAIL] check_secrets (metadata): Personal email in commit author/committer identity:"
+            echo "[FAIL] check_secrets (metadata): Personal email in commit/tag identity:"
             FAIL=1
         else
-            echo "[WARN] check_secrets (metadata): Personal email in commit author/committer identity (review manually):"
+            echo "[WARN] check_secrets (metadata): Personal email in commit/tag identity (review manually):"
         fi
         echo "$META_HITS" | head -20 | while IFS= read -r line; do echo "  $line"; done
         META_COUNT=$(printf '%s\n' "$META_HITS" | wc -l)
@@ -599,7 +637,7 @@ if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
             echo "  ... and $((META_COUNT - 20)) more lines"
         fi
     else
-        echo "[PASS] check_secrets (metadata): No personal email in commit metadata."
+        echo "[PASS] check_secrets (metadata): No personal email in commit/tag metadata."
     fi
 fi
 

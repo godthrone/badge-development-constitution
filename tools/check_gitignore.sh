@@ -115,7 +115,8 @@ if [ -d "$PROJECT_ROOT/src" ]; then
 fi
 
 # Also check the config template for env-related fields (TOML preferred, YAML legacy)
-CFG_TEMPLATE="$PROJECT_ROOT/config_example.toml"
+CFG_TEMPLATE="$PROJECT_ROOT/config.toml"
+[ -f "$CFG_TEMPLATE" ] || CFG_TEMPLATE="$PROJECT_ROOT/config_example.toml"
 [ -f "$CFG_TEMPLATE" ] || CFG_TEMPLATE="$PROJECT_ROOT/config_example.yaml"
 if [ -f "$CFG_TEMPLATE" ]; then
     if grep -qiE 'env:|environment:|^\s*env\s*=|^\s*environment\s*=|^\s*\[(env|environment)\]' "$CFG_TEMPLATE" 2>/dev/null; then

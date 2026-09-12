@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check_local_files.sh — Verify no temporary files exist outside .local/
-# Part of BADGE Constitution §XVI
+# Part of BADGE Constitution §16
 #
 # Checks:
 #   1. .local/ is in .gitignore

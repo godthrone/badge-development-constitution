@@ -169,8 +169,8 @@ fi  # end class A/B Layer 1-2
 # §15.1 — Secrets & PII scan (all classes)
 run_check "Secrets & PII Scan (§15.1)"         "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG $PII_FLAGS
 
-# §XVI — Temporary Files (all classes)
-run_check "Temporary Files (§XVI)"             "$SCRIPT_DIR/check_local_files.sh"
+# §16 — Temporary Files (all classes)
+run_check "Temporary Files (§16)"             "$SCRIPT_DIR/check_local_files.sh"
 
 if [ "$CLASS" = "A" ]; then
 

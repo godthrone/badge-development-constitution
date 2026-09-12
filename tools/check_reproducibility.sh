@@ -96,7 +96,8 @@ fi
 
 # ─── 4. Random seed hints ──────────────────────────────────────────────
 
-CFG_TEMPLATE="$PROJECT_ROOT/config_example.toml"
+CFG_TEMPLATE="$PROJECT_ROOT/config.toml"
+[ -f "$CFG_TEMPLATE" ] || CFG_TEMPLATE="$PROJECT_ROOT/config_example.toml"
 [ -f "$CFG_TEMPLATE" ] || CFG_TEMPLATE="$PROJECT_ROOT/config_example.yaml"
 if [ -f "$CFG_TEMPLATE" ]; then
     if grep -qiE '^\s*(seed|random_seed)\s*[:=]' "$CFG_TEMPLATE" 2>/dev/null; then

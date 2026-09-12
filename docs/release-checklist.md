@@ -41,17 +41,20 @@ it is exercised as **Class C** (`--class=C`) — do not run the full Class A Pyt
       into a fake read-only state). `--meta-pii=fail` makes a personal author/committer email a
       hard failure; it is required for public repositories (§15.1 category 5).
 - [ ] Privacy audit before a public push: `git log --all --format='%an <%ae> %cn <%ce>' | sort -u`
-      must show only `noreply@` / project mailboxes. Content and history are covered by
-      `tools/check_secrets.sh` (PII patterns + allowlist).
-- [ ] Any tool that reads the config template must accept `config_example.toml` **and** legacy
-      `config_example.yaml` (`check_config_system.sh`, `check_directory_layout.sh`,
-      `check_gitignore.sh`, `check_reproducibility.sh`, `check_version.sh`).
+      **and** `git for-each-ref --format='%(taggeremail)' refs/tags | sort -u` must show only
+      `noreply@` / project mailboxes (commit author/committer **and** annotated-tag tagger).
+      Content, history, and identity metadata are covered by `tools/check_secrets.sh`
+      (PII patterns + allowlist; run with `--meta-pii=fail`).
+- [ ] Any tool that reads the base config must accept `config.toml` (base default) **and**
+      legacy `config_example.toml` / `config_example.yaml` (`check_config_system.sh`,
+      `check_directory_layout.sh`, `check_gitignore.sh`, `check_reproducibility.sh`,
+      `check_version.sh`).
 - [ ] Cross-check that §-numbers quoted in tool comments still match the constitution.
 
 ## 4. Stale-reference sweep
 
 - [ ] `grep -rn 'vOLD' .` → no hits.
-- [ ] `grep -rn 'config_example\.yaml\|config\.yaml' .` → only intentional legacy fallbacks.
+- [ ] `grep -rn 'config_example\.\(toml\|yaml\)\|config\.yaml' .` → only intentional legacy fallbacks.
 - [ ] `grep -rn 'pyyaml' .` → none (TOML is the preferred format; Python 3.11 has `tomllib`).
 
 ## 5. Work log (§17.5)
