@@ -70,6 +70,15 @@ fi
 
 # Per §17.1: Introduction → Quick Start → Data Format → Config Reference →
 #              Output Description → Development Guide → FAQ
+#
+# Each entry is a grep -E alternation of the section titles accepted for that
+# language. The two arrays stay index-aligned: one section per pair.
+# Requiring the English literal "License" in the Chinese README was a false
+# positive generator — a Chinese README titles that section 「许可证」. The
+# accepted-name sets below are language-aware for exactly that reason. Adding
+# an accepted spelling never lowers detection power: a README that lacks the
+# section in its own language still fails, because every title for that
+# language is enumerated here.
 REQUIRED_TERMS_EN=(
     "Quick Start"
     "Data Format"
@@ -77,7 +86,7 @@ REQUIRED_TERMS_EN=(
     "Output"
     "Development"
     "FAQ"
-    "License"
+    "License|Licence|Licensing"
 )
 
 REQUIRED_TERMS_CN=(
@@ -87,7 +96,7 @@ REQUIRED_TERMS_CN=(
     "输出"
     "开发"
     "常见问题"
-    "License"
+    "License|Licence|许可证|許可證|许可协议|許可協議|授权协议|授權協議|开源协议|開源協議"
 )
 
 echo "Checking required sections..."
@@ -96,11 +105,11 @@ for i in "${!REQUIRED_TERMS_EN[@]}"; do
     EN_TERM="${REQUIRED_TERMS_EN[$i]}"
     CN_TERM="${REQUIRED_TERMS_CN[$i]}"
 
-    if ! grep -q "$EN_TERM" "$README_EN" 2>/dev/null; then
+    if ! grep -qE "$EN_TERM" "$README_EN" 2>/dev/null; then
         echo "  [FAIL] EN README missing section: $EN_TERM"
         FAIL=1
     fi
-    if ! grep -q "$CN_TERM" "$README_CN" 2>/dev/null; then
+    if ! grep -qE "$CN_TERM" "$README_CN" 2>/dev/null; then
         echo "  [FAIL] CN README missing section: $CN_TERM"
         FAIL=1
     fi

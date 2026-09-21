@@ -107,23 +107,74 @@ PRIVATE_IP_PATTERNS=(
 )
 
 # Personal information (PII) patterns — §15.1 category 4
+#
+# Boundary rule for the digit-run patterns (mobile / landline / ID card). The
+# LEADING separator class is `[^0-9A-Fa-f.]` and the TRAILING one is
+# `[^0-9A-Fa-f]`; the two sides are deliberately different:
+#
+#   * Excluding hexadecimal letters on both sides — with the old `[^0-9]`, the
+#     hex letter next to a digit run inside a hash counted as a clean word
+#     boundary, so an 11-digit run inside a sha256 digest in uv.lock matched the
+#     mobile pattern (matched substring e.g. "c13402914736a") — 31 false
+#     positives on a project with no PII at all. Inside any longer hex token both
+#     neighbours of a digit run are hex characters, so such a match is now
+#     structurally impossible.
+#   * Excluding `.` on the LEADING side only — a digit run that starts right after
+#     a decimal point is the fractional part of a number, not a phone number
+#     (`0.04833984375` produced 248,856+ hits in a git history full of embedding
+#     vectors). `.` is kept on the TRAILING side because a phone number at the end
+#     of a sentence (`手机13812345678.`) is a real and common spelling.
+#
+# Phone numbers written with real separators (space, colon, comma, slash, quote,
+# bracket, CJK text, line edge) are still matched.
 PII_EMAIL_PATTERN='[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
 PII_PATTERNS=(
     "$PII_EMAIL_PATTERN"
     # Mainland China mobile number (11 digits, starts with 1[3-9])
-    '(^|[^0-9])1[3-9][0-9]{9}($|[^0-9])'
+    '(^|[^0-9A-Fa-f.])1[3-9][0-9]{9}($|[^0-9A-Fa-f])'
     # Mainland China landline (area code + 7-8 digit number)
-    '(^|[^0-9])0[0-9]{2,3}-?[0-9]{7,8}($|[^0-9])'
+    '(^|[^0-9A-Fa-f.])0[0-9]{2,3}-?[0-9]{7,8}($|[^0-9A-Fa-f])'
     # QQ / WeChat / other IM accounts (keyword required, to limit false positives)
     '([Qq][Qq]|wechat|weixin|微信)[号:：= ]*[0-9]{5,12}'
     'wxid_[a-zA-Z0-9_-]{5,}'
-    # Mainland China resident ID card (18 digits, last may be X)
-    '(^|[^0-9])[1-9][0-9]{5}(19|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]($|[^0-9])'
+    # Mainland China resident ID card (18 digits, last may be X) — same boundary
+    # rule as the phone patterns above.
+    '(^|[^0-9A-Fa-f.])[1-9][0-9]{5}(19|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]($|[^0-9A-Fa-f])'
 )
 
 # Addresses that are legitimately public / documented, exempt from PII findings:
 # project mailboxes, example/reserved domains, placeholders, local addresses.
 PII_ALLOWLIST='(example\.(com|org|net)|@example\.|noreply@|users\.noreply\.github\.com|maintainers?@|git@github\.com|anthropic\.com|REPLACE_ME|your-?email|placeholder|@[a-zA-Z0-9.-]*\.local)'
+
+# Documentation placeholders — §15.1 / §15.2
+#
+# §15.1 exempts explicit placeholders ("REPLACE_ME", "your-email@…") and §15.2
+# *requires* templates (.env-example, config samples) to guide the deployer with
+# them. A template value must therefore not be reported as a leaked credential:
+# `api_key = "REPLACE_WITH_YOUR_API_KEY"` is the documented way to write a
+# template, not a finding.
+#
+# The exemption is deliberately narrow. It only matches values that no real
+# credential can look like:
+#   * an all-uppercase keyword form — REPLACE_WITH_YOUR_API_KEY, YOUR_TOKEN_HERE,
+#     CHANGE_ME, PLACEHOLDER, EXAMPLE_TOKEN, …_ME / …_HERE;
+#   * pure filler — xxx / XXXX / ... / ___ / <angle-wrapped>.
+# Real secrets carry a mixed-case and/or high-entropy body (sk-…, ghp_…, hf_…,
+# AKIA…, JWTs), which none of these shapes can match; a value that keeps a real
+# key prefix (sk-…) is never exempted even when the remainder is filler.
+PLACEHOLDER_VALUE_PATTERN='^(REPLACE|YOUR|YOURS|PLACEHOLDER|EXAMPLE|CHANGEME|CHANGE|DUMMY|TODO|FIXME|FILL|INSERT|ENTER)([_-][A-Z0-9]+)*$|^[A-Z][A-Z0-9_]*_(ME|HERE)$|^[xX]+$|^[.*_-]{3,}$|^<[^<>]*>$'
+
+# The key/value assignment whose value is inspected for the shapes above.
+# Extracting the value (rather than matching the whole line) is what stops a
+# placeholder from masking a real secret published on the same line. Matching is
+# case-insensitive so the .env template spelling API_KEY=… is covered too.
+KEY_ASSIGNMENT_PATTERN='(api[_-]?key|api[_-]?secret|access[_-]?key|password|passwd|secret|token)[[:space:]]*[=:][[:space:]]*["'"'"']?[^[:space:],;"'"'"']+'
+
+# Unambiguously credential-shaped tokens: these mirror the literal-prefix subset
+# of KEY_PATTERNS (plus JWTs and PEM headers). They are collected as values too,
+# so a line that publishes a real prefixed key is never dropped just because a
+# placeholder assignment happens to share the line (masking guard).
+PREFIXED_TOKEN_PATTERN='sk-[a-zA-Z0-9_-]+|tvly-[a-zA-Z0-9_-]+|hf_[a-zA-Z0-9]+|ghp_[a-zA-Z0-9]+|gho_[a-zA-Z0-9]+|AKIA[0-9A-Z]{16}|xox[bpras]-[a-zA-Z0-9-]+|eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 # ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -146,6 +197,23 @@ print_matches() {
         done
         FAIL=1
     fi
+}
+
+# Indent and print a match blob, capped at $2 lines.
+#
+# `head` must not be used for this: it exits as soon as it has read enough
+# lines, the writer then gets SIGPIPE, and `set -o pipefail` promotes that into
+# a fatal error for the whole run — that is exactly how a full-history scan died
+# while reporting PII, before Phase 3 (metadata) ever started. sed reads its
+# input to EOF, so the writer always sees a clean close, whatever the volume of
+# matches. Use this helper (or a `sed -n "1,${n}p"` stage) for every capped
+# match report; never reintroduce `| head -n |`.
+print_capped() {
+    local matches="$1"
+    local limit="$2"
+    printf '%s\n' "$matches" | sed -n "1,${limit}p" | while IFS= read -r line; do
+        echo "  $line"
+    done
 }
 
 # ─── Git history stream builder ──────────────────────────────────────────
@@ -219,6 +287,39 @@ filter_email_lines() {
     done
 }
 
+# Keep only lines whose key/value value(s) are not documentation placeholders.
+#
+# The values inspected are every assignment value (case-insensitive, so the .env
+# spelling API_KEY=… is covered) plus every credential-shaped prefixed token on
+# the line. A line is dropped only when it yields at least one such value and
+# every one of them is placeholder-shaped; a single non-placeholder value keeps
+# the whole line. That set covers every token the KEY_/CREDENTIAL_PATTERNS can
+# match, so a real secret is never masked by a placeholder sharing its line, and
+# a line with nothing extractable is always kept — nothing unreadable is ever
+# exempted.
+filter_placeholder_lines() {
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        local values v kept=0
+        values=$(printf '%s\n' "$line" | grep -oiE "$KEY_ASSIGNMENT_PATTERN" || true)
+        values="${values}"$'\n'"$(printf '%s\n' "$line" | grep -oE "$PREFIXED_TOKEN_PATTERN" || true)"
+        values=$(printf '%s\n' "$values" | sed '/^$/d' | sed -E 's/^[^=:]*[=:][[:space:]]*//')
+        if [ -z "$values" ]; then
+            printf '%s\n' "$line"
+            continue
+        fi
+        while IFS= read -r v; do
+            [ -z "$v" ] && continue
+            v="${v#\"}"; v="${v#\'}"; v="${v%\"}"; v="${v%\'}"
+            if ! printf '%s\n' "$v" | grep -qE "$PLACEHOLDER_VALUE_PATTERN"; then
+                kept=1
+                break
+            fi
+        done <<< "$values"
+        [ "$kept" -eq 1 ] && printf '%s\n' "$line"
+    done
+}
+
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 1: Current working tree scan (always runs)
 # ─────────────────────────────────────────────────────────────────────────
@@ -262,9 +363,7 @@ if [ -n "$PRIVATE_IP_MATCHES" ]; then
 fi
 if [ -n "$PUBLIC_IP_MATCHES" ]; then
     echo "[WARN] Public IP addresses found (review if internal endpoints):"
-    echo "$PUBLIC_IP_MATCHES" | head -20 | while IFS= read -r line; do
-        echo "  $line"
-    done
+    print_capped "$PUBLIC_IP_MATCHES" 20
 fi
 
 # ─── Scan: API keys ──────────────────────────────────────────────────────
@@ -272,7 +371,7 @@ fi
 echo "Scanning for API keys and tokens..."
 for pattern in "${KEY_PATTERNS[@]}"; do
     KEY_RAW=$(grep_tracked "$pattern")
-    KEY_MATCHES=$(echo "$KEY_RAW" | grep -v '\.env-example' | grep -v 'CLAUDE\.md' || true)
+    KEY_MATCHES=$(echo "$KEY_RAW" | grep -v '\.env-example' | grep -v 'CLAUDE\.md' | filter_placeholder_lines || true)
     if [ -n "$KEY_MATCHES" ]; then
         # Check if matches are in constitution/tools directory (reference only) or actual leaks
         REAL_LEAKS=$(echo "$KEY_MATCHES" | grep -v 'badge-development-constitution/' || true)
@@ -297,7 +396,8 @@ for pattern in "${CREDENTIAL_PATTERNS[@]}"; do
         grep -v '\.env-example' | \
         grep -v 'config_example\.yaml' | \
         grep -v 'badge-development-constitution/' | \
-        grep -v 'check_secrets\.sh' || true)
+        grep -v 'check_secrets\.sh' | \
+        filter_placeholder_lines || true)
     if [ -n "$CRED_MATCHES" ]; then
         echo "[FAIL] check_secrets: Hardcoded credential found:"
         echo "$CRED_MATCHES" | while IFS= read -r line; do
@@ -336,9 +436,7 @@ B64_MATCHES=$(echo "$FILES" | grep -vE '\.(png|jpg|jpeg|gif|ico|woff2?|ttf|eot|p
     grep -v 'sha256:[A-Za-z0-9]' || true)
 if [ -n "$B64_MATCHES" ]; then
     echo "[WARN] Long base64-like strings found (review manually):"
-    echo "$B64_MATCHES" | head -20 | while IFS= read -r line; do
-        echo "  $line"
-    done
+    print_capped "$B64_MATCHES" 20
     echo "         These may be encoded secrets, certificates, or binary data."
 fi
 
@@ -409,7 +507,7 @@ if [ "$PII_MODE" != "off" ]; then
         else
             echo "[WARN] check_secrets: Personal information (PII) found (review manually):"
         fi
-        echo "$PII_HITS" | head -20 | while IFS= read -r line; do echo "  $line"; done
+        print_capped "$PII_HITS" 20
         PII_COUNT=$(printf '%s\n' "$PII_HITS" | wc -l)
         if [ "$PII_COUNT" -gt 20 ]; then
             echo "  ... and $((PII_COUNT - 20)) more lines"
@@ -446,9 +544,7 @@ if $HISTORY_MODE; then
             _filter_history_false_positives || true)
         if [ -n "$HIST_PRIVATE_IP" ]; then
             echo "[FAIL] check_secrets (history): Private/internal IPs in git history:"
-            echo "$HIST_PRIVATE_IP" | head -30 | while IFS= read -r line; do
-                echo "  $line"
-            done
+            print_capped "$HIST_PRIVATE_IP" 30
             COUNT=$(echo "$HIST_PRIVATE_IP" | wc -l)
             if [ "$COUNT" -gt 30 ]; then
                 echo "  ... and $((COUNT - 30)) more lines"
@@ -461,12 +557,11 @@ if $HISTORY_MODE; then
         echo "Scanning history for API keys and tokens..."
         for pattern in "${KEY_PATTERNS[@]}"; do
             HIST_KEY=$(grep_history "$HIST_STREAM" "$pattern" | \
-                grep -v 'badge-development-constitution/' | grep -v '\.env-example' || true)
+                grep -v 'badge-development-constitution/' | grep -v '\.env-example' | \
+                filter_placeholder_lines || true)
             if [ -n "$HIST_KEY" ]; then
                 echo "[FAIL] check_secrets (history): API key/token in git history:"
-                echo "$HIST_KEY" | head -10 | while IFS= read -r line; do
-                    echo "  $line"
-                done
+                print_capped "$HIST_KEY" 10
                 HISTORY_FAIL=1
             fi
         done
@@ -476,12 +571,11 @@ if $HISTORY_MODE; then
         echo "Scanning history for hardcoded credentials..."
         for pattern in "${CREDENTIAL_PATTERNS[@]}"; do
             HIST_CRED=$(grep_history "$HIST_STREAM" "$pattern" | \
-                grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' || true)
+                grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' | \
+                filter_placeholder_lines || true)
             if [ -n "$HIST_CRED" ]; then
                 echo "[FAIL] check_secrets (history): Hardcoded credential in git history:"
-                echo "$HIST_CRED" | head -10 | while IFS= read -r line; do
-                    echo "  $line"
-                done
+                print_capped "$HIST_CRED" 10
                 HISTORY_FAIL=1
             fi
         done
@@ -494,9 +588,7 @@ if $HISTORY_MODE; then
             grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH" ]; then
             echo "[FAIL] check_secrets (history): SSH connection string in git history:"
-            echo "$HIST_SSH" | head -10 | while IFS= read -r line; do
-                echo "  $line"
-            done
+            print_capped "$HIST_SSH" 10
             HISTORY_FAIL=1
         fi
 
@@ -505,9 +597,7 @@ if $HISTORY_MODE; then
             grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH_USER" ]; then
             echo "[FAIL] check_secrets (history): SSH user@host in git history:"
-            echo "$HIST_SSH_USER" | head -10 | while IFS= read -r line; do
-                echo "  $line"
-            done
+            print_capped "$HIST_SSH_USER" 10
             HISTORY_FAIL=1
         fi
 
@@ -530,9 +620,7 @@ if $HISTORY_MODE; then
                 _filter_history_false_positives || true)
             if [ -n "$HIST_PATH" ]; then
                 echo "[FAIL] check_secrets (history): Internal path ($path_pattern) in git history:"
-                echo "$HIST_PATH" | head -10 | while IFS= read -r line; do
-                    echo "  $line"
-                done
+                print_capped "$HIST_PATH" 10
                 HISTORY_FAIL=1
             fi
         done
@@ -544,9 +632,7 @@ if $HISTORY_MODE; then
             grep -v 'badge-development-constitution/' || true)
         if [ -n "$HIST_JWT" ]; then
             echo "[FAIL] check_secrets (history): JWT token in git history:"
-            echo "$HIST_JWT" | head -10 | while IFS= read -r line; do
-                echo "  $line"
-            done
+            print_capped "$HIST_JWT" 10
             HISTORY_FAIL=1
         fi
 
@@ -555,7 +641,7 @@ if $HISTORY_MODE; then
         echo "Scanning history for .env files..."
         if git log --all --diff-filter=A --name-only --format="" -- '.env' 2>/dev/null | grep -q '.'; then
             echo "[FAIL] check_secrets (history): .env file was tracked in git history:"
-            git log --all --diff-filter=A --name-only --oneline -- '.env' 2>/dev/null | head -10 | while IFS= read -r line; do
+            git log --all --diff-filter=A --name-only --oneline -- '.env' 2>/dev/null | sed -n '1,10p' | while IFS= read -r line; do
                 echo "  $line"
             done
             HISTORY_FAIL=1
@@ -587,7 +673,7 @@ if $HISTORY_MODE; then
                 else
                     echo "[WARN] check_secrets (history): Personal information (PII) in git history (review manually):"
                 fi
-                echo "$HIST_PII" | head -20 | while IFS= read -r line; do echo "  $line"; done
+                print_capped "$HIST_PII" 20
                 HIST_PII_COUNT=$(printf '%s\n' "$HIST_PII" | wc -l)
                 if [ "$HIST_PII_COUNT" -gt 20 ]; then
                     echo "  ... and $((HIST_PII_COUNT - 20)) more lines"
@@ -631,7 +717,7 @@ if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
         else
             echo "[WARN] check_secrets (metadata): Personal email in commit/tag identity (review manually):"
         fi
-        echo "$META_HITS" | head -20 | while IFS= read -r line; do echo "  $line"; done
+        print_capped "$META_HITS" 20
         META_COUNT=$(printf '%s\n' "$META_HITS" | wc -l)
         if [ "$META_COUNT" -gt 20 ]; then
             echo "  ... and $((META_COUNT - 20)) more lines"
