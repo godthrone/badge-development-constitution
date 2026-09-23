@@ -11,10 +11,12 @@
 #   --pii / --meta-pii are passed through to check_secrets.sh (§15.1).
 #   Public repositories should use --meta-pii=fail.
 #
-# Classes:
+# Classes (§0 三类项目定义):
 #   --class A  (default) Run all checks
 #   --class B  Skip §17.1 bilingual checks (exemption), relax YAML/__main__.py checks
-#   --class C  Only run §15, §16, §17.3-§17.5, §19.1-§19.3 checks
+#   --class C  Run §15, §16, §17.3-§17.5, §19.1-§19.3 checks. §6 (复现) still
+#              applies per its applicability premise (§0); §8.7 and §19.2 are
+#              always executed regardless of class (see below).
 #
 # Exit code: 0 if all checks pass, 1 if any check fails.
 
@@ -29,12 +31,15 @@ PII_FLAGS=""
 CLASS="A"
 PROJECT_ROOT=""
 for arg in "${@}"; do
-    case "$arg" in
+    # Normalize case so that e.g. --class=C / --meta-pii=FAIL are accepted:
+    # an unnormalized value would fall through to the usage branch and exit 2.
+    lower="$(printf '%s' "$arg" | tr '[:upper:]' '[:lower:]')"
+    case "$lower" in
         --no-history) NO_HISTORY_FLAG="--no-history" ;;
-        --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        --class=a|--class=b|--class=c) CLASS="$(printf '%s' "${arg#--class=}" | tr '[:lower:]' '[:upper:]')" ;;
         --class) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
-        --pii=off|--pii=warn|--pii=fail) PII_FLAGS="$PII_FLAGS $arg" ;;
-        --meta-pii=off|--meta-pii=warn|--meta-pii=fail) PII_FLAGS="$PII_FLAGS $arg" ;;
+        --pii=off|--pii=warn|--pii=fail) PII_FLAGS="$PII_FLAGS $lower" ;;
+        --meta-pii=off|--meta-pii=warn|--meta-pii=fail) PII_FLAGS="$PII_FLAGS $lower" ;;
         -*) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
@@ -42,13 +47,27 @@ done
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 
-# Dynamically detect latest constitution file (sorted by version)
-CONSTITUTION_FILE=$(ls "$SCRIPT_DIR/../BADGE-constitution-v"*.en.md 2>/dev/null | sort -V | tail -1)
+# Dynamically detect the latest constitution file (sorted by version).
+# Language-independent on purpose: matches BADGE-constitution-v*.md whether the
+# edition suffix is .en.md, .zh-CN.md or none, so deleting/adding a language
+# edition can never make this step fail. `|| true` guards the no-match case:
+# without it, `ls` exit 2 combined with `set -euo pipefail` silently aborts the
+# whole run before any check executes.
+CONSTITUTION_FILE=$(ls "$SCRIPT_DIR/../BADGE-constitution-v"*.md 2>/dev/null | sort -V | tail -1 || true)
+CONSTITUTION_TITLE=""
+VERSION="unknown"
 if [ -n "$CONSTITUTION_FILE" ]; then
-    VERSION=$(grep -oP 'BADGE Constitution v\K[0-9]+\.[0-9]+\.[0-9]+' "$CONSTITUTION_FILE" 2>/dev/null || echo "unknown")
-else
-    VERSION="unknown"
+    # The banner is taken from the file actually selected, so it reflects the
+    # loaded edition (English "BADGE Constitution vX.Y.Z" or Chinese
+    # "BADGE 开发宪法 vX.Y.Z") instead of a hardcoded language.
+    CONSTITUTION_TITLE="$(head -n 1 "$CONSTITUTION_FILE" 2>/dev/null | sed 's/^#\+[[:space:]]*//' || true)"
+    # Both English title forms are accepted: the pre-2.5 wording
+    # "BADGE Constitution vX.Y.Z" and the 2.5 wording
+    # "BADGE Development Constitution vX.Y.Z".
+    VERSION=$(grep -oP '(BADGE (Development )?Constitution v|BADGE 开发宪法 v)\K[0-9]+\.[0-9]+\.[0-9]+' "$CONSTITUTION_FILE" 2>/dev/null | head -1 || true)
+    VERSION="${VERSION:-unknown}"
 fi
+[ -n "$CONSTITUTION_TITLE" ] || CONSTITUTION_TITLE="BADGE Constitution v$VERSION"
 
 CLASS_LABEL=""
 case "$CLASS" in
@@ -58,7 +77,7 @@ case "$CLASS" in
 esac
 
 echo "============================================"
-echo " BADGE Constitution v$VERSION — Compliance Check$CLASS_LABEL"
+echo " $CONSTITUTION_TITLE — Compliance Check$CLASS_LABEL"
 echo " Project: $PROJECT_ROOT"
 echo "============================================"
 echo ""
@@ -101,7 +120,7 @@ run_check "hasattr / **kwargs Usage (§2.2)"   "$SCRIPT_DIR/check_hasattr_kwargs
 # Layer 2: Engineering Standards
 # ============================================================================
 
-# §6 — Reproducible Environments
+# §6 — 复现：由需求定义的效果 (Reproducibility: the effect defined by requirements)
 run_check "Reproducibility (§6)"               "$SCRIPT_DIR/check_reproducibility.sh"
 
 # §7 — Configuration System

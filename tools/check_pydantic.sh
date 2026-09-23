@@ -34,8 +34,10 @@ echo "Checking pydantic model conventions..."
 
 # ─── 1. BaseModel subclasses missing extra="forbid" ─────────────────────
 
-# Find files that define pydantic models (inherit from BaseModel)
-# and check if they lack extra="forbid" in their Config or model_config
+# Find files that define pydantic models (inherit from BaseModel) and require
+# extra="forbid" (§7.2 C:382, §9.1 C:544-546) *within each model's own body*.
+# A file-level match must not short-circuit the whole file — a file may define
+# several models and only some of them carry extra="forbid".
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     if [ ! -f "$file" ]; then continue; fi
@@ -45,21 +47,31 @@ while IFS= read -r file; do
         continue
     fi
 
-    # Check if file has extra="forbid" or extra = "forbid"
-    if grep -qE 'extra\s*=\s*["'"'"']forbid["'"'"']' "$file" 2>/dev/null; then
-        continue
-    fi
+    # Class definitions that directly inherit BaseModel (top-level classes only,
+    # so a nested `class Config:` is not mistaken for a class boundary)
+    CLASS_LINES=$(grep -nE '^class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*\(.*\bBaseModel\b' "$file" 2>/dev/null | cut -d: -f1 || true)
+    [ -n "$CLASS_LINES" ] || continue
 
-    # Check if it's a BaseModel subclass definition (not just importing)
-    CLASS_DEFS=$(grep -nE 'class\s+\w+\(.*BaseModel.*\)\s*:' "$file" 2>/dev/null || true)
-    if [ -n "$CLASS_DEFS" ]; then
-        echo "[FAIL] check_pydantic: BaseModel subclass(es) missing extra=\"forbid\" in $file:"
-        echo "$CLASS_DEFS" | while IFS= read -r line; do
-            echo "  $file: $line"
-        done
-        echo "         Add: model_config = ConfigDict(extra='forbid') or class Config: extra = 'forbid'"
-        FAIL=1
-    fi
+    TOTAL_LINES_FILE=$(wc -l < "$file")
+    for class_line in $CLASS_LINES; do
+        # Body = class line up to the line before the next top-level class definition
+        next_class=$(grep -nE '^class[[:space:]]' "$file" 2>/dev/null | cut -d: -f1 | \
+            awk -v c="$class_line" '$1 > c { print; exit }')
+        if [ -n "$next_class" ]; then
+            class_end=$((next_class - 1))
+        else
+            class_end=$TOTAL_LINES_FILE
+        fi
+
+        CLASS_BODY=$(sed -n "${class_line},${class_end}p" "$file" 2>/dev/null || true)
+        CLASS_NAME=$(sed -n "${class_line}p" "$file" 2>/dev/null | \
+            sed -E 's/^[[:space:]]*class[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\1/' || true)
+
+        if ! printf '%s\n' "$CLASS_BODY" | grep -qE 'extra\s*=\s*["'"'"']forbid["'"'"']' 2>/dev/null; then
+            echo "[FAIL] check_pydantic: BaseModel subclass missing extra=\"forbid\": $file:$class_line ($CLASS_NAME)"
+            FAIL=1
+        fi
+    done
 done <<< "$PY_FILES"
 
 # ─── 2. Detect type annotations that are bare dict/list ─────────────────
@@ -88,7 +100,7 @@ fi
 
 # ─── 3. Nested dict patterns (dict of dicts anti-pattern) ───────────────
 
-NESTED_DICT=$(echo "$PY_FILES" | xargs grep -nE 'Dict\[str,\s*(Dict|dict)\[' 2>/dev/null | \
+NESTED_DICT=$(echo "$PY_FILES" | xargs grep -nE '(Dict|dict)\[str,\s*(Dict|dict)\[' 2>/dev/null | \
     grep -v 'badge-development-constitution/' || true)
 
 if [ -n "$NESTED_DICT" ]; then

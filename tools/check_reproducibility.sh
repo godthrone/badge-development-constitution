@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# check_reproducibility.sh — Verify environment reproducibility per §6
-# Part of BADGE Constitution §6
+# check_reproducibility.sh — Verify reproducibility mechanisms per §6
+# Part of BADGE Constitution §6（复现：由需求定义的效果 / the effect defined by requirements）
 #
 # Checks for:
 #   - uv.lock committed to git
 #   - Docker base image not using :latest tag
-#   - Docker base image using SHA256 digest (recommended)
+#   - Docker base image using SHA256 digest (optional, strongest pinning)
 #   - Random seed configuration hints
 #   - .python-version exists and is pinned
 #
@@ -32,7 +32,7 @@ echo "Checking reproducibility..."
 if echo "$TRACKED_FILES" | grep -qxF 'uv.lock' 2>/dev/null; then
     echo "  [OK] uv.lock is tracked in git"
 else
-    echo "[FAIL] check_reproducibility: uv.lock not tracked in git (§6)."
+    echo "[FAIL] check_reproducibility: uv.lock not tracked in git (§14.2)."
     FAIL=1
 fi
 
@@ -43,7 +43,7 @@ if [ -f "$PY_VERSION_FILE" ]; then
     PY_VER=$(cat "$PY_VERSION_FILE" | tr -d '[:space:]')
     echo "  [OK] .python-version pinned to $PY_VER"
 else
-    echo "  [WARN] .python-version not found — Python version not pinned (§6)."
+    echo "  [WARN] .python-version not found — Python version not pinned (§14.2)."
 fi
 
 # ─── 3. Dockerfile: no :latest tag, prefer SHA256 ───────────────────────
@@ -60,35 +60,50 @@ if [ -n "$DOCKERFILE" ]; then
 
     # Check for :latest
     if grep -E 'FROM\s+\S+:latest\b' "$DOCKERFILE" 2>/dev/null | grep -v '^\s*#' | grep -q .; then
-        echo "[FAIL] check_reproducibility: Dockerfile uses :latest tag (pin to specific version per §6):"
+        echo "[FAIL] check_reproducibility: Dockerfile uses :latest tag (pin to specific version per §14.3):"
         grep -nE 'FROM\s+\S+:latest\b' "$DOCKERFILE" 2>/dev/null | grep -v '^\s*#' | \
             while IFS= read -r line; do echo "  $line"; done
         FAIL=1
     fi
 
-    # Check for SHA256 digest (recommended)
+    # Check for SHA256 digest (optional, strongest pinning)
     if grep -E 'FROM\s+\S+@sha256:' "$DOCKERFILE" 2>/dev/null | grep -v '^\s*#' | grep -q .; then
-        echo "  [OK] Docker base image pinned to SHA256 digest (recommended §6)"
+        echo "  [OK] Docker base image pinned to SHA256 digest (strongest pinning)"
     else
-        echo "  [WARN] Docker base image not pinned to SHA256 digest (recommended per §6)."
-        echo "         Tags can be overwritten — use @sha256:... for bit-for-bit reproducibility."
+        echo "  [WARN] Docker base image not pinned to SHA256 digest (optional)."
+        echo "         Tags can be overwritten — use @sha256:... to pin the exact image."
+        echo "         Whether that level is needed depends on the effect the requirement defines (§6)."
     fi
 
-    # Check for BuildKit cache mount (recommended §14.3)
-    if grep -qE 'RUN --mount=type=cache.*uv' "$DOCKERFILE" 2>/dev/null; then
-        echo "  [OK] BuildKit cache mount for uv (prevents re-download on rebuild §14.3)"
-    else
-        echo "  [WARN] No BuildKit cache mount for uv found."
-        echo "         Add: RUN --mount=type=cache,target=/root/.cache/uv uv sync ..."
-        echo "         This prevents re-downloading all packages when a layer is rebuilt (§14.3)."
+    # Check for BuildKit cache mount (§14.3: every `uv sync` / `uv pip install`
+    # is required to use RUN --mount=type=cache). Only meaningful when the
+    # Dockerfile actually installs with uv, so that precondition is checked
+    # first to avoid false positives on Dockerfiles that do not use uv.
+    if grep -qE 'uv (sync|pip install)' "$DOCKERFILE" 2>/dev/null; then
+        if grep -qE 'RUN --mount=type=cache.*uv' "$DOCKERFILE" 2>/dev/null; then
+            echo "  [OK] BuildKit cache mount for uv (prevents re-download on rebuild §14.3)"
+        else
+            echo "  [WARN] uv install found without a BuildKit cache mount (§14.3 requires it)."
+            echo "         Add: RUN --mount=type=cache,target=/root/.cache/uv uv sync ..."
+            echo "         This prevents re-downloading all packages when a layer is rebuilt (§14.3)."
+        fi
     fi
 
-    # Check for two-stage build (COPY --from=...)
+    # Check for the §14.3 two-layer build: the dependency layer (uv.lock +
+    # pyproject.toml) is copied and installed before the source layer, so the
+    # dependency layer stays cached. §14.3 specifies a single-FROM two-layer
+    # template; a multi-stage build also satisfies the caching goal and is
+    # accepted. (The previous heuristic only looked for multi-stage, so it
+    # warned on compliant single-FROM files.)
     if grep -qE 'COPY --from=' "$DOCKERFILE" 2>/dev/null || \
-       grep -qE 'FROM.*AS\s+(builder|deps|build)' "$DOCKERFILE" 2>/dev/null; then
-        echo "  [OK] Dockerfile appears to use multi-stage build (§14.3)"
+       grep -qE 'FROM.*AS[[:space:]]+(builder|deps|build)' "$DOCKERFILE" 2>/dev/null || \
+       { grep -qE '^[[:space:]]*COPY[[:space:]].*(uv\.lock|pyproject\.toml)' "$DOCKERFILE" 2>/dev/null && \
+         grep -qE '^[[:space:]]*COPY[[:space:]].*(src/|src[[:space:]]|[[:space:]]\.[[:space:]]*$)' "$DOCKERFILE" 2>/dev/null; }; then
+        echo "  [OK] Dockerfile follows the §14.3 two-layer build (dependency layer cached)"
     else
-        echo "  [WARN] Dockerfile may not use multi-stage build (recommended for caching §14.3)."
+        echo "  [WARN] Dockerfile does not appear to follow the §14.3 two-layer build."
+        echo "         Copy uv.lock + pyproject.toml and install dependencies first,"
+        echo "         then COPY the source layer — see the §14.3 Dockerfile template."
     fi
 else
     echo "  [WARN] No Dockerfile found (Docker deployment required by §14.3)."
@@ -104,7 +119,8 @@ if [ -f "$CFG_TEMPLATE" ]; then
         echo "  [OK] Random seed appears in config example"
     else
         echo "  [WARN] No random seed field found in config example."
-        echo "         Random seed must be explicit in config, not dependent on system time (§6)."
+        echo "         If the task has randomness and must reproduce a defined effect,"
+        echo "         the seed must be explicit in config, not dependent on system time (§6)."
     fi
 fi
 

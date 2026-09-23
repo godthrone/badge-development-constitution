@@ -5,9 +5,13 @@
 # Checks:
 #   1. .local/ is in .gitignore
 #   2. No temporary files in tracked paths outside .local/
-#   3. No log files, temp files, or backup files in tracked paths
-#   4. No files with sensitive content patterns (IPs, SSH) outside .local/ or docs/
+#   3. No log, temp, backup, or data-dump files in tracked paths
+#   4. All-caps .md files in the project root (manual review, warn-only)
 #   5. .local/ directory exists (info)
+#
+# Scope note: sensitive-content detection (internal IPs, SSH users) is
+# check_secrets.sh's job (§15.1). This script only enforces §16 — where
+# local/temporary files are allowed to live.
 #
 # Usage: ./check_local_files.sh [project_root]
 
@@ -111,9 +115,17 @@ fi
 
 # ─── 5. All-caps .md files in root (suspect notes/runbooks) ────────────
 
+# Standard root documents are permanent community artifacts, not §16.2
+# local/temporary files. §17.1 (README, C:966-970) and §17.2 (docs/, C:972-980)
+# govern the tracked documentation system, and §17.2 C:978 draws the
+# docs-vs-.local/ boundary; §16.2 C:944-950 defines what must live in .local/.
+# Whitelist CONTRIBUTING.md / CODE_OF_CONDUCT.md, alongside the existing
+# README.md / CLAUDE.md / CHANGELOG.md exclusions, so a normal open-source
+# project does not get a meaningless warning.
 ROOT_SUSPECT_FILES=$(echo "$TRACKED_FILES" | grep -E '^[A-Z_]{4,}\.md$' 2>/dev/null | \
     grep -v '^README\.md$' | grep -v '^CLAUDE\.md$' | grep -v '^LICENSE$' | \
-    grep -v '^CHANGELOG\.md$' || true)
+    grep -v '^CHANGELOG\.md$' | grep -v '^CONTRIBUTING\.md$' | \
+    grep -v '^CODE_OF_CONDUCT\.md$' || true)
 
 if [ -n "$ROOT_SUSPECT_FILES" ]; then
     echo "  [WARN] All-caps .md files in project root (review manually):"

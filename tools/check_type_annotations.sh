@@ -3,8 +3,8 @@
 # Part of BADGE Constitution §12.1
 #
 # Checks for:
-#   - `Optional[str]` usage (should be `str | None`)
-#   - `Union[...]` usage (should use `|` syntax in Python 3.11+)
+#   - `Optional[str]` usage (advisory: prefer `str | None`, §12.1 rule 3)
+#   - `Union[...]` usage (advisory only — the constitution has no Union clause)
 #   - `py.typed` marker file existence
 #   - `Dict[...]`, `List[...]`, `Tuple[...]` (should use built-in generics)
 #
@@ -33,31 +33,40 @@ fi
 
 echo "Checking type annotation conventions..."
 
-# ─── 1. Optional[str] → should be str | None ────────────────────────────
+# ─── 1. Optional[str] → prefer str | None (advisory) ────────────────────
+#
+# §12.1 rule 3 (C:650): 可选类型统一使用 `X | None`（PEP 604）；但同句明确
+# "`Optional` **仍可用**但不作为项目约定"。故 Optional[X] 不是违规写法，
+# 只提示改用项目约定 —— 不置 FAIL。
 
 OPTIONAL_USAGE=$(echo "$PY_FILES" | xargs grep -nE 'Optional\[[a-zA-Z]' 2>/dev/null | \
     grep -v '^\s*#' | grep -v 'badge-development-constitution/' | \
     grep -v 'check_type_annotations\.sh' || true)
 
 if [ -n "$OPTIONAL_USAGE" ]; then
-    echo "[FAIL] check_type_annotations: Optional[X] found (use X | None per §12.1):"
+    echo "[WARN] check_type_annotations: Optional[X] found — allowed but not the project convention."
+    echo "       Prefer X | None (PEP 604, §12.1 rule 3); 'Optional' 仍可用但不作为项目约定."
     echo "$OPTIONAL_USAGE" | while IFS= read -r line; do
         echo "  $line"
     done
-    FAIL=1
 fi
 
-# ─── 2. Union[X, Y] → should use X | Y syntax ──────────────────────────
+# ─── 2. Union[X, Y] → PEP 604 `X | Y` (advisory, no constitutional clause) ──
+#
+# 宪法全文没有 Union 条文（grep -n 'Union' BADGE-constitution-v2.5.0.zh-CN.md
+# 为 0 命中）。§12.1 rule 3 只点名 Optional/`| None`，未覆盖 Union。故本项
+# 不得引 "per §12.1" 作为依据，只能作为无条文支撑的风格提示，且不置 FAIL。
 
 UNION_USAGE=$(echo "$PY_FILES" | xargs grep -nE 'Union\[[a-zA-Z]' 2>/dev/null | \
     grep -v '^\s*#' | grep -v 'badge-development-constitution/' || true)
 
 if [ -n "$UNION_USAGE" ]; then
-    echo "[FAIL] check_type_annotations: Union[X, Y] found (use X | Y per §12.1):"
+    echo "[WARN] check_type_annotations: Union[X, Y] found — style advisory only."
+    echo "       The constitution has no Union clause; §12.1 rule 3 names only Optional."
+    echo "       PEP 604 syntax (X | Y) is preferred for consistency, not required."
     echo "$UNION_USAGE" | while IFS= read -r line; do
         echo "  $line"
     done
-    FAIL=1
 fi
 
 # ─── 3. Dict[...], List[...], Tuple[...] → use dict, list, tuple ────────

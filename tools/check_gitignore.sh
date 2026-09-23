@@ -40,9 +40,11 @@ REQUIRED=(
     "AGENTS.md"         "AI assistant file"
     "CLAUDE.zh-CN.md"   "AI assistant Chinese file"
     ".DS_Store"         "macOS system file"
+    "Thumbs.db"         "Windows system file (§19.2)"
     ".local/"           "Temporary local files"
     "config.override.toml"  "Secret config override (§7.1)"
     "my_config*.toml"   "Personal config files"
+    "config.local.toml" "Local config override (§19.2)"
     "*.local.toml"      "Local config overrides"
 )
 
@@ -72,10 +74,12 @@ check_pattern() {
                 return 0
             fi
         fi
-        # Special case: Thumbs.db is optional (Windows only)
-        if [ "$pattern" = "Thumbs.db" ]; then
-            echo "  [WARN] $desc ($pattern) — consider adding if team uses Windows"
-            return 0
+        # Special case: config.local.toml is covered by a broader *.local.toml
+        if [ "$pattern" = "config.local.toml" ]; then
+            if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -qF '*.local.toml' 2>/dev/null; then
+                echo "  [OK] $desc (covered by *.local.toml)"
+                return 0
+            fi
         fi
         echo "  [FAIL] $desc ($pattern) — MISSING from .gitignore"
         FAIL=1
@@ -149,12 +153,20 @@ else
     fi
 fi
 
-# Check sample data exceptions
-if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -q 'data/' 2>/dev/null; then
-    if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -q '!data/sample' 2>/dev/null; then
-        echo "  [OK] data/ excluded with sample data exceptions"
-    else
-        echo "  [WARN] data/ excluded but no sample data exceptions found"
+# ─── Sample data exceptions (conditional per §19.2) ────────────────────────
+#
+# §19.2 line 1071 lists `data/` under "输出与数据" with the parenthetical
+# "（示例数据除外）". A sample-data exception (`!data/sample`) is only
+# meaningful when the project actually has a `data/` directory; a project
+# without `data/` may still carry a defensive `data/` line in .gitignore
+# (as the reference A-class project does), and that must not be flagged.
+if [ -d "$PROJECT_ROOT/data" ]; then
+    if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -q 'data/' 2>/dev/null; then
+        if echo "$GITIGNORE_CONTENT" | grep -v '^\s*#' | grep -q '!data/sample' 2>/dev/null; then
+            echo "  [OK] data/ excluded with sample data exceptions"
+        else
+            echo "  [WARN] data/ excluded but no sample data exceptions found"
+        fi
     fi
 fi
 

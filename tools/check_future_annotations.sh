@@ -36,7 +36,7 @@ fi
 
 # ─── Find files with from __future__ import annotations ───────────────────
 
-FILES_WITH_FUTURE=$(echo "$PY_FILES" | xargs grep -l 'from __future__ import annotations' 2>/dev/null || true)
+FILES_WITH_FUTURE=$(echo "$PY_FILES" | xargs grep -l -- 'from __future__ import annotations' || true)
 
 if [ -z "$FILES_WITH_FUTURE" ]; then
     echo "[PASS] check_future_annotations: No files use from __future__ import annotations."
@@ -57,17 +57,38 @@ while IFS= read -r file; do
     # 3. Self-referencing return type: `-> GraspoConfig` inside class GraspoConfig
     #    (Python 3.11 needs PEP 563 to defer class-body annotation evaluation)
     # 4. Old-style typing imports → may need PEP 563 for forward references
+    #
+    # Every pattern is passed after `--`, and none of these greps discards
+    # stderr: a pattern that begins with '-' (case 3 starts with `->`) is
+    # otherwise parsed by grep as an option, which returned 2, made the
+    # condition permanently false, and — with the old `2>/dev/null` — hid the
+    # `invalid option` error. A grep failure is now visible instead of
+    # silently turning the heuristic off.
     NEEDS_IT=0
 
-    if grep -q 'TYPE_CHECKING' "$file" 2>/dev/null; then
+    # Case 3 is evaluated against the classes defined in this very file:
+    # only `-> ThisFilesOwnClass` needs deferred evaluation. A bare
+    # `grep -qE -- '->[[:space:]]*[A-Z]'` would also accept `-> None` and
+    # imported types such as `-> Path`, which is why, on a real project, 11
+    # of the 18 flagged files carried only such annotations and would have
+    # had their warning silently dropped. The intersection below keeps case 3
+    # as strong as its comment claims.
+    SELF_REF_RETURN=""
+    FILE_CLASSES=$(grep -oE '^[[:space:]]*class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*' "$file" | awk '{print $2}' | sort -u || true)
+    FILE_RETURN_TYPES=$(grep -oE -- '->[[:space:]]*[A-Za-z_][A-Za-z0-9_]*' "$file" | sed -E 's/^->[[:space:]]*//' | sort -u || true)
+    if [ -n "$FILE_CLASSES" ] && [ -n "$FILE_RETURN_TYPES" ]; then
+        SELF_REF_RETURN=$(comm -12 <(printf '%s\n' "$FILE_CLASSES") <(printf '%s\n' "$FILE_RETURN_TYPES") || true)
+    fi
+
+    if grep -q -- 'TYPE_CHECKING' "$file"; then
         NEEDS_IT=1
-    elif grep -qE '["'\''"'\'']([A-Z][a-zA-Z0-9_]*["'\''"'\'']|\s*\|)' "$file" 2>/dev/null; then
+    elif grep -qE -- '["'\''"'\'']([A-Z][a-zA-Z0-9_]*["'\''"'\'']|\s*\|)' "$file"; then
         # String annotation pattern like -> "ClassName" or : "SomeType"
         NEEDS_IT=1
-    elif grep -qE '->\s*[A-Z][a-zA-Z0-9_]*' "$file" 2>/dev/null; then
+    elif [ -n "$SELF_REF_RETURN" ]; then
         # Self-referencing return type annotation (e.g. `-> GraspoConfig`)
         NEEDS_IT=1
-    elif grep -qE 'from typing import (Dict|List|Tuple|Set|Optional|Union|Callable)' "$file" 2>/dev/null; then
+    elif grep -qE -- 'from typing import (Dict|List|Tuple|Set|Optional|Union|Callable)' "$file"; then
         # Old-style typing imports that need PEP 563 for forward references
         NEEDS_IT=1
     fi

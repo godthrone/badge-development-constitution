@@ -39,18 +39,32 @@ fi
 
 # ─── Scan for constitution version references ─────────────────────────────
 
-# Patterns to detect (English + Chinese):
+# Patterns to detect (English + Chinese). §8.7 forbids embedding the
+# constitution VERSION in source files, in any of its forms
+# (`BADGE Constitution vX.Y`、`constitution vX.Y §Z.W` 或类似模式):
 #   "BADGE Constitution v1.6"
 #   "constitution v1.5 §8.1"
 #   "BADGE 开发宪法 v1.5"
+#   "开发宪法 1.5"
 #   "Constitution v1.4 §13.2"
+#   "v1.5 §8.1"  (version + section, without the word "constitution")
 #   "BADGE-constitution"
 # etc.
+# Note: a version-less §-reference (e.g. "per §8.7") is NOT flagged — §8.7
+# forbids *version* references, and the constitution's own tools use §-refs
+# without versions. Only patterns that carry a version number are listed.
 PATTERNS=(
     'BADGE Constitution v[0-9]'
-    'constitution v[0-9]'
+    'BADGE Constitution [0-9]+\.[0-9]'
     'BADGE 开发宪法 v[0-9]'
+    'BADGE 开发宪法 [0-9]+\.[0-9]'
+    '开发宪法 v[0-9]+\.[0-9]'
+    'constitution v[0-9]'
     'Constitution v[0-9]'
+    '宪法 v[0-9]+\.[0-9]'
+    'constitution@v[0-9]'
+    'v[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*§'
+    'v[0-9]+\.[0-9]+[[:space:]]*§'
 )
 
 echo "Scanning for constitution version references in source files..."

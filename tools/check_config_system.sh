@@ -9,7 +9,7 @@
 #   - Template is well-commented
 #
 # Usage: ./check_config_system.sh [--class=A|B|C] [project_root]
-#   --class=B: relax YAML config check (advisory, not mandatory), relax __main__.py check
+#   --class=B: relax config-file check (advisory, not mandatory), relax __main__.py check
 
 set -euo pipefail
 
@@ -91,21 +91,60 @@ if [ -d "$PROJECT_ROOT/src" ]; then
     fi
 fi
 
-# ─── 3. No environment variable config overrides ────────────────────────
+# ─── 3. Environment variable config overrides (§7.1 C:339, C:343) ───────
+#
+# §7.1: 环境变量不能作为配置的单一真相源，只允许三种用途：
+#   ① 标准基础设施变量（CUDA_VISIBLE_DEVICES、NCCL_*、PYTORCH_*、RANK 等）；
+#   ② 第三方组件只接受环境变量、无法通过配置适配时（作为适配层）；
+#   ③ 极小型项目确实只有一个配置时。
+# 用户自行用 `.env` 承载本地机密不在此限，但项目不得把它当作配置真相源
+# （§15.2 C:898-906）。检测三种写法：os.environ[...] / os.environ.get(...) / os.getenv(...)。
 
 if [ -d "$PROJECT_ROOT/src" ]; then
-    # Check for os.environ.get / os.getenv used for config values (not infrastructure vars)
-    ENV_CONFIG=$(grep -rnE '(os\.environ|os\.getenv)\[' "$PROJECT_ROOT/src/" 2>/dev/null | \
-        grep -vE 'CUDA_VISIBLE_DEVICES|NCCL_|PYTORCH_|RANK|LOCAL_RANK|WORLD_SIZE|MASTER_ADDR|MASTER_PORT|OMP_' | \
-        grep -v 'badge-development-constitution/' | grep -v '__pycache__' | head -10 || true)
+    ENV_ALL=$(grep -rnE '(os\.environ\[|os\.environ\.get\(|os\.getenv\()' "$PROJECT_ROOT/src/" 2>/dev/null | \
+        grep -v '__pycache__' | head -50 || true)
+
+    # ① 标准基础设施变量（§7.1 C:343 列举 + 同类 CUDA/NCCL/torchrun 变量）
+    INFRA_VARS='CUDA_VISIBLE_DEVICES|NCCL_|PYTORCH_|TORCH_|RANK|LOCAL_RANK|WORLD_SIZE|LOCAL_WORLD_SIZE|NODE_RANK|NPROC_PER_NODE|MASTER_ADDR|MASTER_PORT|OMP_|MKL_|GLOO_|NVIDIA_|CUDA_'
+    # §15.2 用户本地机密（.env）：密钥 / 口令 / token 类变量名
+    SECRET_VARS='(_KEY|_TOKEN|_SECRET|_PASSWORD|_PASSWD|_CREDENTIAL|_API_KEY)'
+    # ② 第三方组件只接受环境变量的适配层（常见样例，非穷举）
+    THIRDPARTY_VARS='(HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy|HF_HOME|HF_TOKEN|HUGGINGFACE_|WANDB_|OPENAI_|ANTHROPIC_|AWS_|AZURE_|GOOGLE_|PIP_INDEX_URL|PIP_EXTRA_INDEX_URL|UV_|DOTENV_)'
+
+    ENV_INFRA=$(printf '%s\n' "$ENV_ALL" | grep -E "$INFRA_VARS" | grep -v '^$' || true)
+    ENV_SECRET=$(printf '%s\n' "$ENV_ALL" | grep -vE "$INFRA_VARS" | grep -E "$SECRET_VARS" | grep -v '^$' || true)
+    ENV_THIRDPARTY=$(printf '%s\n' "$ENV_ALL" | grep -vE "$INFRA_VARS" | grep -vE "$SECRET_VARS" | \
+        grep -E "$THIRDPARTY_VARS" | grep -v '^$' || true)
+    ENV_CONFIG=$(printf '%s\n' "$ENV_ALL" | grep -vE "$INFRA_VARS" | grep -vE "$SECRET_VARS" | \
+        grep -vE "$THIRDPARTY_VARS" | grep -v '^$' || true)
+
+    if [ -n "$ENV_INFRA" ]; then
+        echo "  [OK] Only standard infrastructure env vars used (exception ①, §7.1)"
+    fi
+    if [ -n "$ENV_SECRET" ]; then
+        echo "  [INFO] Secret-like env vars read — allowed when carried by user-local .env (§15.2):"
+        printf '%s\n' "$ENV_SECRET" | while IFS= read -r line; do [ -n "$line" ] && echo "    $line"; done
+    fi
+    if [ -n "$ENV_THIRDPARTY" ]; then
+        echo "  [WARN] Third-party env vars read (exception ②, §7.1 — verify it is an adapter layer):"
+        printf '%s\n' "$ENV_THIRDPARTY" | while IFS= read -r line; do [ -n "$line" ] && echo "    $line"; done
+    fi
 
     if [ -n "$ENV_CONFIG" ]; then
-        echo "[FAIL] check_config_system: Environment variables used for config (not infrastructure):"
-        echo "$ENV_CONFIG" | while IFS= read -r line; do
-            echo "  $line"
-        done
-        echo "         Config should come from YAML file, not environment variables (§7.1)."
-        FAIL=1
+        if [ -z "$CONFIG_EXAMPLE" ] && [ -z "$CONFIGS_DIR" ]; then
+            # ③ 极小型项目确实只有一个配置（§7.1 C:343）
+            echo "  [WARN] Environment variables used for config, and no config.toml/configs/ found —"
+            echo "         possibly exception ③ (tiny single-config project, §7.1). Verify manually."
+            printf '%s\n' "$ENV_CONFIG" | while IFS= read -r line; do [ -n "$line" ] && echo "    $line"; done
+        else
+            echo "[FAIL] check_config_system: Environment variables used for config (not infrastructure, §7.1):"
+            printf '%s\n' "$ENV_CONFIG" | while IFS= read -r line; do [ -n "$line" ] && echo "  $line"; done
+            echo "         Config must come from the git-tracked config.toml, not environment variables (§7.1 C:339)."
+            echo "         Allowed exceptions: ① infra vars, ② third-party-only env components, ③ tiny single-config project;"
+            echo "         .env is for user-local secrets only (§15.2). Env-borne config must be read centrally"
+            echo "         at startup and normalized into the same load path — never scattered at use sites."
+            FAIL=1
+        fi
     else
         echo "  [OK] No config-level environment variable usage detected"
     fi

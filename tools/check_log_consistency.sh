@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # check_log_consistency.sh — Cross-reference log file names in READMEs with
-# actual log file paths in source code (§13.3, §17.1).
+# actual log file paths in source code (§13.3).
 #
 # README documentation of log files must match what the code actually creates.
 # This script extracts log file names from both sides and reports mismatches.
+#
+# Scope note: README.md and README.zh-CN.md are merged here into one union and
+# checked against the code — this script does NOT verify that the two READMEs
+# mirror each other's content (that is check_readme_parity.sh, §17.1).
 #
 # Usage: ./check_log_consistency.sh [project_root]
 
@@ -33,6 +37,9 @@ extract_log_names() {
 
 README_LOG_NAMES_EN=$(extract_log_names "$README_EN")
 README_LOG_NAMES_CN=$(extract_log_names "$README_CN")
+# Union of both README editions: a log file documented in either language is
+# considered documented. Mirror parity between editions is checked separately
+# by check_readme_parity.sh (§17.1), not here.
 README_LOG_NAMES=$( (echo "$README_LOG_NAMES_EN"; echo "$README_LOG_NAMES_CN") | sort -u | grep -v '^$' || true)
 
 if [ -z "$README_LOG_NAMES" ]; then
@@ -101,6 +108,9 @@ while IFS= read -r readme_name; do
 done <<< "$README_LOG_NAMES"
 
 # ─── Reverse: check source log names that should be in README ─────────────
+#
+# Informational only: no constitution clause requires every source-side log
+# file to be documented in the README, so this direction never sets FAIL.
 
 # Only check .log files (not structured JSONL which may be intentionally undocumented)
 CODE_LOG_FILES=$(echo "$CODE_LOG_NAMES" | grep '\.log$' || true)

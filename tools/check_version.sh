@@ -4,7 +4,8 @@
 #
 # Checks for:
 #   - No __version__ in __init__.py
-#   - pyproject.toml uses either static version or dynamic=["version"] with setuptools-scm
+#   - pyproject.toml declares dynamic=["version"] with setuptools-scm (a static
+#     `version` field is forbidden per §8.7)
 #   - No hardcoded version in the base config (config.toml; legacy config_example.toml/.yaml accepted)
 #   - No standalone VERSION file
 #   - If setuptools-scm: git tags exist, tag_regex configured
@@ -41,6 +42,16 @@ if [ ! -f "$PYPROJECT" ]; then
     exit 1
 fi
 
+# §8.7: a static `version` field is forbidden — git tag via setuptools-scm is the
+# single source of truth, so a static field means two sources. This holds even if
+# `dynamic = ["version"]` is declared too (setuptools rejects that combination).
+STATIC_VERSION=$(grep -E '^version\s*=' "$PYPROJECT" 2>/dev/null | head -1 | sed 's/.*=\s*"\([^"]*\)".*/\1/' || true)
+if [ -n "$STATIC_VERSION" ]; then
+    echo "  [FAIL] Static version field found in pyproject.toml ($STATIC_VERSION) — forbidden by §8.7 (single source: git tag)."
+    echo "         Declare dynamic = [\"version\"] and derive the version from git tags via setuptools-scm."
+    FAIL=1
+fi
+
 # Check for dynamic version (setuptools-scm) — the recommended approach
 if grep -q 'dynamic\s*=\s*\[.*"version"' "$PYPROJECT" 2>/dev/null; then
     echo "  [OK] Version: dynamic (setuptools-scm from git tags)"
@@ -68,15 +79,9 @@ if grep -q 'dynamic\s*=\s*\[.*"version"' "$PYPROJECT" 2>/dev/null; then
         fi
     fi
 else
-    # Fallback: static version (legacy, still accepted)
-    VERSION=$(grep -E '^version\s*=' "$PYPROJECT" 2>/dev/null | head -1 | sed 's/.*=\s*"\([^"]*\)".*/\1/' || true)
-    if [ -z "$VERSION" ]; then
-        echo "  [FAIL] No version or dynamic=[\"version\"] found in pyproject.toml [project] section."
-        FAIL=1
-    else
-        echo "  [OK] Version: $VERSION (static in pyproject.toml)"
-        echo "  [NOTE] Consider migrating to dynamic version via setuptools-scm (§8.7)."
-    fi
+    # No dynamic=["version"] declaration and no static field either.
+    echo "  [FAIL] No dynamic=[\"version\"] found in pyproject.toml [project] section."
+    FAIL=1
 fi
 
 # ─── 3. Check config example doesn't have version ───────────────────────
@@ -86,8 +91,11 @@ CONFIG_EXAMPLE="$PROJECT_ROOT/config.toml"
 [ -f "$CONFIG_EXAMPLE" ] || CONFIG_EXAMPLE="$PROJECT_ROOT/config_example.yaml"
 if [ -f "$CONFIG_EXAMPLE" ]; then
     # YAML: version: 1.2.3   TOML: version = "1.2.3" (quotes; TOML has no bare dotted version)
-    if grep -qiE 'version\s*[:=]\s*["'"'"']?[0-9]+\.[0-9]+' "$CONFIG_EXAMPLE" 2>/dev/null; then
-        echo "  [WARN] Config example may contain version numbers (review manually)."
+    # Anchor at line start (optionally after a comment marker) so unrelated keys
+    # such as `api_version` do not trip the check.
+    if grep -qiE '^[[:space:]]*(#[[:space:]]*)?version\s*[:=]\s*["'"'"']?[0-9]+\.[0-9]+' "$CONFIG_EXAMPLE" 2>/dev/null; then
+        echo "  [FAIL] Config file records a version number — forbidden by §8.7 (config files are not version records)."
+        FAIL=1
     fi
 fi
 

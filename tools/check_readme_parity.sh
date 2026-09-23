@@ -54,10 +54,21 @@ fi
 
 echo "Checking README parity..."
 
+# Count matching lines and always yield a single integer.
+# `grep -c` prints "0" yet exits 1 when there is no match; appending `|| echo 0`
+# therefore produced "0\n0" and crashed the arithmetic below. A missing file
+# prints nothing at all. Normalise whatever comes back to digits only.
+count_matches() {
+    local n
+    n=$(grep -c "$1" "$2" 2>/dev/null || true)
+    n="${n//[!0-9]/}"
+    printf '%s' "${n:-0}"
+}
+
 # ─── 1. Section count ────────────────────────────────────────────────────
 
-EN_SECTIONS=$(grep -c '^## ' "$README_EN" 2>/dev/null || echo 0)
-CN_SECTIONS=$(grep -c '^## ' "$README_CN" 2>/dev/null || echo 0)
+EN_SECTIONS=$(count_matches '^## ' "$README_EN")
+CN_SECTIONS=$(count_matches '^## ' "$README_CN")
 
 if [ "$EN_SECTIONS" != "$CN_SECTIONS" ]; then
     echo "  [FAIL] Section count mismatch: EN=$EN_SECTIONS, CN=$CN_SECTIONS"
@@ -68,35 +79,33 @@ fi
 
 # ─── 2. Required sections ────────────────────────────────────────────────
 
-# Per §17.1: Introduction → Quick Start → Data Format → Config Reference →
-#              Output Description → Development Guide → FAQ
+# Per §17.1 the section structure is:
+#   Introduction → Quick Start → Data Format → Config Reference →
+#   Output Description → Development Guide → FAQ
+# (there is no License section in that structure)
 #
 # Each entry is a grep -E alternation of the section titles accepted for that
 # language. The two arrays stay index-aligned: one section per pair.
-# Requiring the English literal "License" in the Chinese README was a false
-# positive generator — a Chinese README titles that section 「许可证」. The
-# accepted-name sets below are language-aware for exactly that reason. Adding
-# an accepted spelling never lowers detection power: a README that lacks the
-# section in its own language still fails, because every title for that
-# language is enumerated here.
+# The accepted-name sets are language-aware; a README that lacks the section in
+# its own language still fails, because every accepted title is enumerated here.
 REQUIRED_TERMS_EN=(
+    "Introduction|Overview"
     "Quick Start"
     "Data Format"
     "Configuration"
     "Output"
     "Development"
     "FAQ"
-    "License|Licence|Licensing"
 )
 
 REQUIRED_TERMS_CN=(
+    "简介|介绍|概述"
     "快速开始"
     "数据格式"
     "配置"
     "输出"
     "开发"
     "常见问题"
-    "License|Licence|许可证|許可證|许可协议|許可協議|授权协议|授權協議|开源协议|開源協議"
 )
 
 echo "Checking required sections..."
@@ -117,8 +126,8 @@ done
 
 # ─── 3. Code block count ─────────────────────────────────────────────────
 
-EN_CODE_BLOCKS=$(grep -c '```' "$README_EN" 2>/dev/null || echo 0)
-CN_CODE_BLOCKS=$(grep -c '```' "$README_CN" 2>/dev/null || echo 0)
+EN_CODE_BLOCKS=$(count_matches '```' "$README_EN")
+CN_CODE_BLOCKS=$(count_matches '```' "$README_CN")
 EN_PAIRS=$((EN_CODE_BLOCKS / 2))
 CN_PAIRS=$((CN_CODE_BLOCKS / 2))
 
@@ -131,15 +140,15 @@ fi
 
 # ─── 4. Image/link count parity ──────────────────────────────────────────
 
-EN_IMAGES=$(grep -oc '!\[.*\](.*)' "$README_EN" 2>/dev/null || echo 0)
-CN_IMAGES=$(grep -oc '!\[.*\](.*)' "$README_CN" 2>/dev/null || echo 0)
+EN_IMAGES=$(count_matches '!\[.*\](.*)' "$README_EN")
+CN_IMAGES=$(count_matches '!\[.*\](.*)' "$README_CN")
 
 if [ "$EN_IMAGES" != "$CN_IMAGES" ]; then
     echo "  [WARN] Image count differs: EN=$EN_IMAGES, CN=$CN_IMAGES"
 fi
 
-EN_LINKS=$(grep -oc '\[.*\](http[^)]*)\|\[.*\](\.\/[^)]*)\|\[.*\]([a-z]*\.md)' "$README_EN" 2>/dev/null || echo 0)
-CN_LINKS=$(grep -oc '\[.*\](http[^)]*)\|\[.*\](\.\/[^)]*)\|\[.*\]([a-z]*\.md)' "$README_CN" 2>/dev/null || echo 0)
+EN_LINKS=$(count_matches '\[.*\](http[^)]*)\|\[.*\](\.\/[^)]*)\|\[.*\]([a-z]*\.md)' "$README_EN")
+CN_LINKS=$(count_matches '\[.*\](http[^)]*)\|\[.*\](\.\/[^)]*)\|\[.*\]([a-z]*\.md)' "$README_CN")
 
 if [ "$EN_LINKS" != "$CN_LINKS" ]; then
     echo "  [WARN] Link count differs: EN=$EN_LINKS, CN=$CN_LINKS"

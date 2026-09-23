@@ -3,8 +3,10 @@
 # Part of BADGE Constitution §8.2
 #
 # Checks for:
-#   - Files exceeding 1000 lines
-#   - Extremely large files (> 2000 lines)
+#   - Files exceeding the recommended 1000 lines (advisory only)
+#
+# §8.2 recommends at most 1000 lines but explicitly accepts going over when the
+# file is a single concept unit; there is no hard line-count limit.
 #
 # Usage: ./check_file_size.sh [project_root]
 
@@ -12,8 +14,6 @@ set -euo pipefail
 
 PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"
-
-FAIL=0
 
 if ! git rev-parse --git-dir &>/dev/null 2>&1; then
     echo "[SKIP] check_file_size: Not a git repository."
@@ -35,31 +35,18 @@ fi
 echo "Checking file sizes..."
 
 OVER_1000=()
-OVER_2000=()
 
 while IFS= read -r file; do
     [ -z "$file" ] && continue
     if [ ! -f "$file" ]; then continue; fi
     LINES=$(wc -l < "$file" 2>/dev/null || echo 0)
-    if [ "$LINES" -gt 2000 ]; then
-        OVER_2000+=("$file:$LINES")
-    elif [ "$LINES" -gt 1000 ]; then
+    if [ "$LINES" -gt 1000 ]; then
         OVER_1000+=("$file:$LINES")
     fi
 done <<< "$TRACKED_FILES"
 
-# Report files > 2000 lines (strong concern)
-if [ ${#OVER_2000[@]} -gt 0 ]; then
-    echo "[FAIL] check_file_size: Files exceeding 2000 lines (strongly consider splitting §8.2):"
-    for entry in "${OVER_2000[@]}"; do
-        file="${entry%%:*}"
-        lines="${entry##*:}"
-        echo "  $file ($lines lines)"
-    done
-    FAIL=1
-fi
-
-# Report files > 1000 lines (advisory)
+# Report files > 1000 lines (advisory — §8.2 accepts exceeding 1000 lines for a
+# single-concept file, so this never fails the run)
 if [ ${#OVER_1000[@]} -gt 0 ]; then
     echo "[WARN] Files exceeding 1000 lines (review for potential splitting §8.2):"
     for entry in "${OVER_1000[@]}"; do
@@ -71,14 +58,10 @@ if [ ${#OVER_1000[@]} -gt 0 ]; then
     echo "         Single-concept files (toolkits, complex adapters) may exceed 1000 lines."
 fi
 
-if [ ${#OVER_1000[@]} -eq 0 ] && [ ${#OVER_2000[@]} -eq 0 ]; then
+if [ ${#OVER_1000[@]} -eq 0 ]; then
     echo "  [OK] All files are under 1000 lines."
 fi
 
 echo ""
-if [ $FAIL -eq 0 ]; then
-    echo "[PASS] check_file_size: File sizes are within recommended limits."
-else
-    echo "[FAIL] check_file_size: Some files need splitting."
-fi
-exit $FAIL
+echo "[PASS] check_file_size: No file exceeds a constitutional hard limit (§8.2)."
+exit 0

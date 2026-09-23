@@ -5,7 +5,7 @@
 # Checks for:
 #   - Dockerfile exists
 #   - Base image uses specific version (not :latest)
-#   - Two-stage build (dependencies + source layers)
+#   - Two-layer build (dependency layer + source layer, §14.3)
 #   - uv is used for dependency installation (not pip install -r requirements.txt)
 #   - build.sh or docker/build.sh exists
 #   - No proxy ENV directives (proxy must use --build-arg per §14.3)
@@ -51,16 +51,30 @@ else
     echo "  [OK] Base image uses specific version tag (not :latest)"
 fi
 
-# ─── 3. Two-stage build check ──────────────────────────────────────────
+# ─── 3. Two-layer build check ──────────────────────────────────────────
 
-# Check for multi-stage build patterns
-if grep -qE 'FROM.*AS\s+(builder|deps|build|base)' "$DOCKERFILE" 2>/dev/null; then
-    STAGES=$(grep -cE 'FROM.*AS\s+' "$DOCKERFILE" 2>/dev/null || echo 0)
-    echo "  [OK] Multi-stage build with $STAGES stage(s)"
-elif grep -qE 'COPY --from=' "$DOCKERFILE" 2>/dev/null; then
-    echo "  [OK] Multi-stage build (COPY --from= detected)"
+# §14.3 (BADGE-constitution-v2.5.0.zh-CN.md:768) requires a **two-layer**
+# build — a dependency layer (uv.lock + pyproject.toml) and a source layer —
+# so the dependency layer stays cached. It does NOT ask for a multi-stage
+# build: the official template (same file, lines 778–797) is single-FROM.
+#
+# The old heuristic only looked for `FROM … AS builder` / `COPY --from=`,
+# so a compliant single-FROM file was reported as "No multi-stage build",
+# contradicting check_reproducibility.sh on the very same Dockerfile.
+#
+# Accepted forms (warning only, never a hard gate):
+#   1. the §14.3 two-layer shape — uv.lock/pyproject.toml COPYed before the
+#      source COPY; or
+#   2. a multi-stage build, which reaches the same caching goal.
+if grep -qE '^[[:space:]]*COPY[[:space:]].*(uv\.lock|pyproject\.toml)' "$DOCKERFILE" 2>/dev/null && \
+   grep -qE '^[[:space:]]*COPY[[:space:]].*(src/|src[[:space:]]|[[:space:]]\.[[:space:]]*$)' "$DOCKERFILE" 2>/dev/null; then
+    echo "  [OK] Two-layer build: dependency layer (uv.lock + pyproject.toml) precedes the source layer (§14.3)"
+elif grep -qE 'COPY --from=' "$DOCKERFILE" 2>/dev/null || \
+     grep -qE 'FROM.*AS[[:space:]]+(builder|deps|build|base)' "$DOCKERFILE" 2>/dev/null; then
+    echo "  [OK] Multi-stage build detected (dependency caching satisfied, §14.3)"
 else
-    echo "  [WARN] No multi-stage build detected — recommend two-stage build for layer caching (§14.3)."
+    echo "  [WARN] No two-layer (dependency layer + source layer) build detected — the dependency layer may not stay cached."
+    echo "         Follow the §14.3 template: COPY uv.lock pyproject.toml … and install first, then COPY the source."
 fi
 
 # ─── 4. uv usage for dependency installation ────────────────────────────

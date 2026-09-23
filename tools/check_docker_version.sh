@@ -4,12 +4,11 @@
 #
 # Checks:
 # 1. If build.sh or docker/build.sh exists, does it hardcode a version?
-# 2. If hardcoded, does it match pyproject.toml / git tags?
+# 2. If hardcoded, does it match the version derived from git tags?
 # 3. If dynamic (git describe or tomllib), PASS.
 #
-# Supports both:
-#   - setuptools-scm: git describe --tags (recommended per §8.7)
-#   - Static version: tomllib read from pyproject.toml (legacy)
+# Per §8.7 the version has exactly one source: git tags via setuptools-scm.
+# A static `version` field in pyproject.toml is therefore forbidden (not a fallback).
 #
 # Usage: ./check_docker_version.sh [project_root]
 
@@ -38,22 +37,23 @@ echo "Checking $BUILD_SCRIPT..."
 
 EXPECTED_VERSION=""
 
-# First try: git describe (setuptools-scm, recommended)
+# §8.7: a static `version` field in pyproject.toml is forbidden — it would be a
+# second source of truth besides the git tag.
+PYPROJECT="$PROJECT_ROOT/pyproject.toml"
+if [ -f "$PYPROJECT" ] && grep -qE '^version\s*=' "$PYPROJECT" 2>/dev/null; then
+    echo "  [FAIL] pyproject.toml declares a static version field — forbidden by §8.7."
+    echo "         Use dynamic = [\"version\"] with setuptools-scm (single source: git tag)."
+    echo "[FAIL] check_docker_version: Static version field in pyproject.toml."
+    exit 1
+fi
+
+# Sole source: git describe (setuptools-scm)
 if git rev-parse --git-dir >/dev/null 2>&1; then
     EXPECTED_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
 fi
 
-# Second try: pyproject.toml (static version, legacy)
 if [ -z "$EXPECTED_VERSION" ]; then
-    PYPROJECT="$PROJECT_ROOT/pyproject.toml"
-    if [ -f "$PYPROJECT" ]; then
-        EXPECTED_VERSION=$(grep -E '^version\s*=' "$PYPROJECT" 2>/dev/null | head -1 | \
-            sed 's/.*=\s*"\([^"]*\)".*/\1/' || true)
-    fi
-fi
-
-if [ -z "$EXPECTED_VERSION" ]; then
-    echo "[SKIP] check_docker_version: Could not determine project version."
+    echo "[SKIP] check_docker_version: Could not determine project version from git tags."
     exit 0
 fi
 
@@ -79,7 +79,7 @@ fi
 
 if [ -z "$HARDCODED" ]; then
     echo "  [WARN] Could not detect version tag in build.sh. Review manually."
-    echo "        Per §14.3, the tag should be derived from git describe or pyproject.toml."
+    echo "        Per §14.3/§8.7, the tag should be derived from git describe (git tag is the single source)."
     exit 0
 fi
 

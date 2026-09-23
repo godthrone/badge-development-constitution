@@ -91,6 +91,23 @@ JWT_PATTERN='eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{10,}'
 # Long base64 string (potential encoded secret)
 B64_SECRET_PATTERN='[A-Za-z0-9+/]{40,}={0,2}'
 
+# A long hex run introduced by a real digest-algorithm key name is a digest,
+# not a payload. Covers both `sha256:<hex>` and the JSON spelling
+# `"ontology_sha256": "<hex>"`, where the key name sits outside the matched run
+# (the old `grep -v 'sha256:[A-Za-z0-9]'` could only see the former).
+#
+# The key name must be a genuine digest word. A bare `sha` prefix is NOT
+# enough: `sha[0-9]{0,3}` also matched `shared_*`, `shadow_*` and
+# `sha_like_*`, so a real hex key under such a name was silently dropped.
+# Requiring explicit algorithm names (sha1/224/256/384/512, sha3-N, md5,
+# blake2b/2s, digest, checksum, hash, integrity) fixes that. The keyword must
+# also be followed immediately by the key/value separator, so `hashed_…` is
+# not mistaken for `hash`.
+#
+# The pattern stops right before the value, so it can be concatenated with one
+# specific matched run to bind the key name to that run (per run, not per line).
+B64_HASH_KEY_PREFIX_PATTERN='(^|[^a-z0-9])(sha(1|224|256|384|512)|sha3[-_]?[0-9]+|md5|blake2[bs]?|digest|checksum|hash|integrity)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?'
+
 # Internal path patterns
 INTERNAL_PATH_PATTERNS=(
     '/home/[a-z][a-z0-9_]*/'
@@ -320,6 +337,65 @@ filter_placeholder_lines() {
     done
 }
 
+# Keep only base64-like runs that could carry an encoded secret.
+#
+# The broad `[A-Za-z0-9+/]{40,}` pattern also matched two harmless shapes on a
+# real project, both reported as false-positive WARNs:
+#
+#   1. a long hex digest published under a hash key name — e.g. the JSON form
+#      `"ontology_sha256": "1ddd3e50…"`, where the key name sits outside the
+#      matched run, so the old `grep -v 'sha256:[A-Za-z0-9]'` never saw it.
+#   2. a slash-separated lowercase word path — e.g.
+#      `planning/extraction/summarization/rewriting/translation/structured`.
+#      `/` belongs to the base64 alphabet, so the path matches the run, but it
+#      is dictionary words, not a payload.
+#
+# A run is kept when it carries a genuine base64 payload feature: an uppercase
+# letter, a `+`, or `=` padding (or a lowercase/digit run with no `/`, which is
+# how a hex token or a lowercase-only encoding looks). A random 40-character
+# run is missing all of those and staying inside [a-z0-9/] with probability
+# ≈ (37/64)^40 ≈ 3×10^-10, so real encoded secrets (sk-…, AWS keys, JWT
+# payloads, certificates) are still reported; neither false-positive shape
+# above ever carries such a feature.
+#
+# The decision is made per matched run, not per line: rule (1) concatenates the
+# key-name prefix with the run currently under test, so only a hex run that a
+# real digest key name immediately introduces is dropped; a benign digest next
+# to a real payload cannot mask it.
+_filter_base64_false_positives() {
+    local line tok keep
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        keep=0
+        while IFS= read -r tok; do
+            [ -z "$tok" ] && continue
+            # (1) hex digest introduced by a real digest-algorithm key name —
+            # not a payload. The key name must immediately precede *this* run
+            # (and the run must be the whole hex token), so other tokens on the
+            # same line are still judged on their own.
+            if printf '%s' "$tok" | grep -qE '^[A-Fa-f0-9]+$' && \
+               printf '%s' "$line" | grep -qE "${B64_HASH_KEY_PREFIX_PATTERN}${tok}([^0-9A-Fa-f]|$)"; then
+                continue
+            fi
+            # A base64-distinctive character is a payload feature.
+            if printf '%s' "$tok" | grep -qE '[A-Z+=]'; then
+                keep=1
+                break
+            fi
+            # (2) all that is left is [a-z0-9/]; a slash-separated lowercase
+            # word path is a module/route list, not an encoded payload.
+            if printf '%s' "$tok" | grep -q '/'; then
+                continue
+            fi
+            # Lowercase/digit run without '/': hex token or lowercase-only
+            # encoding — keep it unless rule (1) dropped it.
+            keep=1
+            break
+        done <<< "$(printf '%s\n' "$line" | grep -oE "$B64_SECRET_PATTERN" || true)"
+        [ "$keep" -eq 1 ] && printf '%s\n' "$line"
+    done
+}
+
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 1: Current working tree scan (always runs)
 # ─────────────────────────────────────────────────────────────────────────
@@ -427,13 +503,13 @@ fi
 echo "Scanning for base64-encoded values..."
 # Only check non-binary files, exclude known data files
 B64_MATCHES=$(echo "$FILES" | grep -vE '\.(png|jpg|jpeg|gif|ico|woff2?|ttf|eot|pdf|zip|tar|gz|bin)$' | \
-    xargs grep -nE "$B64_SECRET_PATTERN" 2>/dev/null | \
+    xargs grep -nE -- "$B64_SECRET_PATTERN" 2>/dev/null | \
     grep -v 'badge-development-constitution/' | \
     grep -v 'uv\.lock:' | \
     grep -v '\.gitignore' | \
     grep -v '__pycache__' | \
     grep -v 'check_secrets\.sh' | \
-    grep -v 'sha256:[A-Za-z0-9]' || true)
+    _filter_base64_false_positives || true)
 if [ -n "$B64_MATCHES" ]; then
     echo "[WARN] Long base64-like strings found (review manually):"
     print_capped "$B64_MATCHES" 20

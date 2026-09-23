@@ -22,7 +22,6 @@ fi
 
 PY_FILES=$(git ls-files --cached --others --exclude-standard 2>/dev/null | \
     grep '\.py$' | grep -v '__pycache__/' | grep -v '\.egg-info/' | \
-    grep -v '__init__\.py' | \
     grep -v 'badge-development-constitution/' || true)
 
 if [ -z "$PY_FILES" ]; then

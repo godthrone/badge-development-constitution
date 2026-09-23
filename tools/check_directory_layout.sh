@@ -77,10 +77,15 @@ fi
 
 # ─── 3. Config directory or file ────────────────────────────────────────
 
-# Recursively search for config.toml (base config, preferred), legacy
+# Recursively search for config.toml (base config, preferred), the
+# git-tracked override template config.override.sample.toml (§7.1 line 351:
+# "从 git-tracked 的 config.override.sample.toml 模板复制后填入真实值";
+# §8.1 line 414 lists it in the project layout), legacy
 # config_example.toml/.yaml, or a configs/ directory.
 # Projects may place configs in subdirectories (e.g. samples/configs/).
-CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
+# This list is existence-only: adding a candidate can turn FAIL into OK,
+# never OK into FAIL, so no previously-passing project is newly failed.
+CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config.override.sample.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
     -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
 CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
@@ -88,9 +93,9 @@ CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
     -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
 
 if [ -n "$CONFIG_EXAMPLE" ] || [ -n "$CONFIGS_DIR" ]; then
-    echo "  [OK] Config template exists (config.toml, legacy config_example.*, or configs/)"
+    echo "  [OK] Config template exists (config.toml, config.override.sample.toml, legacy config_example.*, or configs/)"
 else
-    echo "[FAIL] check_directory_layout: No config.toml, configs/ directory, or legacy config_example.toml/.yaml found (§7.3)."
+    echo "[FAIL] check_directory_layout: No config.toml, config.override.sample.toml, configs/ directory, or legacy config_example.toml/.yaml found (§7.3)."
     echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
     FAIL=1
 fi

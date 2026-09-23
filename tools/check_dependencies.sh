@@ -28,18 +28,23 @@ TRACKED_FILES=$(git ls-files --cached 2>/dev/null || true)
 
 echo "Checking dependency management..."
 
-# ─── 1. Forbidden dependency files ───────────────────────────────────────
+# ─── 1. Forbidden dependency declaration files (§14.2 C:762, C:764) ──────
+#
+# §14.2 C:762: uv 是唯一包管理器；pyproject.toml + uv.lock 构成依赖的唯一真相源
+#   ——"不存在其他依赖声明"。
+# §14.2 C:764 明文点名：不设 `requirements.txt`、`Pipfile`、环境变量覆盖依赖版本。
+# 下表：前两项为条文点名；其余是"另一份依赖声明 / 另一套包管理器"的直接推论
+# （依据同一条 C:762 的"唯一包管理器 + 不存在其他依赖声明"）。
 
 FORBIDDEN_FILES=(
-    "requirements.txt"
-    "requirements-dev.txt"
-    "Pipfile"
-    "Pipfile.lock"
-    "poetry.lock"
-    "conda.env"
-    "environment.yml"
-    "setup.py"
-    "setup.cfg"
+    "requirements.txt"   # 明文点名（C:764）
+    "Pipfile"            # 明文点名（C:764）
+    "Pipfile.lock"       # Pipfile 的锁文件 = 另一份依赖真相源（C:762）
+    "poetry.lock"        # 另一套包管理器的锁文件（C:762）
+    "conda.env"          # conda 环境声明，非 uv（C:762）
+    "environment.yml"    # conda 环境声明，非 uv（C:762）
+    "setup.py"           # 另一份依赖声明（install_requires）（C:762）
+    "setup.cfg"          # 另一份依赖声明（C:762）
 )
 
 for forbidden in "${FORBIDDEN_FILES[@]}"; do
@@ -49,8 +54,12 @@ for forbidden in "${FORBIDDEN_FILES[@]}"; do
     fi
 done
 
-# Also check with wildcards
-EXTRA_REQS=$(echo "$TRACKED_FILES" | grep -E '^requirements.*\.txt$' 2>/dev/null | grep -v 'requirements' || true)
+# Also catch requirements*.txt variants, including files in subdirectories
+# (e.g. requirements-dev.txt, requirements/base.txt). The previous form ended
+# with `grep -v 'requirements'`, which discarded every match that had just been
+# selected — permanently dead code.
+EXTRA_REQS=$(echo "$TRACKED_FILES" | grep -E '(^|/)requirements.*\.txt$' 2>/dev/null | \
+    grep -vxF 'requirements.txt' || true)
 if [ -n "$EXTRA_REQS" ]; then
     echo "[FAIL] check_dependencies: requirements*.txt files found:"
     echo "$EXTRA_REQS" | while IFS= read -r f; do echo "  $f"; done
@@ -100,8 +109,14 @@ fi
 # ─── 4. Copyleft dependency check (heuristic) ───────────────────────────
 
 if [ -f "$PROJECT_ROOT/uv.lock" ]; then
-    # Check for known copyleft packages in uv.lock
-    COPYLEFT_PATTERNS='(^name = "gpl|^name = "agpl|^name = "lgpl|^name = "mpl|^name = "cc-by-nc)'
+    # uv.lock records each package as [[package]] with `name = "..."` and, when
+    # the registry provides it, `license = "<SPDX>"`. A package *name* does not
+    # encode its license, so the old `^name = "gpl` pattern could never match a
+    # real package. Match the license field instead (§14.1 C:758 forbids GPL/AGPL
+    # and equivalent copyleft licenses). A leading quote is required right before
+    # the SPDX id so dual-licensed expressions like "MIT OR GPL-3.0" (usable under
+    # MIT) are not flagged.
+    COPYLEFT_PATTERNS='^[[:space:]]*license[[:space:]]*=.*"(A?GPL|LGPL|MPL|CC-BY-NC|EUPL|SSPL|CDDL|OSL)'
     COPYLEFT_DEPS=$(grep -iE "$COPYLEFT_PATTERNS" "$PROJECT_ROOT/uv.lock" 2>/dev/null || true)
     if [ -n "$COPYLEFT_DEPS" ]; then
         echo "[FAIL] check_dependencies: Possible copyleft-licensed dependency found (§14.1):"
