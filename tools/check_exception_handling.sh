@@ -53,7 +53,7 @@ fi
 
 # ─── 2. Bare except: (no exception type) ────────────────────────────────
 #
-# §13.1 (C:723) forbids `except Exception: pass` and 裸 `except: pass` — i.e. the
+# §13.1 forbids `except Exception: pass` and 裸 `except: pass` — i.e. the
 # *swallowing* forms — and requires every `except` block to carry explicit
 # handling. A bare `except:` that still handles the error (e.g. `except: log(); raise`)
 # is therefore NOT forbidden by the letter of §13.1: report it as advisory, not FAIL.

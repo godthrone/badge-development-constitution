@@ -7,16 +7,35 @@
 #        ./check_all.sh --class=A|B|C [project_root]  select check class
 #        ./check_all.sh --pii=off|warn|fail [project_root]
 #        ./check_all.sh --meta-pii=off|warn|fail [project_root]
+#        ./check_all.sh --scope=public|private [project_root]
 #   project_root defaults to the git repo root of the current directory.
-#   --pii / --meta-pii are passed through to check_secrets.sh (§15.1).
+#   --pii / --meta-pii / --scope are passed through to check_secrets.sh (§15.1).
 #   Public repositories should use --meta-pii=fail.
+#
+# Scope (§15.4 分级例外) — default `public`, the strictest tier:
+#   --scope=public   Apply §15.1 in full: intranet addresses, internal paths and
+#                    every kind of personal information are errors. This is the
+#                    default, so omitting the flag can never weaken a check.
+#   --scope=private  For B-class / private C-class repositories: non-credential
+#                    internal information (intranet IPs/domains/paths, company
+#                    mailboxes, employee IDs, internal data samples) is reported
+#                    as WARN instead of FAIL. Credentials and employee personal
+#                    sensitive information (private mailboxes, ID/passport/bank
+#                    numbers, personal mobile numbers) still FAIL — there is no
+#                    switch to relax them.
+#   --class never selects the scope. `--class=B|C` prints a one-line reminder
+#   that a private repository may add --scope=private; the result is unchanged
+#   unless the caller asks for it explicitly.
+#   `--class=A --scope=private` is rejected outright (exit 2): §15.4 grants no
+#   exception to class A, so the pair is a contradiction, not a weaker check.
 #
 # Classes (§0 三类项目定义):
 #   --class A  (default) Run all checks
 #   --class B  Skip §17.1 bilingual checks (exemption), relax YAML/__main__.py checks
 #   --class C  Run §15, §16, §17.3-§17.5, §19.1-§19.3 checks. §6 (复现) still
 #              applies per its applicability premise (§0); §8.7 and §19.2 are
-#              always executed regardless of class (see below).
+#              always executed regardless of class (see below). Docker deployment
+#              is NOT required, but §14.3 is checked whenever a Dockerfile exists.
 #
 # Exit code: 0 if all checks pass, 1 if any check fails.
 
@@ -29,6 +48,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NO_HISTORY_FLAG=""
 PII_FLAGS=""
 CLASS="A"
+SCOPE="public"
+SCOPE_EXPLICIT=false
 PROJECT_ROOT=""
 for arg in "${@}"; do
     # Normalize case so that e.g. --class=C / --meta-pii=FAIL are accepted:
@@ -37,15 +58,29 @@ for arg in "${@}"; do
     case "$lower" in
         --no-history) NO_HISTORY_FLAG="--no-history" ;;
         --class=a|--class=b|--class=c) CLASS="$(printf '%s' "${arg#--class=}" | tr '[:lower:]' '[:upper:]')" ;;
-        --class) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
+        --class) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [--scope=public|private] [project_root]" >&2; exit 2 ;;
         --pii=off|--pii=warn|--pii=fail) PII_FLAGS="$PII_FLAGS $lower" ;;
         --meta-pii=off|--meta-pii=warn|--meta-pii=fail) PII_FLAGS="$PII_FLAGS $lower" ;;
-        -*) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
+        --scope=public|--scope=private) SCOPE="${arg#--scope=}"; SCOPE="$(printf '%s' "$SCOPE" | tr '[:upper:]' '[:lower:]')"; SCOPE_EXPLICIT=true ;;
+        -*) echo "Usage: check_all.sh [--no-history] [--class=A|B|C] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [--scope=public|private] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
 done
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
+
+# §15.4 grants no exception to class A (or to any repository pushed to a public
+# remote), so `--class=A --scope=private` is a self-contradiction rather than a
+# weaker check. Rejecting it keeps the relaxation from happening silently
+# (fail-open); the caller must either drop --scope=private or declare class B/C.
+if [ "$CLASS" = "A" ] && [ "$SCOPE" = "private" ]; then
+    echo "Error: --class=A cannot be combined with --scope=private (§15.4)." >&2
+    echo "       Class A and public repositories get no exception: a private tier" >&2
+    echo "       is only available to class B / private class C projects." >&2
+    echo "       Drop --scope=private for class A, or pass --class=B|C if that is" >&2
+    echo "       really the project class." >&2
+    exit 2
+fi
 
 # Dynamically detect the latest constitution file (sorted by version).
 # Language-independent on purpose: matches BADGE-constitution-v*.md whether the
@@ -76,11 +111,25 @@ case "$CLASS" in
     C) CLASS_LABEL=" (Class C — Security & Governance)" ;;
 esac
 
+# §15.4 scope tier. `public` is the fail-safe default, so the banner always
+# states which tier is in force — a relaxed run must be visible, never implicit.
+SCOPE_LABEL="public (strictest, §15.4 exceptions off)"
+if [ "$SCOPE" = "private" ]; then
+    SCOPE_LABEL="private (§15.4 relaxations on: intranet info & company mailboxes)"
+fi
+
 echo "============================================"
 echo " $CONSTITUTION_TITLE — Compliance Check$CLASS_LABEL"
 echo " Project: $PROJECT_ROOT"
+echo " Scope: $SCOPE_LABEL"
 echo "============================================"
-echo ""
+# Reminder only — never changes the result. Choosing the tier is the caller's
+# explicit decision; --class must not silently relax §15.1.
+if [ "$SCOPE_EXPLICIT" = false ] && { [ "$CLASS" = "B" ] || [ "$CLASS" = "C" ]; }; then
+    echo "Note: class $CLASS does not by itself relax §15.1. If this repository is"
+    echo "      private (no public remote), pass --scope=private explicitly."
+    echo ""
+fi
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -174,19 +223,45 @@ run_check "Log File Consistency (§13.3)"       "$SCRIPT_DIR/check_log_consisten
 run_check "Dependencies & License (§14.1-2, §19.3)" "$SCRIPT_DIR/check_dependencies.sh"
 
 # §14.3 — Dockerfile Check
-run_check "Dockerfile (§14.3)"                 "$SCRIPT_DIR/check_dockerfile.sh"
+# --class is passed through: the proxy-passing rule is class-graded (class A
+# may not use `--build-arg` for an intranet address, class B/C may), while the
+# runtime-pollution bans apply to every class.
+run_check "Dockerfile (§14.3)"                 "$SCRIPT_DIR/check_dockerfile.sh" --class="$CLASS"
 
 # §14.3 — Docker Image Version
 run_check "Docker Image Version (§14.3)"       "$SCRIPT_DIR/check_docker_version.sh"
 
 fi  # end class A/B Layer 1-2
 
+# §14.3 — Dockerfile Check for class C (§0: C is not required to provide Docker
+# deployment). A class C project that DOES ship a Dockerfile gets the same §14.3
+# checks as any other class; one without a Dockerfile is skipped without a
+# failure and without being counted, so the C-class summary is unchanged.
+# The existence probe below is the single gate for BOTH §14.3 checks (Dockerfile
+# shape and base-image version pinning): they share the same applicability
+# premise, so they must not disagree about whether the project builds an image.
+if [ "$CLASS" = "C" ]; then
+    if [ -f "$PROJECT_ROOT/Dockerfile" ] || [ -f "$PROJECT_ROOT/docker/Dockerfile" ]; then
+        run_check "Dockerfile (§14.3)"             "$SCRIPT_DIR/check_dockerfile.sh" --class=C
+        run_check "Docker Image Version (§14.3)"   "$SCRIPT_DIR/check_docker_version.sh"
+    else
+        echo "── Dockerfile (§14.3) ──"
+        echo "  [SKIP] §0: class C does not require Docker deployment, and no Dockerfile was found."
+        echo ""
+        echo "── Docker Image Version (§14.3) ──"
+        echo "  [SKIP] §0: no Dockerfile to pin a base image version for (§14.3)."
+        echo ""
+    fi
+fi
+
 # ============================================================================
 # Layer 3: Security and Project Governance
 # ============================================================================
 
 # §15.1 — Secrets & PII scan (all classes)
-run_check "Secrets & PII Scan (§15.1)"         "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG $PII_FLAGS
+# --class is passed through so check_secrets.sh can itself reject the
+# contradictory `class A + private scope` pair (§15.4) when called directly.
+run_check "Secrets & PII Scan (§15.1)"         "$SCRIPT_DIR/check_secrets.sh" $NO_HISTORY_FLAG $PII_FLAGS --class="$CLASS" --scope="$SCOPE"
 
 # §16 — Temporary Files (all classes)
 run_check "Temporary Files (§16)"             "$SCRIPT_DIR/check_local_files.sh"

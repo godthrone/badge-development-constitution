@@ -35,7 +35,7 @@ echo "Checking type annotation conventions..."
 
 # ─── 1. Optional[str] → prefer str | None (advisory) ────────────────────
 #
-# §12.1 rule 3 (C:650): 可选类型统一使用 `X | None`（PEP 604）；但同句明确
+# §12.1 rule 3: 可选类型统一使用 `X | None`（PEP 604）；但同句明确
 # "`Optional` **仍可用**但不作为项目约定"。故 Optional[X] 不是违规写法，
 # 只提示改用项目约定 —— 不置 FAIL。
 
@@ -53,9 +53,10 @@ fi
 
 # ─── 2. Union[X, Y] → PEP 604 `X | Y` (advisory, no constitutional clause) ──
 #
-# 宪法全文没有 Union 条文（grep -n 'Union' BADGE-constitution-v2.5.0.zh-CN.md
-# 为 0 命中）。§12.1 rule 3 只点名 Optional/`| None`，未覆盖 Union。故本项
-# 不得引 "per §12.1" 作为依据，只能作为无条文支撑的风格提示，且不置 FAIL。
+# 宪法全文没有 Union 条文——检查当前版本的宪法文件，`Union` 为 0 命中（不写死
+# 文件名，避免版本升级后本条注释失效）。§12.1 rule 3 只点名 Optional/`| None`，
+# 未覆盖 Union。故本项不得引 "per §12.1" 作为依据，只能作为无条文支撑的风格
+# 提示，且不置 FAIL。
 
 UNION_USAGE=$(echo "$PY_FILES" | xargs grep -nE 'Union\[[a-zA-Z]' 2>/dev/null | \
     grep -v '^\s*#' | grep -v 'badge-development-constitution/' || true)

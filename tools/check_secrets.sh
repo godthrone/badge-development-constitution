@@ -20,10 +20,30 @@
 #                                                   git history (default: fail)
 #   ./check_secrets.sh --meta-pii=off|warn|fail     PII severity for commit/tag
 #                                                   metadata (default: warn)
+#   ./check_secrets.sh --scope=public|private       Repository visibility tier
+#                                                   for the §15.4 exception
+#                                                   (default: public — strictest)
+#   ./check_secrets.sh --class=A|B|C                Project class, used to
+#                                                   validate --scope (default: A)
 #   project_root defaults to the git repo root of the current directory.
 #
 # Public repositories should run with --meta-pii=fail so that a personal
 # author/committer/tagger email fails the check (see §15.1 category 5).
+#
+# --scope (§15.4 分级例外): only the caller can know whether a repository is
+# published, so the tier is an explicit opt-in. `public` (the default) applies
+# §15.1 in full. `private` relaxes non-credential internal information
+# (intranet IPs/domains/paths, company mailboxes, employee IDs, internal data
+# samples) from FAIL to WARN for B-class / private C-class repositories.
+# Credentials and employee personal sensitive information — private mailboxes,
+# ID/passport/bank-card numbers, personal mobile numbers — are NEVER relaxed
+# and have no switch to turn them off (§15.4 红线).
+#
+# --class (default A) exists only to guard --scope: §15.4 grants class A no
+# exception, so `--class=A --scope=private` is rejected (exit 2). The default is
+# A because that is the strictest tier — omitting --class can therefore never
+# silently relax §15.1. A caller who wants the private tier on a genuinely
+# B-class / private C-class repository must say so explicitly (--class=B|C).
 
 set -euo pipefail
 
@@ -32,16 +52,33 @@ set -euo pipefail
 HISTORY_MODE=true
 PII_MODE="fail"        # content/history PII severity: off|warn|fail
 META_PII_MODE="warn"   # commit-metadata PII severity: off|warn|fail
+SCOPE="public"         # §15.4 repository visibility tier: public|private
+CLASS="A"              # project class; guards --scope (§15.4). Default A = strictest
 PROJECT_ROOT=""
 for arg in "${@}"; do
     case "$arg" in
         --no-history) HISTORY_MODE=false ;;
         --pii=off|--pii=warn|--pii=fail) PII_MODE="${arg#--pii=}" ;;
         --meta-pii=off|--meta-pii=warn|--meta-pii=fail) META_PII_MODE="${arg#--meta-pii=}" ;;
-        -*) echo "Usage: check_secrets.sh [--no-history] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [project_root]" >&2; exit 2 ;;
+        --scope=public|--scope=private) SCOPE="${arg#--scope=}" ;;
+        --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        -*) echo "Usage: check_secrets.sh [--no-history] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [--class=A|B|C] [--scope=public|private] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
 done
+
+# §15.4 grants no exception to class A (or to any repository pushed to a public
+# remote). `--scope=private` together with class A is therefore a contradiction,
+# not a weaker check — reject it instead of silently relaxing §15.1 (fail-open).
+# CLASS defaults to A, so a caller who passes only --scope=private must state
+# the class explicitly before the relaxation can take effect.
+if [ "$CLASS" = "A" ] && [ "$SCOPE" = "private" ]; then
+    echo "Error: --class=A cannot be combined with --scope=private (§15.4)." >&2
+    echo "       Class A and public repositories get no §15.4 exception." >&2
+    echo "       Drop --scope=private, or pass --class=B|--class=C only if this" >&2
+    echo "       really is a B-class / private C-class repository." >&2
+    exit 2
+fi
 
 PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"
@@ -163,6 +200,49 @@ PII_PATTERNS=(
 # project mailboxes, example/reserved domains, placeholders, local addresses.
 PII_ALLOWLIST='(example\.(com|org|net)|@example\.|noreply@|users\.noreply\.github\.com|maintainers?@|git@github\.com|anthropic\.com|REPLACE_ME|your-?email|placeholder|@[a-zA-Z0-9.-]*\.local)'
 
+# ─── Personal vs company mailbox — §15.4 红线 ───────────────────────────
+#
+# §15.4 lets a private repository keep *company* mailboxes (a company domain is
+# internal information), but NOT an employee's *personal* mailbox — that is
+# 员工个人敏感信息 and is "永不放宽". The two are indistinguishable without a
+# list of consumer mail providers: a company address carries the employer's own
+# domain, a personal one carries a provider domain anyone can register.
+#
+# Free/consumer mailbox domains, used as a SUFFIX test on the address (so
+# `alice@gmail.com.evil.example` does not match). Deliberately conservative:
+# a domain absent from the list is treated as a company domain under
+# --scope=private, which is the documented contract (the caller declares the
+# repository private). Under the default --scope=public every mailbox fails
+# regardless, so a gap in this list cannot weaken the strict tier.
+PERSONAL_EMAIL_DOMAINS='(gmail|googlemail|outlook|hotmail|live|msn|yahoo|ymail|icloud|me|mac|aol|gmx|mail|yandex|zoho|protonmail|proton|tutanota|fastmail)\.(com|cn|net|org|ru|co\.uk)|(qq|163|126|139|189|sina|sohu|foxmail|21cn|yeah|tom|aliyun|wo|vip)\.(com|cn|net)|(yeah|sina|sohu|126|163|139|189|21cn)\.(net|cn)'
+
+# PERSONAL mobile numbers — §15.4 红线. §15.4's red line reads 「私人手机号永不
+# 放宽」 without carving out any number range, and a static scan cannot tell a
+# personal SIM from a corporate one — both are `1[3-9]xxxxxxxxx`. The fail-safe
+# reading therefore keeps **every** mainland mobile number a FAIL even under
+# --scope=private (the strict tier is the only tier that cannot leak a personal
+# number). Landlines / company switchboard numbers (fixed-line area codes) and
+# IM/employee-ID account numbers are still relaxable — they cannot match this
+# pattern. Narrowing it back to 138/139 would reopen the hole this fixes.
+PERSONAL_MOBILE_PATTERN='(^|[^0-9A-Fa-f.])1[3-9][0-9]{9}($|[^0-9A-Fa-f])'
+
+# Keep only the addresses that are personal mailboxes (i.e. not company mail).
+filter_personal_email_lines() {
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        local emails kept=0
+        emails=$(printf '%s\n' "$line" | grep -oE "$PII_EMAIL_PATTERN" || true)
+        while IFS= read -r e; do
+            [ -z "$e" ] && continue
+            if printf '%s\n' "$e" | grep -qEi "@${PERSONAL_EMAIL_DOMAINS}$"; then
+                kept=1
+                break
+            fi
+        done <<< "$emails"
+        [ "$kept" -eq 1 ] && printf '%s\n' "$line"
+    done
+}
+
 # Documentation placeholders — §15.1 / §15.2
 #
 # §15.1 exempts explicit placeholders ("REPLACE_ME", "your-email@…") and §15.2
@@ -208,6 +288,32 @@ print_matches() {
     local label="$1"
     local matches="$2"
     if [ -n "$matches" ]; then
+        echo "[FAIL] check_secrets: $label found:"
+        echo "$matches" | while IFS= read -r line; do
+            echo "  $line"
+        done
+        FAIL=1
+    fi
+}
+
+# Indent and print a match blob (uncapped). Report as WARN when `$3` is
+# "relaxable" and the §15.4 private tier applies, otherwise as FAIL.
+#
+# This is the single gate for the §15.4 分级例外: every relaxable category goes
+# through it, so no call site can accidentally hardcode a relaxation. The
+# non-relaxable categories (credentials, employee personal sensitive
+# information) call print_matches instead and can never be downgraded.
+print_scope_aware() {
+    local label="$1"
+    local matches="$2"
+    local tier="${3:-relaxable}"
+    [ -n "$matches" ] || return 0
+    if [ "$tier" = "relaxable" ] && [ "$SCOPE" = "private" ]; then
+        echo "[WARN] check_secrets: $label found (§15.4 private tier — internal information, review before publishing):"
+        echo "$matches" | while IFS= read -r line; do
+            echo "  $line"
+        done
+    else
         echo "[FAIL] check_secrets: $label found:"
         echo "$matches" | while IFS= read -r line; do
             echo "  $line"
@@ -267,6 +373,25 @@ grep_history() {
     if [ -s "$stream" ]; then
         grep -nEi -e "$pattern" "$stream" 2>/dev/null || true
     fi
+}
+
+# History-side counterpart of print_scope_aware: reports a history finding,
+# downgrading a §15.4-relaxable category to WARN when the private tier applies.
+# HISTORY_FAIL (and therefore FAIL, further down) is only set on the strict
+# branch, so a relaxed category can never fail the run in private tier.
+print_history_scope_aware() {
+    local label="$1"
+    local matches="$2"
+    local tier="${3:-relaxable}"
+    local limit="${4:-10}"
+    [ -n "$matches" ] || return 0
+    if [ "$tier" = "relaxable" ] && [ "$SCOPE" = "private" ]; then
+        echo "[WARN] check_secrets (history): $label in git history (§15.4 private tier — internal information):"
+    else
+        echo "[FAIL] check_secrets (history): $label in git history:"
+        HISTORY_FAIL=1
+    fi
+    print_capped "$matches" "$limit"
 }
 
 # Filter out common false positives from history scan results.
@@ -430,13 +555,10 @@ IP_MATCHES=$(echo "$IP_RAW" | grep -v '^uv\.lock:' | grep -v '^package-lock\.jso
 PRIVATE_IP_MATCHES=$(echo "$IP_MATCHES" | grep -E "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" || true)
 PUBLIC_IP_MATCHES=$(echo "$IP_MATCHES" | grep -vE "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" || true)
 
-if [ -n "$PRIVATE_IP_MATCHES" ]; then
-    echo "[FAIL] check_secrets: Private/internal IP addresses found:"
-    echo "$PRIVATE_IP_MATCHES" | while IFS= read -r line; do
-        echo "  $line"
-    done
-    FAIL=1
-fi
+# Intranet IPs are §15.4-relaxable internal information (allowed for B class /
+# private C class); public IPs are already advisory. Under --scope=public both
+# keep the strict behaviour.
+print_scope_aware "Private/internal IP addresses" "$PRIVATE_IP_MATCHES" relaxable
 if [ -n "$PUBLIC_IP_MATCHES" ]; then
     echo "[WARN] Public IP addresses found (review if internal endpoints):"
     print_capped "$PUBLIC_IP_MATCHES" 20
@@ -519,24 +641,35 @@ fi
 # ─── Scan: Internal paths ────────────────────────────────────────────────
 
 echo "Scanning for internal paths..."
+# `/root/.cache` here is a path *inside the build container*, not an internal
+# host path. The exemption is keyed on the BuildKit cache-mount target string
+# itself, never on the line starting with `RUN`: the §14.3 template writes the
+# mount flags as continuation lines, and a continuation line contains no `RUN`
+# at all. Keeping the exempt string narrow (exactly
+# `--mount=type=cache,target=/root/.cache`) leaves every other `/root/` match —
+# `/root/.ssh`, `/root/secrets.txt`, … — still failing.
 for path_pattern in "${INTERNAL_PATH_PATTERNS[@]}"; do
     PATH_RAW=$(grep_tracked "$path_pattern")
     PATH_MATCHES=$(echo "$PATH_RAW" | grep -v '\.gitignore' | grep -v '\.local/' | \
         grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' | \
-        grep -v 'RUN --mount=type=cache,target=/root/.cache' || true)
-    print_matches "Internal path ($path_pattern)" "$PATH_MATCHES"
+        grep -vF -- '--mount=type=cache,target=/root/.cache' || true)
+    # Internal paths are §15.4-relaxable internal information.
+    print_scope_aware "Internal path ($path_pattern)" "$PATH_MATCHES" relaxable
 done
 
 # ─── Scan: SSH connection strings ────────────────────────────────────────
 
 echo "Scanning for SSH strings..."
+# An `ssh user@<intranet-host>` string is internal topology (§15.4-relaxable);
+# an SSH command against a *credential* would be caught by the key/credential
+# scans above, which are never relaxed.
 SSH_MATCHES=$(grep_tracked 'ssh.*@[0-9]')
-print_matches "SSH connection string with IP" "$SSH_MATCHES"
+print_scope_aware "SSH connection string with IP" "$SSH_MATCHES" relaxable
 
 # Also catch ssh user@host patterns
 SSH_USER_MATCHES=$(grep_tracked 'ssh\s+\w+@[a-zA-Z0-9.-]+' | \
     grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' || true)
-print_matches "SSH user@host string" "$SSH_USER_MATCHES"
+print_scope_aware "SSH user@host string" "$SSH_USER_MATCHES" relaxable
 
 # ─── Scan: .env in tracked files ─────────────────────────────────────────
 
@@ -557,25 +690,62 @@ print_matches "Cloud credential reference" "$AWS_CRED_MATCHES"
 # Severity controlled by --pii=off|warn|fail (default: fail). Emails and phone
 # numbers are high-false-positive categories, so PII_ALLOWLIST exempts project
 # mailboxes, example domains and explicit placeholders.
+#
+# §15.4 splits the category in two, and the split is enforced here rather than
+# at the reporting line:
+#   * NEVER relaxed (个人敏感信息, 红线) — personal mailboxes (free providers),
+#     ID-card numbers, and mainland mobile numbers (a corporate mobile is
+#     indistinguishable from a personal one, so all `1[3-9]` ranges stay FAIL);
+#   * relaxable under --scope=private — corporate mailboxes, landlines,
+#     IM/工号-style account numbers (company-internal contact information).
+# Personal mailboxes are separated from company mailboxes per address, so a
+# company address on the same line cannot mask a personal one.
 
 if [ "$PII_MODE" != "off" ]; then
     echo "Scanning for personal information (PII)..."
     PII_HITS=""
+    PII_HITS_RELAX=""
     for i in "${!PII_PATTERNS[@]}"; do
         pattern="${PII_PATTERNS[$i]}"
         RAW=$(grep_tracked "$pattern" | \
             grep -v 'check_secrets\.sh' | \
             grep -v '\.env-example' || true)
-        if [ "$i" -eq 0 ]; then
-            # Email pattern: filter per-address so an allowlisted address on
-            # the same line cannot mask a personal one.
-            HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
-        else
-            HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
-        fi
-        PII_HITS="${PII_HITS}${HIT}"$'\n'
+        case "$i" in
+            0)
+                # Email pattern: filter per-address so an allowlisted address on
+                # the same line cannot mask a personal one.
+                HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
+                if [ "$SCOPE" = "private" ]; then
+                    # Personal mailboxes keep the FAIL; corporate mailboxes go to
+                    # the relaxed bucket.
+                    PII_HITS="${PII_HITS}$(printf '%s\n' "$HIT" | filter_personal_email_lines || true)"$'\n'
+                    PII_HITS_RELAX="${PII_HITS_RELAX}$(printf '%s\n' "$HIT" | grep -vE "@${PERSONAL_EMAIL_DOMAINS}$" || true)"$'\n'
+                else
+                    PII_HITS="${PII_HITS}${HIT}"$'\n'
+                fi
+                ;;
+            1|2|3|4)
+                # Mobile / landline / IM account numbers: the concrete personal
+                # ranges are re-checked below and stay in PII_HITS.
+                HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                if [ "$SCOPE" = "private" ]; then
+                    HIT_PERSONAL=$(printf '%s\n' "$HIT" | grep -E "$PERSONAL_MOBILE_PATTERN" || true)
+                    PII_HITS="${PII_HITS}${HIT_PERSONAL}"$'\n'
+                    PII_HITS_RELAX="${PII_HITS_RELAX}${HIT}"$'\n'
+                else
+                    PII_HITS="${PII_HITS}${HIT}"$'\n'
+                fi
+                ;;
+            *)
+                # ID-card numbers: employee personal sensitive information, no
+                # exception applies at any scope.
+                HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                PII_HITS="${PII_HITS}${HIT}"$'\n'
+                ;;
+        esac
     done
     PII_HITS=$(printf '%s' "$PII_HITS" | sed '/^$/d' | awk '!seen[$0]++')
+    PII_HITS_RELAX=$(printf '%s' "$PII_HITS_RELAX" | sed '/^$/d' | awk '!seen[$0]++')
     if [ -n "$PII_HITS" ]; then
         if [ "$PII_MODE" = "fail" ]; then
             echo "[FAIL] check_secrets: Personal information (PII) found:"
@@ -587,6 +757,14 @@ if [ "$PII_MODE" != "off" ]; then
         PII_COUNT=$(printf '%s\n' "$PII_HITS" | wc -l)
         if [ "$PII_COUNT" -gt 20 ]; then
             echo "  ... and $((PII_COUNT - 20)) more lines"
+        fi
+    fi
+    if [ -n "$PII_HITS_RELAX" ]; then
+        echo "[WARN] check_secrets: Company-internal personal information found (§15.4 private tier — internal contact data, review before publishing):"
+        print_capped "$PII_HITS_RELAX" 20
+        PII_RELAX_COUNT=$(printf '%s\n' "$PII_HITS_RELAX" | wc -l)
+        if [ "$PII_RELAX_COUNT" -gt 20 ]; then
+            echo "  ... and $((PII_RELAX_COUNT - 20)) more lines"
         fi
     fi
 fi
@@ -619,13 +797,17 @@ if $HISTORY_MODE; then
         HIST_PRIVATE_IP=$(echo "$HIST_IP" | grep -E "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" | \
             _filter_history_false_positives || true)
         if [ -n "$HIST_PRIVATE_IP" ]; then
-            echo "[FAIL] check_secrets (history): Private/internal IPs in git history:"
+            if [ "$SCOPE" = "private" ]; then
+                echo "[WARN] check_secrets (history): Private/internal IPs in git history (§15.4 private tier — internal information):"
+            else
+                echo "[FAIL] check_secrets (history): Private/internal IPs in git history:"
+                HISTORY_FAIL=1
+            fi
             print_capped "$HIST_PRIVATE_IP" 30
             COUNT=$(echo "$HIST_PRIVATE_IP" | wc -l)
             if [ "$COUNT" -gt 30 ]; then
                 echo "  ... and $((COUNT - 30)) more lines"
             fi
-            HISTORY_FAIL=1
         fi
 
         # ── History: API keys ──
@@ -663,18 +845,14 @@ if $HISTORY_MODE; then
             grep -v 'badge-development-constitution/' | \
             grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH" ]; then
-            echo "[FAIL] check_secrets (history): SSH connection string in git history:"
-            print_capped "$HIST_SSH" 10
-            HISTORY_FAIL=1
+            print_history_scope_aware "SSH connection string" "$HIST_SSH" relaxable
         fi
 
         HIST_SSH_USER=$(grep_history "$HIST_STREAM" 'ssh\s+\w+@[a-zA-Z0-9.-]+' | \
             grep -v 'badge-development-constitution/' | \
             grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH_USER" ]; then
-            echo "[FAIL] check_secrets (history): SSH user@host in git history:"
-            print_capped "$HIST_SSH_USER" 10
-            HISTORY_FAIL=1
+            print_history_scope_aware "SSH user@host" "$HIST_SSH_USER" relaxable
         fi
 
         # ── History: Internal paths ──
@@ -692,12 +870,10 @@ if $HISTORY_MODE; then
                 grep -v 'badge-development-constitution/' | \
                 grep -v 'check_secrets\.sh' | \
                 grep -v '(commit-message):' | \
-                grep -v 'RUN --mount=type=cache,target=/root/.cache' | \
+                grep -vF -- '--mount=type=cache,target=/root/.cache' | \
                 _filter_history_false_positives || true)
             if [ -n "$HIST_PATH" ]; then
-                echo "[FAIL] check_secrets (history): Internal path ($path_pattern) in git history:"
-                print_capped "$HIST_PATH" 10
-                HISTORY_FAIL=1
+                print_history_scope_aware "Internal path ($path_pattern)" "$HIST_PATH" relaxable
             fi
         done
 
@@ -728,20 +904,40 @@ if $HISTORY_MODE; then
         if [ "$PII_MODE" != "off" ]; then
             echo "Scanning history for personal information (PII)..."
             HIST_PII=""
+            HIST_PII_RELAX=""
             for i in "${!PII_PATTERNS[@]}"; do
                 pattern="${PII_PATTERNS[$i]}"
                 RAW=$(grep_history "$HIST_STREAM" "$pattern" | \
                     grep -v 'badge-development-constitution/' | \
                     grep -v 'check_secrets\.sh' | \
                     grep -v '\.env-example' || true)
-                if [ "$i" -eq 0 ]; then
-                    HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
-                else
-                    HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
-                fi
-                HIST_PII="${HIST_PII}${HIT}"$'\n'
+                case "$i" in
+                    0)
+                        HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
+                        if [ "$SCOPE" = "private" ]; then
+                            HIST_PII="${HIST_PII}$(printf '%s\n' "$HIT" | filter_personal_email_lines || true)"$'\n'
+                            HIST_PII_RELAX="${HIST_PII_RELAX}$(printf '%s\n' "$HIT" | grep -vE "@${PERSONAL_EMAIL_DOMAINS}$" || true)"$'\n'
+                        else
+                            HIST_PII="${HIST_PII}${HIT}"$'\n'
+                        fi
+                        ;;
+                    1|2|3|4)
+                        HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                        if [ "$SCOPE" = "private" ]; then
+                            HIST_PII="${HIST_PII}$(printf '%s\n' "$HIT" | grep -E "$PERSONAL_MOBILE_PATTERN" || true)"$'\n'
+                            HIST_PII_RELAX="${HIST_PII_RELAX}${HIT}"$'\n'
+                        else
+                            HIST_PII="${HIST_PII}${HIT}"$'\n'
+                        fi
+                        ;;
+                    *)
+                        HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                        HIST_PII="${HIST_PII}${HIT}"$'\n'
+                        ;;
+                esac
             done
             HIST_PII=$(printf '%s' "$HIST_PII" | sed '/^$/d' | awk '!seen[$0]++')
+            HIST_PII_RELAX=$(printf '%s' "$HIST_PII_RELAX" | sed '/^$/d' | awk '!seen[$0]++')
             if [ -n "$HIST_PII" ]; then
                 if [ "$PII_MODE" = "fail" ]; then
                     echo "[FAIL] check_secrets (history): Personal information (PII) in git history:"
@@ -753,6 +949,14 @@ if $HISTORY_MODE; then
                 HIST_PII_COUNT=$(printf '%s\n' "$HIST_PII" | wc -l)
                 if [ "$HIST_PII_COUNT" -gt 20 ]; then
                     echo "  ... and $((HIST_PII_COUNT - 20)) more lines"
+                fi
+            fi
+            if [ -n "$HIST_PII_RELAX" ]; then
+                echo "[WARN] check_secrets (history): Company-internal personal information in git history (§15.4 private tier — internal contact data):"
+                print_capped "$HIST_PII_RELAX" 20
+                HIST_PII_RELAX_COUNT=$(printf '%s\n' "$HIST_PII_RELAX" | wc -l)
+                if [ "$HIST_PII_RELAX_COUNT" -gt 20 ]; then
+                    echo "  ... and $((HIST_PII_RELAX_COUNT - 20)) more lines"
                 fi
             fi
         fi
@@ -776,6 +980,11 @@ fi
 # checked separately here. Each identity is emitted on its own line so the
 # allowlist cannot mask a personal address sitting next to a noreply one.
 # Default severity is warn; public repositories should pass --meta-pii=fail.
+#
+# §15.4 keeps 员工个人敏感信息 (private mailboxes) out of any exception, so a
+# free-provider address in an identity stays a finding even under
+# --scope=private; a company mailbox is internal information and is reported as
+# a warning there.
 
 if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
     echo ""
@@ -786,6 +995,10 @@ if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
         git for-each-ref --format='%(refname)|tagger|%(taggername) %(taggeremail)' refs/tags 2>/dev/null
     )
     META_HITS=$(printf '%s\n' "$META_RAW" | filter_email_lines || true)
+    if [ "$SCOPE" = "private" ]; then
+        META_HITS_RELAX=$(printf '%s\n' "$META_HITS" | grep -vE "@${PERSONAL_EMAIL_DOMAINS}$" || true)
+        META_HITS=$(printf '%s\n' "$META_HITS" | filter_personal_email_lines || true)
+    fi
     if [ -n "$META_HITS" ]; then
         if [ "$META_PII_MODE" = "fail" ]; then
             echo "[FAIL] check_secrets (metadata): Personal email in commit/tag identity:"
@@ -800,6 +1013,14 @@ if $HAS_GIT && [ "$META_PII_MODE" != "off" ]; then
         fi
     else
         echo "[PASS] check_secrets (metadata): No personal email in commit/tag metadata."
+    fi
+    if [ -n "${META_HITS_RELAX:-}" ]; then
+        echo "[WARN] check_secrets (metadata): Company mailbox in commit/tag identity (§15.4 private tier — internal identity):"
+        print_capped "$META_HITS_RELAX" 20
+        META_RELAX_COUNT=$(printf '%s\n' "$META_HITS_RELAX" | wc -l)
+        if [ "$META_RELAX_COUNT" -gt 20 ]; then
+            echo "  ... and $((META_RELAX_COUNT - 20)) more lines"
+        fi
     fi
 fi
 

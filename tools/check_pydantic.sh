@@ -35,7 +35,7 @@ echo "Checking pydantic model conventions..."
 # ─── 1. BaseModel subclasses missing extra="forbid" ─────────────────────
 
 # Find files that define pydantic models (inherit from BaseModel) and require
-# extra="forbid" (§7.2 C:382, §9.1 C:544-546) *within each model's own body*.
+# extra="forbid" (§7.2, §9.1) *within each model's own body*.
 # A file-level match must not short-circuit the whole file — a file may define
 # several models and only some of them carry extra="forbid".
 while IFS= read -r file; do

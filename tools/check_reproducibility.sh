@@ -46,6 +46,32 @@ else
     echo "  [WARN] .python-version not found — Python version not pinned (§14.2)."
 fi
 
+# Fold backslash continuations so that one logical instruction becomes one line,
+# prefixed with the number of the line it starts on (`<lineno>:<text>`, the shape
+# `grep -n` produces). §14.3's own cache-mount template continues a `RUN` across
+# lines (`RUN --mount=type=cache,target=/root/.cache/uv \` + `uv sync …`), so the
+# mount flag and the uv command share a LOGICAL line, not a physical one. Comment
+# lines are dropped first, matching the Dockerfile parser (`# … \` is a complete
+# comment and does not continue the next instruction).
+fold_continuations() {
+    awk '
+        {
+            line = $0
+            sub(/\r$/, "", line)
+            if (line ~ /^[[:space:]]*#/) next
+            if (buf == "") start = NR
+            if (line ~ /\\[[:space:]]*$/) {
+                sub(/\\[[:space:]]*$/, "", line)
+                buf = buf line " "
+                next
+            }
+            printf "%d:%s\n", start, buf line
+            buf = ""
+        }
+        END { if (buf != "") printf "%d:%s\n", start, buf }
+    ' "$1"
+}
+
 # ─── 3. Dockerfile: no :latest tag, prefer SHA256 ───────────────────────
 
 DOCKERFILE=""
@@ -76,11 +102,23 @@ if [ -n "$DOCKERFILE" ]; then
     fi
 
     # Check for BuildKit cache mount (§14.3: every `uv sync` / `uv pip install`
-    # is required to use RUN --mount=type=cache). Only meaningful when the
-    # Dockerfile actually installs with uv, so that precondition is checked
-    # first to avoid false positives on Dockerfiles that do not use uv.
+    # is required to use a cache mount). Only meaningful when the Dockerfile
+    # actually installs with uv, so that precondition is checked first to avoid
+    # false positives on Dockerfiles that do not use uv.
+    #
+    # The mount flag and the uv install command must share one LOGICAL line
+    # (either order). `--mount=type=cache` alone is too loose: an apt-only mount
+    # (`--mount=type=cache,target=/var/cache/apt`) on a line of its own would be
+    # credited to a `uv sync` line that carries no mount — a false negative.
     if grep -qE 'uv (sync|pip install)' "$DOCKERFILE" 2>/dev/null; then
-        if grep -qE 'RUN --mount=type=cache.*uv' "$DOCKERFILE" 2>/dev/null; then
+        # Collected into a variable rather than ending the pipeline with
+        # `grep -q`: under `set -o pipefail`, a `grep -q` that exits on the first
+        # hit can SIGPIPE the upstream grep and turn a real hit into a failure.
+        CACHE_MOUNT_UV=$(fold_continuations "$DOCKERFILE" \
+            | grep -E -- '--mount=type=cache' \
+            | grep -E '(^|[^[:alnum:]_-])uv[[:space:]]+(sync|pip[[:space:]]+install)([^[:alnum:]_-]|$)' \
+            || true)
+        if [ -n "$CACHE_MOUNT_UV" ]; then
             echo "  [OK] BuildKit cache mount for uv (prevents re-download on rebuild §14.3)"
         else
             echo "  [WARN] uv install found without a BuildKit cache mount (§14.3 requires it)."

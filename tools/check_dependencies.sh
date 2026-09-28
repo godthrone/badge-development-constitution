@@ -28,23 +28,23 @@ TRACKED_FILES=$(git ls-files --cached 2>/dev/null || true)
 
 echo "Checking dependency management..."
 
-# ─── 1. Forbidden dependency declaration files (§14.2 C:762, C:764) ──────
+# ─── 1. Forbidden dependency declaration files (§14.2) ──────
 #
-# §14.2 C:762: uv 是唯一包管理器；pyproject.toml + uv.lock 构成依赖的唯一真相源
+# §14.2: uv 是唯一包管理器；pyproject.toml + uv.lock 构成依赖的唯一真相源
 #   ——"不存在其他依赖声明"。
-# §14.2 C:764 明文点名：不设 `requirements.txt`、`Pipfile`、环境变量覆盖依赖版本。
+# §14.2 明文点名：不设 `requirements.txt`、`Pipfile`、环境变量覆盖依赖版本。
 # 下表：前两项为条文点名；其余是"另一份依赖声明 / 另一套包管理器"的直接推论
-# （依据同一条 C:762 的"唯一包管理器 + 不存在其他依赖声明"）。
+# （依据同一条 §14.2 的"唯一包管理器 + 不存在其他依赖声明"）。
 
 FORBIDDEN_FILES=(
-    "requirements.txt"   # 明文点名（C:764）
-    "Pipfile"            # 明文点名（C:764）
-    "Pipfile.lock"       # Pipfile 的锁文件 = 另一份依赖真相源（C:762）
-    "poetry.lock"        # 另一套包管理器的锁文件（C:762）
-    "conda.env"          # conda 环境声明，非 uv（C:762）
-    "environment.yml"    # conda 环境声明，非 uv（C:762）
-    "setup.py"           # 另一份依赖声明（install_requires）（C:762）
-    "setup.cfg"          # 另一份依赖声明（C:762）
+    "requirements.txt"   # 明文点名
+    "Pipfile"            # 明文点名
+    "Pipfile.lock"       # Pipfile 的锁文件 = 另一份依赖真相源
+    "poetry.lock"        # 另一套包管理器的锁文件
+    "conda.env"          # conda 环境声明，非 uv
+    "environment.yml"    # conda 环境声明，非 uv
+    "setup.py"           # 另一份依赖声明（install_requires）
+    "setup.cfg"          # 另一份依赖声明
 )
 
 for forbidden in "${FORBIDDEN_FILES[@]}"; do
@@ -112,7 +112,7 @@ if [ -f "$PROJECT_ROOT/uv.lock" ]; then
     # uv.lock records each package as [[package]] with `name = "..."` and, when
     # the registry provides it, `license = "<SPDX>"`. A package *name* does not
     # encode its license, so the old `^name = "gpl` pattern could never match a
-    # real package. Match the license field instead (§14.1 C:758 forbids GPL/AGPL
+    # real package. Match the license field instead (§14.1 forbids GPL/AGPL
     # and equivalent copyleft licenses). A leading quote is required right before
     # the SPDX id so dual-licensed expressions like "MIT OR GPL-3.0" (usable under
     # MIT) are not flagged.

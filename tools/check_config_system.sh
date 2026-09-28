@@ -91,20 +91,20 @@ if [ -d "$PROJECT_ROOT/src" ]; then
     fi
 fi
 
-# ─── 3. Environment variable config overrides (§7.1 C:339, C:343) ───────
+# ─── 3. Environment variable config overrides (§7.1) ───────
 #
 # §7.1: 环境变量不能作为配置的单一真相源，只允许三种用途：
 #   ① 标准基础设施变量（CUDA_VISIBLE_DEVICES、NCCL_*、PYTORCH_*、RANK 等）；
 #   ② 第三方组件只接受环境变量、无法通过配置适配时（作为适配层）；
 #   ③ 极小型项目确实只有一个配置时。
 # 用户自行用 `.env` 承载本地机密不在此限，但项目不得把它当作配置真相源
-# （§15.2 C:898-906）。检测三种写法：os.environ[...] / os.environ.get(...) / os.getenv(...)。
+# （§15.2）。检测三种写法：os.environ[...] / os.environ.get(...) / os.getenv(...)。
 
 if [ -d "$PROJECT_ROOT/src" ]; then
     ENV_ALL=$(grep -rnE '(os\.environ\[|os\.environ\.get\(|os\.getenv\()' "$PROJECT_ROOT/src/" 2>/dev/null | \
         grep -v '__pycache__' | head -50 || true)
 
-    # ① 标准基础设施变量（§7.1 C:343 列举 + 同类 CUDA/NCCL/torchrun 变量）
+    # ① 标准基础设施变量（§7.1 列举 + 同类 CUDA/NCCL/torchrun 变量）
     INFRA_VARS='CUDA_VISIBLE_DEVICES|NCCL_|PYTORCH_|TORCH_|RANK|LOCAL_RANK|WORLD_SIZE|LOCAL_WORLD_SIZE|NODE_RANK|NPROC_PER_NODE|MASTER_ADDR|MASTER_PORT|OMP_|MKL_|GLOO_|NVIDIA_|CUDA_'
     # §15.2 用户本地机密（.env）：密钥 / 口令 / token 类变量名
     SECRET_VARS='(_KEY|_TOKEN|_SECRET|_PASSWORD|_PASSWD|_CREDENTIAL|_API_KEY)'
@@ -132,14 +132,14 @@ if [ -d "$PROJECT_ROOT/src" ]; then
 
     if [ -n "$ENV_CONFIG" ]; then
         if [ -z "$CONFIG_EXAMPLE" ] && [ -z "$CONFIGS_DIR" ]; then
-            # ③ 极小型项目确实只有一个配置（§7.1 C:343）
+            # ③ 极小型项目确实只有一个配置（§7.1）
             echo "  [WARN] Environment variables used for config, and no config.toml/configs/ found —"
             echo "         possibly exception ③ (tiny single-config project, §7.1). Verify manually."
             printf '%s\n' "$ENV_CONFIG" | while IFS= read -r line; do [ -n "$line" ] && echo "    $line"; done
         else
             echo "[FAIL] check_config_system: Environment variables used for config (not infrastructure, §7.1):"
             printf '%s\n' "$ENV_CONFIG" | while IFS= read -r line; do [ -n "$line" ] && echo "  $line"; done
-            echo "         Config must come from the git-tracked config.toml, not environment variables (§7.1 C:339)."
+            echo "         Config must come from the git-tracked config.toml, not environment variables (§7.1)."
             echo "         Allowed exceptions: ① infra vars, ② third-party-only env components, ③ tiny single-config project;"
             echo "         .env is for user-local secrets only (§15.2). Env-borne config must be read centrally"
             echo "         at startup and normalized into the same load path — never scattered at use sites."

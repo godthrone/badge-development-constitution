@@ -116,9 +116,9 @@ fi
 # ─── 5. All-caps .md files in root (suspect notes/runbooks) ────────────
 
 # Standard root documents are permanent community artifacts, not §16.2
-# local/temporary files. §17.1 (README, C:966-970) and §17.2 (docs/, C:972-980)
-# govern the tracked documentation system, and §17.2 C:978 draws the
-# docs-vs-.local/ boundary; §16.2 C:944-950 defines what must live in .local/.
+# local/temporary files. §17.1 (README) and §17.2 (docs/)
+# govern the tracked documentation system, and §17.2 draws the
+# docs-vs-.local/ boundary; §16.2 defines what must live in .local/.
 # Whitelist CONTRIBUTING.md / CODE_OF_CONDUCT.md, alongside the existing
 # README.md / CLAUDE.md / CHANGELOG.md exclusions, so a normal open-source
 # project does not get a meaningless warning.
