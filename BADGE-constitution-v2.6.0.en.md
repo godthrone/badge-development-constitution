@@ -1,4 +1,4 @@
-# BADGE Development Constitution v2.5.0
+# BADGE Development Constitution v2.6.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -39,7 +39,7 @@ The BADGE Constitution classifies projects into three categories, each with a di
 ## Three Project Categories
 
 - **Category A (Open-source Python projects)**: Public repositories, community audience. The full constitution applies (§1–§20; §6 reproduction takes effect according to its applicability precondition and the effect defined by the requirement, see §6).
-- **Category B (Closed-source Python projects)**: Private repositories, internal teams. Core clauses are mandatory (security, foolproofing, and reproducibility within the scope of §6); some clauses may be relaxed (bilingual README exemption, config-format suggestions are non-mandatory, `__main__.py` may be exempt for Docker-deployed projects).
+- **Category B (Closed-source Python projects)**: Private repositories, internal teams. Apart from the explicit relaxations listed below, all other clauses of this constitution apply: bilingual README exemption (§17.1, taking effect per §17.6), config format is a suggestion rather than a mandate (§7), the `__main__.py` exemption for Docker-deployed projects (§8.1, see that clause for the applicable conditions), and the graded exception for non-credential company-internal information (§15.4, limited to projects not pushed to a public repository). The mandatory core is security (§15), foolproofing (§2), and reproducibility within the scope of §6.
 - **Category C (Other infrastructure projects)**: Non-standard Python packages, data repositories, DevOps tools, documentation projects, etc. Design principles (§1–§5) must be followed; §6 reproduction takes effect according to its applicability precondition, see §6; §7–§20 do not apply by default, but the clauses within them that are engineering embodiments of the design principles (§15 Secrets Management, §16 `.local/`, §17.3–§17.5 Documentation System, §19.1–§19.3 Open Source Management) remain mandatory.
 
 **Classification decides the scope of clauses, not how §6 reproduction is judged**: across all three categories, §6 reproduction asks only "will it run a second time, and does the second run have to be the same", and judges by the effect defined by the requirement.
@@ -62,7 +62,7 @@ When a project's current state conflicts with a constitutional clause, use the t
 
 **Category B litmus test**: Is this clause about making the team safer and more efficient, or about satisfying the open-source community? The former must be kept; the latter may be relaxed.
 
-**Category C litmus test**: Is this clause a concrete engineering embodiment of BADGE design principles (§1–§6) (§6 reproduction takes effect according to its applicability precondition), or is it a detailed requirement specific to Python software projects? The former must be followed; the latter is exempt for Category C.
+**Category C litmus test**: Is this clause a concrete engineering embodiment of BADGE design principles (§1–§5), or is it a detailed requirement specific to Python software projects? The former must be followed; the latter is exempt for Category C. §6 reproduction does not participate in this litmus test; it takes effect according to its own applicability precondition (see §6).
 
 ## Compliance Detection
 
@@ -344,7 +344,7 @@ This clause constrains both the **method of execution** and the **depth of deliv
 
 **Layered Configuration Pattern:** When a project needs to separate deployment configuration from public configuration, use a two-layer TOML approach with deep dict merge. Deployment configuration includes two categories of fields:
 
-- **Secret fields**: keys, passwords, tokens, internal IPs — must not appear in git-tracked files.
+- **Secret fields**: keys, passwords, tokens, internal IPs — must not appear in git-tracked files (for non-credential fields of Category B and private Category C, see §15.4).
 - **Environment fields**: API endpoint URLs, model names, external service addresses — these vary by deployment environment but are not secrets per se.
 
 - **Base configuration** (`config.toml`, git-tracked, loaded by default at startup): Contains **all fields** and is the **single authoritative source** of the configuration schema. Non-deployment fields have production-grade defaults. Secret fields are left empty (`""`, `0`, `[]`, normalized to `None` at load time — see §2.2). Environment fields have **development defaults** (e.g., `"http://localhost:8000"`, `"local-model"`) rather than being left empty — this ensures the project runs out of the box in a development environment.
@@ -444,6 +444,8 @@ project/
 **Directory organization principle:** The directory structure is a navigation system for the codebase, not a filing cabinet. From directory hierarchy and file names alone, a reader should roughly understand what the code does, which module it belongs to, and its inheritance relationships — without opening any files. A directory should not contain more than 10 code files. When it does, the directory contains multiple sub-domains that can be independently named — create categorized sub-directories and group files by functional domain. This is not a hard limit, but a signal: when you see the 11th file, ask yourself "can this directory's responsibility still be described in a single sentence?"
 
 > The directory layout template shows both `README.md` and `README.zh-CN.md`. For projects exempt under §17.6, a single `README.md` is sufficient.
+
+> `__main__.py` in the directory tree above may likewise be omitted as needed: when a Category B project uses Docker as its unified deployment method and already has another entry point (`run.sh`, see §4.1, or `cli.py`), it is not required to provide `__main__.py`. This is where the Category B definition in Layer 0 — "Docker-deployed projects may be exempt from `__main__.py`" — lands.
 
 **`cli.py` may be upgraded to a `cli/` directory:** When the CLI logic is complex enough to warrant splitting into multiple sub-modules (e.g. subcommand dispatch, training worker process entry point), follow the same logic as §8.3 (Class-to-Directory) — `cli/__init__.py` is responsible for external transparency, so external consumers only see the `package_name.cli:main` entry point and are unaware whether the internals are a single file or a directory.
 
@@ -809,7 +811,7 @@ docker build --build-arg VERSION="${VERSION}" -t "${IMAGE_NAME}" -f docker/Docke
 
 - **build.sh version:** The version MUST be obtained via `git describe --tags`, not hardcoded. The `IMAGE_NAME` environment variable override remains available for manual testing, but the default MUST come from git tags.
 
-**Proxy configuration must not enter the image:** When a proxy is needed during builds to access external networks (e.g. `HTTP_PROXY`, `HTTPS_PROXY`), proxy environment variables **must not** be written into the Dockerfile's `ENV` instruction. Pass them via `--build-arg` in `build.sh` and declare them only as `ARG` in the Dockerfile, so the final image contains no residual proxy configuration. `ARG` values do not persist into the final image; `ENV` values do — a running container that inherits unreachable proxy environment variables will suffer network failures. Internal proxy addresses also constitute secret information as defined in §15.1 — writing them into a Dockerfile is equivalent to permanently embedding internal addresses in git history.
+**Proxy and build-time parameters must not pollute the runtime:** When a proxy is needed during builds to access external networks (e.g. `HTTP_PROXY`, `HTTPS_PROXY`), proxy environment variables **MUST NOT** be written into the Dockerfile's `ENV` instruction, and the final image must contain no residual proxy configuration. Internal proxy addresses also constitute secret information as defined in §15.1 — writing them into a Dockerfile is equivalent to permanently embedding internal addresses in git history. **How a value is passed is chosen per the "Value-Passing Rules" table below and is not restated here; for where `ENV` and `ARG` values each end up, see "The two kinds of metadata for build-time parameters" below.** Contamination of the runtime must be avoided entirely: **proxy-class variables MUST NOT be passed via `ENV`**; see "Proxies Must Not Pollute the Runtime" below for the complete constraints.
 
 **Anti-pattern (forbidden):**
 ```dockerfile
@@ -817,7 +819,26 @@ ENV HTTP_PROXY=http://proxy.internal.example.com:8080
 ENV HTTPS_PROXY=http://proxy.internal.example.com:8080
 ```
 
-**Correct pattern (recommended):**
+**Correct pattern 1 (recommended) — secret scenario: Category A / public repositories, or any credential-bearing proxy, go through secret.**
+
+In the Dockerfile, each `RUN` that needs the proxy mounts it separately (a secret is visible only inside the `RUN` that mounts it):
+```dockerfile
+RUN --mount=type=secret,id=proxy,env=HTTP_PROXY \
+    --mount=type=secret,id=proxy,env=HTTPS_PROXY \
+    --mount=type=secret,id=proxy,env=NO_PROXY \
+    --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+```
+
+In build.sh (the proxy value lives in a gitignored file — it enters neither git nor the image):
+```bash
+docker build \
+    --secret id=proxy,src="${PROXY_FILE}" \
+    -t "${IMAGE_NAME}" -f docker/Dockerfile .
+```
+
+**Correct pattern 2 (usable) — non-secret scenario: Category B / private Category C, addresses that are only internally reachable and carry no credentials, may use `--build-arg`.**
+
 In Dockerfile:
 ```dockerfile
 ARG HTTP_PROXY
@@ -833,8 +854,56 @@ docker build \
     --build-arg NO_PROXY="${NO_PROXY:-}" \
     -t "${IMAGE_NAME}" -f docker/Dockerfile .
 ```
+> Usable only when these addresses contain **no credentials** and are not pushed to a public repository. It does **not** pollute the runtime environment (`ARG` does not enter `Config.Env`), but it does appear in `docker history` (see below) — and it **must never** be switched to passing the value via `ENV`.
 
 This rule applies to all configuration that is only needed at build time and must not persist at runtime — proxy settings are the most typical case, but it also covers private pip mirror URLs, build cache configuration, and similar. Litmus test: is this configuration still needed when the container runs? If not, it must not appear in the final image.
+
+**The two kinds of metadata for build-time parameters: configuration metadata and build history metadata.** "`ARG` does not enter the image" is an incomplete statement — what it does not enter is **configuration metadata**; what it does enter is **build history metadata**. To judge whether a value pollutes the runtime environment or leaks, the two locations must be assessed separately:
+
+- **Configuration metadata** (`docker inspect`'s `Config.Env`/`CMD`/`LABEL`, the image configuration exported by `docker save`): `ENV` values enter it, and the running container inherits them; `ARG` / `--build-arg` values do **not enter** it — which is why passing a proxy via `ARG` does not pollute the runtime environment.
+- **Build history metadata** (`docker history`, the image's layer records): the **literal values** of `ARG` / `--build-arg` **do enter**. BuildKit writes them into the history as a standalone `ARG NAME=VALUE` entry and as a `RUN |N NAME=VALUE /bin/sh -c …` prefix, **even if the parameter is never referenced by any instruction**; `docker inspect` cannot see these values, but `docker history --no-trunc` shows them plainly. (The index `N` is determined by the build process and is not necessarily 1. In addition, BuildKit emits a `SecretsUsedInArgOrEnv` warning when an ARG carries sensitive data.)
+
+**Value-Passing Rules (graded by the kind of value and by project class, not decided by the single dimension of "build time vs. runtime"):**
+
+| Kind of build-time value | Category A / any public repository | Category B / Category C that is not pushed to a public repository | Rationale |
+|---|---|---|---|
+| **Credential kind** (§15.1): keys, passwords, tokens, private keys, private source URLs with credentials or signatures | **MUST** use a BuildKit secret: `--mount=type=secret,id=<id>,env=<VAR>` | **MUST** use a BuildKit secret (no relaxation) | A secret's value enters neither configuration metadata nor build history metadata; credentials are not eligible for any graded exception (§15.4) |
+| **Credential-free internal addresses**: internal proxy addresses, internal mirror addresses, internal domain names / IPs | Counts as secret under §15.1, **MUST** use a BuildKit secret or switch to a public source; `--build-arg` is **forbidden** | `ARG` + `--build-arg` is allowed (the value enters `docker history`); the value is internal topology information, and the **push scope is the confidentiality boundary** (§15.4) | Images for Category A and public repositories may become public, so internal addresses must not enter an uncontrolled scope; B/C is not published publicly by default, so the risk is bounded by the push scope |
+| **Non-secret**: version numbers, build switches, public source addresses | `ARG` + `--build-arg` (existing rule retained) | `ARG` + `--build-arg` (existing rule retained) | The value being visible in history is beneficial: it makes the build process traceable (§1.4 Single Source of Truth) and reproducible (§6) |
+
+> The relaxation for Category B and Category C is bounded by repository visibility: once a repository becomes public, it is treated as Category A (§15.4).
+
+**The table above is authoritative for how values are passed. Confidentiality grading does not change the runtime non-contamination constraint — the two are separate matters** — grading governs only "how the value is passed", while runtime non-contamination governs only "the value must not remain in the runtime environment"; neither substitutes for the other. See "Proxies Must Not Pollute the Runtime" below for the complete constraints.
+
+**When a controlled value is passed via `ARG` because of toolchain limits or a graded relaxation:** the image's **push scope** MUST be managed as the confidentiality boundary (push only to controlled registries, never to public repositories); "flattening/deleting layer history" **MUST NOT** be treated as a secrecy mechanism — it is only a cleanup measure, not secret protection. Writing a secret value into a Dockerfile's `ARG NAME=default` or `ENV` is **forbidden** — that enters git (§15.1).
+
+**BuildKit / buildx notes:**
+1. A clean `docker inspect` **does not** mean nothing leaked — `ARG` values are not in `Config.Env`, but they are in `docker history`. "It is not in `inspect`" **MUST NOT** be used to prove that a secret was not carried into the image.
+2. A `--mount=type=secret` value enters neither configuration metadata nor build history; but a secret is **visible only inside the `RUN` that mounts it** — if several `RUN`s need the proxy, all of them must mount it. This is the common cause of "the build-time proxy stopped working" after switching to a secret.
+3. `--no-cache` is only a cleanup measure; it does not change the fact that "the value was already generated during the build and may already have left traces in pushes, caches, or CI logs" (the same holds for flattening measures such as `--squash`; for the prohibitive statement see "When a controlled value is passed via `ARG` because of toolchain limits or a graded relaxation" above).
+4. Whether `max`-mode provenance attestations and `--cache-to` cache metadata carry build parameters has **not been measured**; verify it yourself before relying on it, and **MUST NOT** be treated as a known conclusion.
+
+**Proxies Must Not Pollute the Runtime (applies to every project that builds an image, not relaxed by project class):**
+
+> **Scope (relation to §0):** This clause is **not** a requirement to "provide a Docker deployment" — Category C does not apply §7–§20 by default (§0), so a project that builds no image has nothing for this clause to govern; but **once** a Category C project does provide a Docker deployment, every constraint of this clause applies to it as well — environment contamination is a correctness problem of the image itself and has nothing to do with project class. The applicability precondition of the "Category B / Category C that is not pushed to a public repository" column in the Value-Passing Rules table above is likewise **that the project provides a Docker deployment**.
+
+1. **Forbidden** to pass proxy-class variables via `ENV` — `HTTP_PROXY`, `HTTPS_PROXY`, `FTP_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase forms (`http_proxy`, etc.; the lowercase forms likewise enter `Config.Env`); the equivalent form of `ARG X` followed by `ENV X=$X` is **likewise forbidden**. They write the value into `Config.Env`, and once the running container inherits it, an unreachable proxy makes network access inside the image fail, while troubleshooting rarely traces back to build time.
+2. **Forbidden** to write proxy configuration into **persistent** files inside the image, including but not limited to: `/etc/environment`, `/etc/profile`, `/etc/profile.d/*`, `~/.bashrc`, `~/.profile`, `/etc/apt/apt.conf.d/*`, `/etc/pip.conf`, `~/.pip/pip.conf`, `~/.config/pip/pip.conf`, `~/.npmrc`, `/etc/npmrc`, `~/.wgetrc`, `/etc/curlrc`, `/etc/gitconfig`, `~/.gitconfig`, `~/.docker/config.json`, `~/.config/uv/uv.toml`. If a build-time tool must read the configuration, it may be generated **only within the same `RUN`** and must be deleted before that `RUN` ends — no residue across layers.
+3. Proxies take effect at **build time** only, and the passing method **MUST be chosen per the "Value-Passing Rules" table above**; no unconditional recommendation is given — the complete grading is in that table and in §15.4 and is not restated here.
+
+**Acceptance (run each after the build; the criteria are mechanically checkable):**
+```bash
+# 1. Configuration metadata: no build-tool-class variable (proxy / mirror source / registry; including lowercase) may appear in `Config.Env`
+docker inspect --format '{{json .Config.Env}}' "${IMAGE_NAME}" | grep -iE "proxy|index_url|default_index|_mirror|_registry"
+# 2. Login-shell environment: no build-tool-class variable (proxy / mirror source / registry) may appear (covers indirect sources such as /etc/profile, /etc/profile.d/*, ~/.bashrc, ~/.profile)
+docker run --rm "${IMAGE_NAME}" sh -lc 'env' | grep -iE "proxy|index_url|default_index|_mirror|_registry"
+# 3. Content of persistent configuration files: no proxy / mirror-source / registry wording or internal-address form may remain (paths match the list in prohibition 2)
+docker run --rm "${IMAGE_NAME}" sh -c 'grep -rniE "proxy|index-url|index_url|default_index|mirror|registry|10\.[0-9]+\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+|\.internal|\.corp|\.lan" /etc/environment /etc/profile /etc/profile.d ~/.bashrc ~/.profile /etc/apt/apt.conf.d /etc/pip.conf ~/.pip/pip.conf ~/.config/pip/pip.conf ~/.npmrc /etc/npmrc ~/.wgetrc /etc/curlrc /etc/gitconfig ~/.gitconfig ~/.docker/config.json ~/.config/uv/uv.toml 2>/dev/null'
+```
+
+The match patterns of checks 1 and 2 target **build-tool-class** variables — proxies, build-time mirror sources / registries (e.g. `UV_INDEX_URL`, `PIP_INDEX_URL`, `NPM_CONFIG_REGISTRY`) — not runtime business variables; configuration of this kind is likewise build-time only and must not linger in the image's runtime environment.
+
+The output of checks 1, 2 and 3 **must all be empty** — any matching line (even if only one step matches) means failure; there is no "only unrelated entries" exemption. Step 2 cannot be omitted: a login shell reads `/etc/profile`, `/etc/profile.d/*`, `~/.bashrc`, `~/.profile`, etc. and injects the proxy variables from them into the process environment, which looking at `Config.Env` alone cannot detect. Step 3 checks file **content**: `ls` only proves that a file exists and cannot reveal the proxy inside it (`/etc/apt/apt.conf.d/` is by no means empty in a normal image, so "the directory listing must be empty" as a criterion is bound to misjudge). **Category A / public repositories additionally require**: `docker history --no-trunc "${IMAGE_NAME}" | grep -E "<internal address or credential literal>"` must not match — this check serves **only** to confirm that no literal value is in the history; `ARG` carrying a secret is therefore not allowed, which is a separate matter from "not polluting the runtime environment" (see "Value-Passing Rules" above).
 
 > For constraints on the source of code used during image builds, see §14.4 — regardless of where the image is built, the source code must come from a definite version on the development machine.
 
@@ -877,6 +946,8 @@ Every commit must pass the following checks. These checks should be integrated i
 - Internal IP addresses, internal domain names, internal paths
 - Any information you would not want on GitHub after open-sourcing
 
+(For the graded exception for Category B and private Category C projects, see §15.4; credential-class information is not eligible for any exception.)
+
 **2. File-type check:** The following must not appear in tracked files:
 - `.env` file (only `.env-example` may be committed)
 - Build artifacts, caches, virtual environments
@@ -888,17 +959,21 @@ Every commit must pass the following checks. These checks should be integrated i
 - No training data, user data, or private datasets
 - No internal resource references in README
 
+**Definition of "training data":** the training data referred to in this item means specifically data that can be used to train a **model for a specific function** — private corpora, labeled sample sets, user behavior data, datasets used to train model weights, and the like; it does **not** include **public** seed data and Ontology data (public vocabularies, schemas, category tables, mapping tables, public corpus indexes, etc.) used to implement a feature. Test: can this data be obtained unconditionally from public channels, and does it not itself constitute a project-unique asset? If so, it is public seed data / Ontology data and is not subject to this item.
+
 **4. Personal information (PII) scan:** No tracked file or git history may contain information that can locate a specific natural person, whether or not it falls under category 1:
 - Personal email addresses; instant-messaging accounts such as QQ or WeChat; mobile and landline phone numbers
 - National ID numbers, passport numbers, bank card numbers, student IDs, employee badge numbers
 - A real name combined with other identity fields (anything that alone or in combination points to a specific person)
 - **Exemptions:** public project mailboxes (`noreply@`, maintainer public mailboxes), example/reserved domains (`example.com`, `example.org`), and explicit placeholders (`REPLACE_ME`, `your-email@…`)
 
+(For the graded exception for Category B and private Category C projects, see §15.4; employee personal sensitive information is not eligible for any exception.)
+
 **5. Commit metadata and message privacy:** For public repositories, `user.name` / `user.email` must not be a personal mailbox or an address containing a personal account (e.g. a QQ mailbox); use the hosting platform's `noreply` address or a project mailbox. Commit messages are scanned as well. Entry points: `git log --all --format='%an <%ae> %cn <%ce>'` covers metadata, `git log --all -p` covers committed content. See §15.3 for remediating historical leaks.
 
 ### 15.2 Secrets Management Principles
 
-Secret information must not enter git. Secrets include: keys, passwords, tokens, internal IPs, internal domain names — any information you would not want to appear on GitHub after open-sourcing.
+Secret information must not enter git. Secrets include: keys, passwords, tokens, internal IPs, internal domain names — any information you would not want to appear on GitHub after open-sourcing. **In Category B and private Category C projects, non-credential information is handled under the graded exception of §15.4; credential-class information is not eligible for any exception.**
 
 **Secrets storage (TOML override preferred; `.env` is an optional user-side channel):**
 
@@ -926,6 +1001,37 @@ If secret information was ever committed to git history:
 
 If what leaked is personal information (PII) rather than a secret, the history-rewrite exception still applies (see §19.1). BFG only purges file content — it **cannot** change author/committer emails; changing emails requires `git filter-repo --email-callback` (or `git filter-branch --env-filter`), with tags rewritten in step. Afterwards, force-push and ask the hosting platform to purge cached views; forks and third-party mirrors cannot be guaranteed.
 
+### 15.4 Graded Exception: Project Class and Repository Visibility
+
+**Principle:** The grading baseline is the **project class** (Category A is strict; Category B and Category C that are not pushed to a public repository are lenient), because the latter two are not published publicly by default. Once the grade is set, what decides the consequence is whether the information can enter an **uncontrolled public scope** — once a repository becomes public, the exception immediately ceases to apply (see "Applicability" below for the concrete boundary). The real risk is not "this information is in git" but "this information is pushed to an uncontrolled public scope". §15.1 item 5 is already limited by "public repository"; this section generalizes that same approach to the remaining check items.
+
+**Applicability:** Category B (closed-source private repositories) and Category C projects not pushed to any public repository. Category A and any project pushed to a public repository **are not eligible for any exception**. **Once a repository becomes public** (including a newly added public fork, public mirror, or public release attachment), the exception immediately ceases to apply, and history is cleaned up per §15.3.
+
+**Red lines (all classes, all visibilities, never relaxed):**
+- Keys, passwords, tokens, private keys, certificates, SSH private keys, passwords in connection strings
+- Credential-bearing addresses: URLs with a username/password, token, or signature (private sources, webhooks, pre-signed links)
+- `.env`, `config.override.toml`, and other override/local files — they MUST always be excluded in `.gitignore` (§16.1, §19.2)
+
+**Grading table:**
+
+| Information kind | Category A / public repository | Category B / private Category C |
+|---|---|---|
+| Credentials (keys, passwords, tokens, private keys) | Forbidden | **Forbidden** (no relaxation) |
+| Internal IPs, internal domain names, internal paths | Forbidden | Allowed |
+| Company email addresses, real names, employee IDs / badge numbers, departments, internal IM group IDs | Forbidden | Allowed |
+| Private datasets, internal data samples, internal documents | Forbidden (for the definition of "training data" see §15.1) | Allowed (you must confirm you hold the right to distribute internally) |
+| Commit author / committer names and emails | MUST be a `noreply` or project mailbox (§15.1 item 5) | Company mailboxes allowed; `noreply` still recommended |
+
+**Conditions that must also be met for the relaxation:**
+1. `git remote -v` contains no public repository address; the repository is hosted on an internal network or under a controlled private organization
+2. `.gitignore` still excludes `.env`, override configuration, and `.local/` (§16.1, §19.2)
+3. **Live information about this project's own runtime environment** may still be written only into `.local/` per §16.2, and this exception does not relax §16.2 — what this exception relaxes is "company-internal information appearing as project content" (the non-credential information kinds listed in the table above, i.e. every row other than the credentials row), not "runtime environment records"; the boundary between this section and §16.2 is: the information kind is judged by the table above, the storage location by §16.2 (see also §17.5 for where the work log goes)
+4. What is relaxed is "company-internal information"; it does not include **employee personal sensitive information** — national ID numbers, passport numbers, bank card numbers, home addresses, private mobile numbers, private email addresses — which must not enter the repository even in an internal repository
+
+**Disambiguation for §15.1 item 4:** With this item-by-item relaxation, the "real name combined with other identity fields" referred to in §15.1 item 4 **no longer by itself constitutes a violation** for Category B and Category C projects not pushed to a public repository (real names, employee IDs / badge numbers, and departments are all relaxed in the table above); however, **employee personal sensitive information** must still not appear in any form or in any combination.
+
+**Litmus test:** If this repository were made public tomorrow, what would be exposed in tracked files and git history? Only credentials and employee personal sensitive information are **unacceptable** answers; internal addresses and internal data are acceptable — but at that point the visibility change must be handled per §15.3, and it cannot be left to "we'll deal with it later".
+
 ---
 
 ## XVI. Local and Temporary Files
@@ -945,7 +1051,7 @@ The `.local/` directory at the project root is the **only** permitted location f
 ### 16.2 What Belongs in `.local/`
 
 A file that meets any of the following criteria is a local or temporary file and must go into `.local/`:
-- Contains runtime environment information (IPs, hostnames, container names, SSH users, internal paths)
+- As a runtime-environment record, contains runtime environment information (IPs, hostnames, container names, SSH users, internal paths)
 - Is a deployment configuration override (`config.override.toml`, etc.)
 - Describes a one-time operation (migration plans, deployment records, experiment tracking)
 - Is a personal note, debug record, or run monitor
@@ -955,6 +1061,8 @@ A file that meets any of the following criteria is a local or temporary file and
 If a file has long-term value to the project, turn it into formal documentation under `docs/`. If it only has short-term value to you or the current phase, put it in `.local/`.
 
 **The one exception: the work log (§17.5).** It has long-term value but necessarily contains environment information (resources and environment), so its only home is `.local/` — it must never be promoted to a `docs/` document. This is part of the data boundary (§1.4): environment information never enters tracked files.
+
+**Division of labour with §15.4:** This section governs the **storage location**, not the grade of the information kind — "what information may enter tracked files" is decided by the §15.4 grading table (e.g. an internal service address appearing as project content in a Category B project), while "where a file that is a record of the runtime environment goes" is decided by this section (into `.local/` only). Read together they do not conflict: information that may be committed under §15.4 is not thereby allowed to live outside `.local/` as a runtime environment record.
 
 ### 16.3 Relationship with `scripts/`
 
