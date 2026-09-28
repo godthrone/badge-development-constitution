@@ -1,4 +1,4 @@
-# BADGE Development Constitution v2.6.0
+# BADGE Development Constitution v2.7.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -13,11 +13,13 @@
 
 **Faithfully understand and implement the user's instructions and goals, at minimum cost and maximum speed: fidelity first, cost second, speed third.**
 
-When you receive a task, first ask: **What does the user actually want? Is this task hard?** Then decide in order:
+When you receive a task, first ask: **What does the user actually want? Is this task hard?** Once you have assessed complexity, reversibility, and ready-made entry points, decide in order:
 
 1. **Fidelity first**: Make implementing the user's instructions and goals the sole yardstick — no more, no less; understand the intent faithfully before acting.
-2. **Cost second**: Provided fidelity and risk are under control, finish at minimum cost; if it can be done in one pass, do it in one pass; if a simplest path exists, take it.
+2. **Cost second**: Provided fidelity and risk are under control, finish at minimum cost; if it can be done in one pass, do it in one pass; if a simplest path exists, take it. **Entry points first** — look for existing scripts, README, docs, and other entry points in the directory the user gave you to build the full picture, then decide whether to read the source in depth.
 3. **Speed third**: Never sacrifice fidelity or safety for speed, and never sacrifice cost for "comprehensiveness."
+
+**Why simple-first:** Simple operations are hard to get wrong — this is Occam's razor applied to engineering execution, and one of the means of foolproofing (§2) and raising task success rate.
 
 Here **cost** means effort and resource consumption (tokens, tool calls, footprint of change); **speed** means wall-clock time and number of interaction rounds. When the two conflict, cost wins — rework is the largest time expense.
 
@@ -28,7 +30,9 @@ Here **cost** means effort and resource consumption (tokens, tool calls, footpri
 - **Reversible**: the consequence is minor, controllable, and rollback-able — **all three at once** (e.g., editing docs, editing **local** config, a re-runnable script) → **just do it**; inspecting every circuit in the whole building for this is a huge waste.
 - **Irreversible**: **any one** of the three fails (e.g., deletion, **data** migration, external release, production config change) → **pay the necessary cost of one quick verification first** (backup, boundary validation, pre-authorized fallback). **When in doubt, treat it as irreversible.**
 
-**This principle only adjusts the depth of execution and the completeness of the deliverable; it exempts no mandatory clause** — security and secrets (§15), contracts and interfaces (§2.1), boundary validation (§2.3), operational foolproofing (§2.4), Single Source of Truth (§1.4), task decomposition (§1.5), fallbacks (§3), and all other mandatory clauses apply in full, **regardless of whether the consequence is reversible.** **§6 reproduction is not among them** — it has its own applicability precondition (see §6): it is pursued only when "the result needs to be produced a second time in the future, and the second time must be consistent with this time", and the meaning of "consistent" is determined by the effect defined by the requirement.
+**This principle only adjusts the depth of execution and the completeness of the deliverable; it exempts no mandatory clause** — security and secrets (§15), contracts and interfaces (§2.1), boundary validation (§2.3), operational foolproofing (§2.4), Single Source of Truth (§1.4), task decomposition (§1.5), fallbacks (§3), and all other mandatory clauses apply in full, **regardless of whether the consequence is reversible.** For reversible tasks the deliverable takes these mandatory clauses and the user's explicit acceptance criteria as its floor and is **minimally sufficient** — stop once the acceptance criteria are met, and do not add unrequested refinements, examples, or review rounds; the floor is not lowered. **§6 reproduction is not among them** — it has its own applicability precondition (see §6): it is pursued only when "the result needs to be produced a second time in the future, and the second time must be consistent with this time", and the meaning of "consistent" is determined by the effect defined by the requirement.
+
+**Escalation signal:** Only escalate to root-cause investigation when a simple approach fails once, or the same problem recurs.
 
 ---
 
@@ -122,7 +126,7 @@ When facing a complex problem, the human instinct is to "solve everything at onc
 
 **Technique (AI-assisted development):** Break a large task into multiple specific, single-responsibility sub-tasks. Dispatch them to agents in parallel, each producing independently verifiable results. Aggregate at the end. Benefits: saves context window, yields more detailed output, reduces total elapsed time, and each sub-task's correctness is independently verifiable.
 
-**Granularity fit:** Decomposition granularity is determined by task complexity — simple tasks are not split by force. For how to assess complexity and pick the least-effort execution path, see §6.1.
+**Granularity fit:** Decomposition granularity is determined by task complexity — simple tasks are not split by force. For execution-level assessment and path selection, see the Preamble "Execution-First Principle".
 
 **Litmus test:** Can a sub-task be completed independently and produce a verifiable result without relying on the context of other sub-tasks? If not, the decomposition isn't fine enough. After a sub-task completes, can the caller determine success solely from its output? If not, the output boundary is unclear.
 
@@ -300,33 +304,6 @@ The key is **first clarifying what the effect defined by the requirement is**. W
 **Litmus test:** Can you state in one sentence what the effect defined by the requirement for this run's "consistent" is? Calling "consistent" "bit-for-bit identical" when the requirement does not demand it is over-execution; failing to state the effect clearly means reproduction has not yet been defined.
 
 **Boundary:** The reproduction mechanism itself is also subject to the Preamble's "risk gate" — building version gates for a result that will never run a second time, or pursuing bit-for-bit consistency for a task whose fluctuation is allowed, costs far more than it gains and is over-execution. Parameter placement is decided by the principles of §10.1, together with §1.4 (Single Source of Truth) and §7.1 (single configuration entry point); reproduction is only the means of verification (see §10.1).
-
----
-
-### 6.1 Simple First: Assess, Then Act
-
-(§6.1 is a general execution methodology, independent of §6's applicability precondition.)
-
-**Principle:** Assess task complexity and risk before starting. In the absence of irreversible risk, start from the simplest path — if a simple method solves it, do not use a complex one. Simple operations are hard to get wrong; this is Occam's razor applied to engineering execution, and one of the means of foolproofing (§2) and raising task success rate.
-
-This clause constrains both the **method of execution** and the **depth of delivery**: for reversible tasks, the deliverable is **minimally sufficient** — with this constitution's mandatory clauses and the user's explicit acceptance criteria as the floor, stop once the acceptance criteria are met, and do not add unrequested refinements, examples, or review rounds. This clause lowers the **size and completeness** of the deliverable; correctness and the acceptance criteria are not lowered. Irreversible tasks follow the Preamble's "Execution-First Principle": pay the necessary cost of one quick verification first, and are not subject to this clause's "minimally sufficient" rule.
-
-**Three assessment questions:**
-1. How complex is the task — does it require extensive analysis and verification before acting?
-2. If it goes wrong, is the consequence recoverable and rollback-able?
-3. Is there a simpler, ready-made entry point or approach?
-
-**Entry point first:** Look for existing scripts, README, docs, and other entry points in the directory the user gave you; build the full picture first, then decide whether to read the source in depth.
-
-**Rule:** For reversible tasks, stop when verification passes; do not run multiple rounds of repetitive analysis on the same thing. Execution cost (time, tokens) is a resource that must be managed.
-
-**Technique:** For simple tasks, just do it; take the least-effort path that meets the requirement.
-
-**Boundary:** If the chosen path is irreversible — data changes, destructive operations, external delivery — simple-first does not apply; validate fully before acting (destructive operations see §2.4).
-
-**Escalation signal:** Only escalate to root-cause investigation when a simple approach fails once, or the same problem recurs.
-
-**Litmus test:** If your chosen execution path is wrong, can later verification correct it? If yes, trying the simple path first is fine; if not (irreversible), validate fully first.
 
 ---
 
@@ -748,7 +725,7 @@ The specific filenames and module splits are defined by each project according t
 
 ### 13.4 Debugging: Simplicity is Reliability
 
-**Principle:** The complexity of your debugging tools must not exceed the complexity of the system being debugged. For the general execution methodology (simple first, assess before acting), see §6.1. Debugging tools are themselves code, and they can have bugs too. When a complex logging framework, distributed tracing system, or async sampler becomes part of the problem, fall back to the simplest reliable tool.
+**Principle:** The complexity of your debugging tools must not exceed the complexity of the system being debugged. For the general methodology (simple first, assess before acting), see the Preamble "Execution-First Principle". Debugging tools are themselves code, and they can have bugs too. When a complex logging framework, distributed tracing system, or async sampler becomes part of the problem, fall back to the simplest reliable tool.
 
 **Technique:** `print()` + stdout redirection is the last and most reliable fallback. This is not a step backward — it is the fallback design principle (§3.1) applied to debugging: degrade to a simpler but more reliable approach to ensure that debugging information is never lost.
 
@@ -1236,3 +1213,4 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 ```
+
