@@ -1,4 +1,4 @@
-# BADGE Development Constitution v2.7.0
+# BADGE Development Constitution v2.8.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -235,7 +235,7 @@ A new user clones the project and gets results in two commands. No extra system 
 
 **Zero-step does not mean zero configuration. It means the default configuration is a working configuration.** If the user must understand the meaning of 10 parameters before they can begin, zero-step onboarding has failed.
 
-**Litmus test:** How many steps does it take for a new user to go from clone to first output? If it's more than 3, rethink.
+**Litmus test:** How many steps does it take for a new user to go from clone to first output? If it's more than 5, rethink.
 
 ### 4.1 Startup Script
 
