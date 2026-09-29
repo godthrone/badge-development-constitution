@@ -56,37 +56,125 @@ TRACKED_OUTSIDE_LOCAL=$(echo "$TRACKED_FILES" | grep -v '^\.local/' || true)
 
 echo "Checking for temporary files outside .local/..."
 
-# Broad patterns for temporary files
-TEMP_PATTERNS=(
-    # Notes, plans, runbooks
-    '*_NOTE*' '*_NOTES*' '*_PLAN*' '*_PLANS*'
-    '*RUNBOOK*' '*runbook*' '*MIGRATION*'
-    # Deployment / experiment records
-    '*deploy*note*' '*deploy*record*'
-    '*experiment*note*' '*experiment*log*'
-    '*personal*' '*scratch*'
-    # Run monitors / logs
-    '*LONG_RUN*' '*run_monitor*' '*watchdog*'
-    # Draft files
+# §16.2 defines "local / temporary files" by *functional role* (running-environment
+# record, one-off deployment record, personal notes, debug output, …), not by
+# filename. Severity therefore depends on BOTH the marker and the *location*:
+#
+#   - unambiguous one-off markers (draft/wip/temp/tmp/backup/bak/old) → hard
+#     failure anywhere;
+#   - §16.2-named one-off roles (migration plan, runbook, deployment/experiment
+#     record, personal notes, scratch pad, run monitor) → hard failure, *except*
+#     inside a permanent project tree (src/tests/scripts/docker/tools/docs),
+#     where those words routinely name real modules and docs and are reported as
+#     [WARN] for review;
+#   - ordinary English words (`note`, `plan`, `watchdog`) that also name permanent
+#     modules → [WARN] everywhere — §16.2 judges the file's role, and a word alone
+#     is only a weak signal (reference projects carry permanent `*_planner.py` /
+#     `*_watchdog.py` modules). §16.1 still makes a stray one-off outside those
+#     trees a violation, so the role words above keep blocking power.
+TEMP_PATTERNS_HARD=(
+    # Unambiguous one-off markers
     '*_DRAFT*' '*_draft*' '*_WIP*' '*_wip*'
     '*_TEMP_*' '*_temp_*' '*_TMP*' '*_tmp*'
     '*_BACKUP*' '*_backup*' '*_BAK*' '*_bak*'
     '*_OLD*' '*_old*'
-    # Discussion / meeting notes
+)
+# §16.2 roles: one-off operation records / personal notes / run monitors.
+TEMP_PATTERNS_ROLE=(
+    '*RUNBOOK*' '*MIGRATION*'
+    '*deploy*note*' '*deploy*record*'
+    '*experiment*note*' '*experiment*log*'
+    '*personal*' '*scratch*'
+    '*LONG_RUN*' '*run_monitor*'
     '*meeting*note*' '*discussion*note*'
 )
+# Ordinary English words that also name permanent source/test/doc modules.
+TEMP_PATTERNS_ADVISORY=(
+    '*_NOTE*' '*_NOTES*' '*_PLAN*' '*_PLANS*'
+    '*watchdog*'
+    # Bare note-file names (e.g. notes.md, note.txt) — advisory only
+    'note*' 'notes*'
+)
 
-for pattern in "${TEMP_PATTERNS[@]}"; do
-    MATCHES=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -i "${pattern//\*/.*}" 2>/dev/null | \
-        grep -v '^\.local/' || true)
-    if [ -n "$MATCHES" ]; then
-        echo "  [FAIL] Temporary file found outside .local/:"
-        echo "$MATCHES" | while IFS= read -r f; do
-            echo "    $f (should be moved to .local/)"
-        done
-        FAIL=1
-    fi
-done
+# Permanent project trees (§8.1 layout). A one-off word inside them is far more
+# likely to be a module/doc name than a stray temp file.
+PROJECT_TREES_RE='^(src|tests|scripts|docker|tools|docs)/'
+
+# path<TAB>lowercased-basename, computed once. Matching the *basename* keeps a
+# directory such as motion_planners/ from tainting every file beneath it.
+BASENAME_LIST=$(printf '%s\n' "$TRACKED_OUTSIDE_LOCAL" | awk '
+    NF {
+        base = $0; sub(/.*\//, "", base);
+        printf "%s\t%s\n", $0, tolower(base);
+    }')
+
+# Glob → whole-token regex. `*` matches any run of characters, but every literal
+# token between stars must be bounded by a non-alphanumeric (or the string edge)
+# so that `*_PLAN*` no longer fires on `motion_planner.py`. Boundaries are taken
+# from each *token* (not from the glob edges), so `*a*b*` keeps both words.
+glob_to_regex() {
+    local pattern="$1" seg="" mid="" out="" first=1
+    pattern="$(printf '%s' "$pattern" | tr '[:upper:]' '[:lower:]')"
+    while IFS= read -r seg; do
+        [ -n "$seg" ] || continue
+        mid="$seg"
+        case "$seg" in [a-z0-9]*) mid="(^|[^[:alnum:]])$mid" ;; esac
+        case "$seg" in *[a-z0-9]) mid="$mid([^[:alnum:]]|$)" ;; esac
+        if [ "$first" -eq 1 ]; then out="$mid"; first=0; else out="$out.*$mid"; fi
+    done < <(printf '%s' "$pattern" | tr '*' '\n')
+    printf '%s' "$out"
+}
+
+# §16.2 role words are matched as substrings, so `*scratch*` catches
+# `scratchpad.py` (a whole-token match would not); lowered for case-insensitivity.
+glob_to_substr_regex() {
+    printf '%s' "${1//\*/.*}" | tr '[:upper:]' '[:lower:]'
+}
+
+# Collect unique basename matches for all patterns. $1 = matcher: token | substr.
+collect_matches() {
+    local matcher="$1"; shift
+    local pattern regex
+    for pattern in "$@"; do
+        if [ "$matcher" = token ]; then
+            regex="$(glob_to_regex "$pattern")"
+        else
+            regex="$(glob_to_substr_regex "$pattern")"
+        fi
+        [ -n "$regex" ] || continue
+        printf '%s\n' "$BASENAME_LIST" | awk -F'\t' -v re="$regex" '$2 ~ re { print $1 }'
+    done | grep -v '^\.local/' | sort -u || true
+}
+
+HARD_MATCHES=$(collect_matches token "${TEMP_PATTERNS_HARD[@]}")
+ROLE_MATCHES=$(collect_matches substr "${TEMP_PATTERNS_ROLE[@]}")
+# §16.2 roles inside a permanent tree are reviewed ([WARN]); elsewhere they block.
+ROLE_IN_TREE=$(printf '%s\n' "$ROLE_MATCHES" | grep -E "$PROJECT_TREES_RE" || true)
+ROLE_OUT_TREE=$(printf '%s\n' "$ROLE_MATCHES" | grep -vE "$PROJECT_TREES_RE" | grep -v '^$' || true)
+ADVISORY_MATCHES=$(collect_matches token "${TEMP_PATTERNS_ADVISORY[@]}")
+
+FAIL_MATCHES=$(printf '%s\n%s\n' "$HARD_MATCHES" "$ROLE_OUT_TREE" | grep -v '^$' | sort -u || true)
+WARN_MATCHES=$(printf '%s\n%s\n' "$ADVISORY_MATCHES" "$ROLE_IN_TREE" | grep -v '^$' | sort -u || true)
+# A file that already hard-fails is not repeated under [WARN] (a role word can
+# also match an ordinary-word advisory pattern, e.g. deploy_note.md).
+if [ -n "$FAIL_MATCHES" ]; then
+    WARN_MATCHES=$(printf '%s\n' "$WARN_MATCHES" | grep -vxFf <(printf '%s\n' "$FAIL_MATCHES") || true)
+fi
+
+if [ -n "$FAIL_MATCHES" ]; then
+    echo "  [FAIL] Temporary file found outside .local/:"
+    printf '%s\n' "$FAIL_MATCHES" | while IFS= read -r f; do
+        echo "    $f (should be moved to .local/)"
+    done
+    FAIL=1
+fi
+
+if [ -n "$WARN_MATCHES" ]; then
+    echo "  [WARN] Possibly-temporary file name outside .local/ — review (§16.2 defines the category by role, not by name; ordinary words also name permanent modules):"
+    printf '%s\n' "$WARN_MATCHES" | while IFS= read -r f; do
+        echo "    $f"
+    done
+fi
 
 # ─── 4. Check for log/temp/bak files in tracked paths ──────────────────
 

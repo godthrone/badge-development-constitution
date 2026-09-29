@@ -64,8 +64,14 @@ while IFS= read -r file; do
         tests/*) continue ;;
     esac
 
-    # Top-level class names only — nested classes are not the file's identity
-    CLASSES=$(grep -E '^class ' "$file" | sed -E 's/^class[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\1/' || true)
+    # Top-level class names only — nested classes are not the file's identity.
+    # Require a real class header: `class Name` followed by `(`, `:` or end of
+    # line. A bare `^class ` match also treated docstring prose such as
+    # "class and the function call ..." as a class named `and`, which both
+    # produced a bogus name and (1 real class + 1 prose line → count 2)
+    # silently exempted the whole file.
+    CLASSES=$(grep -E '^class[[:space:]]+[A-Za-z_][A-Za-z0-9_]*([[:space:]]*\(|[[:space:]]*:|[[:space:]]*$)' "$file" | \
+        sed -E 's/^class[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\1/' || true)
     [ -z "$CLASSES" ] && continue
 
     CLASS_COUNT=$(echo "$CLASSES" | grep -c '.' || true)

@@ -41,6 +41,11 @@ it is exercised as **Class C** (`--class=C`) — do not run the full Class A Pyt
 - [ ] Filename-based exemption / regex filters in `tools/` must be **version-independent**
       (prefix match, not exact filename). Regression source: `check_constitution_refs.sh` matched
       `BADGE-constitution\.` and silently stopped exempting the constitution after a version rename.
+- [ ] Regenerate the **DSH skill handover artifact** from the new edition and have the **user**
+      replace `~/.dsh/skills/badge-constitution.md` on their machine: `~/.dsh/` is outside this
+      repository, so tooling running inside the repo cannot write it. Re-verify that the skill's
+      version string (`description:` and the `# BADGE 开发宪法 vX.Y.Z` heading) matches `vX.Y.Z` —
+      a stale skill silently teaches the previous edition to every later session.
 
 ## 3. Regression — consumer-facing tooling
 

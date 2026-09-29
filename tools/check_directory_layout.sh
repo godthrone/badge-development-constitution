@@ -78,19 +78,19 @@ fi
 # ─── 3. Config directory or file ────────────────────────────────────────
 
 # Recursively search for config.toml (base config, preferred), the
-# git-tracked override template config.override.sample.toml (§7.1 line 351:
+# git-tracked override template config.override.sample.toml (§7.1
 # "从 git-tracked 的 config.override.sample.toml 模板复制后填入真实值";
-# §8.1 line 414 lists it in the project layout), legacy
+# §8.1 project layout lists it), legacy
 # config_example.toml/.yaml, or a configs/ directory.
 # Projects may place configs in subdirectories (e.g. samples/configs/).
 # This list is existence-only: adding a candidate can turn FAIL into OK,
 # never OK into FAIL, so no previously-passing project is newly failed.
 CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config.override.sample.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
-    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
+    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null -print -quit)
 CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
-    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
+    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null -print -quit)
 
 if [ -n "$CONFIG_EXAMPLE" ] || [ -n "$CONFIGS_DIR" ]; then
     echo "  [OK] Config template exists (config.toml, config.override.sample.toml, legacy config_example.*, or configs/)"

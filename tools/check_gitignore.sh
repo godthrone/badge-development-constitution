@@ -155,7 +155,7 @@ fi
 
 # ─── Sample data exceptions (conditional per §19.2) ────────────────────────
 #
-# §19.2 line 1071 lists `data/` under "输出与数据" with the parenthetical
+# §19.2 "输出与数据" lists `data/` with the parenthetical
 # "（示例数据除外）". A sample-data exception (`!data/sample`) is only
 # meaningful when the project actually has a `data/` directory; a project
 # without `data/` may still carry a defensive `data/` line in .gitignore

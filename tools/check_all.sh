@@ -126,8 +126,8 @@ echo "============================================"
 # Reminder only — never changes the result. Choosing the tier is the caller's
 # explicit decision; --class must not silently relax §15.1.
 if [ "$SCOPE_EXPLICIT" = false ] && { [ "$CLASS" = "B" ] || [ "$CLASS" = "C" ]; }; then
-    echo "Note: class $CLASS does not by itself relax §15.1. If this repository is"
-    echo "      private (no public remote), pass --scope=private explicitly."
+    echo "Note: --class=$CLASS alone does not relax §15.1/§15.4 — visibility defaults to public;"
+    echo "      a private repository (no public remote) must pass --scope=private explicitly."
     echo ""
 fi
 
@@ -135,6 +135,7 @@ PASS_COUNT=0
 FAIL_COUNT=0
 WARN_COUNT=0
 FAILED_CHECKS=()
+WARNED_CHECKS=()
 
 run_check() {
     local name="$1"
@@ -145,8 +146,18 @@ run_check() {
     # Invoke via `bash` rather than executing directly: the executable bit is not
     # preserved on Windows/WSL checkouts (core.filemode=false), which would make
     # every sub-check fail with "Permission denied".
-    local exit_code=0
-    bash "$script" "$PROJECT_ROOT" "$@" || exit_code=$?
+    local exit_code=0 out warns
+    # Capture stdout+stderr so [WARN] lines can be counted, then replay it
+    # verbatim (same lines, same order) — the banner and summary stay parseable.
+    out=$(bash "$script" "$PROJECT_ROOT" "$@" 2>&1) || exit_code=$?
+    if [ -n "$out" ]; then
+        printf '%s\n' "$out"
+    fi
+    warns=$(printf '%s\n' "$out" | grep -c '\[WARN\]' || true)
+    WARN_COUNT=$((WARN_COUNT + warns))
+    if [ "$warns" -gt 0 ]; then
+        WARNED_CHECKS+=("$name — $warns warning(s)")
+    fi
     if [ $exit_code -eq 0 ]; then
         PASS_COUNT=$((PASS_COUNT + 1))
     else
@@ -312,6 +323,15 @@ echo " Summary (Class $CLASS)"
 echo "============================================"
 echo "  Passed: $PASS_COUNT"
 echo "  Failed: $FAIL_COUNT"
+echo "  Warnings: $WARN_COUNT (see [WARN] lines above; warnings do not affect the exit code)"
+
+if [ "${#WARNED_CHECKS[@]}" -gt 0 ]; then
+    echo ""
+    echo "  Checks with warnings (passed, but not clean — review the [WARN] lines above):"
+    for check in "${WARNED_CHECKS[@]}"; do
+        echo "    - $check"
+    done
+fi
 
 if [ $FAIL_COUNT -gt 0 ]; then
     echo ""
@@ -324,5 +344,9 @@ if [ $FAIL_COUNT -gt 0 ]; then
     exit 1
 else
     echo ""
-    echo "[PASS] All checks passed."
+    if [ "$WARN_COUNT" -gt 0 ]; then
+        echo "[PASS] All checks passed, with $WARN_COUNT warning(s) — not a clean pass (see the [WARN] lines above)."
+    else
+        echo "[PASS] All checks passed."
+    fi
 fi

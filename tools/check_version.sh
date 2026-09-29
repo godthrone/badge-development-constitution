@@ -25,7 +25,10 @@ INIT_FILES=$(find src/ -name '__init__.py' -not -path '*.egg-info/*' 2>/dev/null
 
 if [ -n "$INIT_FILES" ]; then
     while IFS= read -r init_file; do
-        if grep -q '__version__' "$init_file" 2>/dev/null; then
+        # §8.7 forbids *defining* __version__ here. Match a real assignment /
+        # annotated assignment only: a bare substring match also fired on
+        # comments, docstrings and __all__ = ["__version__"].
+        if grep -qE '^[[:space:]]*__version__[[:space:]]*[:=]' "$init_file" 2>/dev/null; then
             echo "  [FAIL] $init_file defines __version__ (forbidden by §8.7)."
             FAIL=1
         fi

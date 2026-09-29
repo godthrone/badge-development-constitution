@@ -44,6 +44,25 @@
 # A because that is the strictest tier — omitting --class can therefore never
 # silently relax §15.1. A caller who wants the private tier on a genuinely
 # B-class / private C-class repository must say so explicitly (--class=B|C).
+#
+# Project-level exemptions (.badge/secrets-exempt.tsv) — optional, opt-in:
+#   A project may declare NAMED, PRECISE exemptions in the repo-root manifest
+#   `.badge/secrets-exempt.tsv`, four TAB-separated columns:
+#       <rule-id> <TAB> <repo-relative-path> <TAB> <matched-substring> <TAB> <reason>
+#   `#` starts a comment; blank lines are ignored. The ONLY exemptable rule ids
+#   are the non-red-line internal-information categories listed in
+#   $SECRETS_EXEMPT_ALLOWED_RULES below (private/internal IPs and internal
+#   paths). Credentials (API keys, passwords, JWTs, cloud-credential
+#   references, SSH connection strings) and all PII categories are §15.4 red
+#   lines and can never be exempted — naming one fails the check.
+#   Exemptions additionally apply ONLY to a repository that explicitly declares
+#   the private tier (--scope=private with --class=B|C); under the default
+#   public tier, or --class=A, the manifest is ignored with a notice.
+#   The manifest is opt-in: with no file the output is byte-for-byte the
+#   pre-existing behaviour. An exempted non-red-line finding is never deleted —
+#   it is printed as a WARN with its reason. An untracked, malformed,
+#   incomplete, glob-path or non-existent-path entry is ignored with a warning
+#   (fail-closed), and an entry that matches no finding is reported as stale.
 
 set -euo pipefail
 
@@ -62,7 +81,13 @@ for arg in "${@}"; do
         --meta-pii=off|--meta-pii=warn|--meta-pii=fail) META_PII_MODE="${arg#--meta-pii=}" ;;
         --scope=public|--scope=private) SCOPE="${arg#--scope=}" ;;
         --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
-        -*) echo "Usage: check_secrets.sh [--no-history] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [--class=A|B|C] [--scope=public|private] [project_root]" >&2; exit 2 ;;
+        -*) echo "Usage: check_secrets.sh [--no-history] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [--class=A|B|C] [--scope=public|private] [project_root]" >&2
+            echo "       Project-level exemptions, opt-in: .badge/secrets-exempt.tsv —" >&2
+            echo "       <rule-id><TAB><relative-path><TAB><matched-substring><TAB><reason>" >&2
+            echo "       Only non-red-line internal-info rules (private_ip, internal_path, history_*);" >&2
+            echo "       credentials/PII are §15.4 red lines and cannot be exempted." >&2
+            echo "       Exemptions require --scope=private with --class=B|C." >&2
+            exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
 done
@@ -285,15 +310,236 @@ grep_tracked() {
 }
 
 print_matches() {
-    local label="$1"
-    local matches="$2"
-    if [ -n "$matches" ]; then
+    local rule="$1"
+    local label="$2"
+    local matches="$3"
+    wl_split "$rule" "$matches"
+    if [ -n "$WL_KEPT" ]; then
         echo "[FAIL] check_secrets: $label found:"
-        echo "$matches" | while IFS= read -r line; do
+        printf '%s\n' "$WL_KEPT" | while IFS= read -r line; do
             echo "  $line"
         done
         FAIL=1
     fi
+    wl_emit_exempted "$label"
+}
+
+# ─── Project-level exemptions (§15.4 private tier only, opt-in) ──────────
+#
+# §15.1 and §15.4 declare credentials and employee personal sensitive
+# information a red line ("红线（所有类别、所有可见性，永不放宽）"; "凭据类信息
+# 不适用任何例外"). A project-level exemption therefore may cover ONLY
+# non-red-line internal information: private/internal IPs and internal paths.
+# Credentials (API keys, passwords/tokens, JWTs, cloud-credential references,
+# SSH connection strings) and every PII category are NOT exemptable — naming
+# one is an error that fails the check.
+#
+# A project may declare NAMED, PRECISE exemptions in a repo-root manifest:
+#
+#     .badge/secrets-exempt.tsv
+#
+# One entry per line, four TAB-separated columns:
+#
+#     <rule-id> <TAB> <repo-relative-path> <TAB> <matched-substring> <TAB> <reason>
+#
+#   * rule-id             one of $SECRETS_EXEMPT_ALLOWED_RULES below;
+#   * repo-relative-path  the EXACT tracked path — no globs, no directory-only;
+#   * matched-substring   text that must appear on the reported line;
+#   * reason              non-empty; printed with every downgrade.
+#
+# `#` starts a comment line; blank lines are ignored. Example:
+#
+#     # rule<TAB>path<TAB>match<TAB>reason
+#     private_ip	docs/deployment-example.md	<internal-ip>	documented internal demo endpoint
+#
+# Contract:
+#   * OPT-IN — when the manifest does not exist the scan output is byte-for-byte
+#     the pre-existing behaviour.
+#   * §15.4 TIER GATE — exemptions apply ONLY to a repository that explicitly
+#     declares the private tier (--scope=private with --class=B|C). With the
+#     default public tier, or --class=A, the manifest is not applied at all and
+#     a notice is printed.
+#   * RED LINES — a credential or PII category can never be exempted; such an
+#     entry is rejected loudly and fails the check.
+#   * DOWNGRADE ONLY — an exempted non-red-line finding is still printed, as a
+#     WARN carrying its reason; it is never dropped and never silently hidden.
+#   * FAIL-CLOSED — a manifest that is untracked by git, malformed, missing a
+#     field, naming an unknown/red-line rule, using a glob/absolute path, or
+#     naming a path that does not exist is NOT applied; every such entry is
+#     reported.
+#   * STALE — a valid entry that matches no finding is reported as a WARN.
+SECRETS_EXEMPT_FILE="$PROJECT_ROOT/.badge/secrets-exempt.tsv"
+# The ONLY exemptable categories: non-red-line internal information (§15.4).
+SECRETS_EXEMPT_ALLOWED_RULES='private_ip internal_path history_private_ip history_internal_path'
+# Known but NEVER exemptable. Credentials and employee personal sensitive
+# information are §15.4 red lines; SSH connection strings are included because
+# §15.4 names "连接串中的口令". Used only to give a specific rejection message.
+SECRETS_EXEMPT_REDLINE_RULES='api_key hardcoded_credential jwt cloud_credential_ref ssh_ip ssh_user_host pii_email pii_mobile pii_landline pii_im pii_idcard history_api_key history_credential history_jwt history_ssh_ip history_ssh_user_host history_pii_email history_pii_mobile history_pii_landline history_pii_im history_pii_idcard'
+# PII_PATTERNS index → rule id (see the pattern array above).
+PII_RULE_IDS=(pii_email pii_mobile pii_landline pii_im pii_im pii_idcard)
+
+WL_ACTIVE=false
+WL_ENTRY_COUNT=0
+WL_ENTRY_RULE=(); WL_ENTRY_PATH=(); WL_ENTRY_MATCH=(); WL_ENTRY_REASON=(); WL_ENTRY_HIT=()
+WL_KEPT=""
+WL_EXEMPTED_LINES=(); WL_EXEMPTED_REASONS=()
+WL_SUPPRESSED=0
+WL_LAST_REASON=""
+WL_LAST_INDEX=-1
+
+_wl_rule_allowed() {
+    case " $SECRETS_EXEMPT_ALLOWED_RULES " in
+        *" $1 "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_wl_rule_redline() {
+    case " $SECRETS_EXEMPT_REDLINE_RULES " in
+        *" $1 "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_wl_load() {
+    local f="$SECRETS_EXEMPT_FILE"
+    [ -f "$f" ] || return 0
+    WL_ACTIVE=true
+    # Fail-closed: an untracked local file must not be able to weaken §15.1.
+    local rel="${f#"$PROJECT_ROOT"/}"
+    if ! $HAS_GIT || ! git ls-files --error-unmatch -- "$rel" >/dev/null 2>&1; then
+        echo "  [WARN] .badge/secrets-exempt.tsv exists but is not tracked by git — exemptions disabled (fail-closed)."
+        WL_ACTIVE=false
+        return 0
+    fi
+    # §15.4 tier gate: project exemptions exist only for a repository that
+    # explicitly declares the private tier. Default public (or --class=A) never
+    # applies them, and says so.
+    if [ "$SCOPE" != "private" ] || { [ "$CLASS" != "B" ] && [ "$CLASS" != "C" ]; }; then
+        echo "  [INFO] .badge/secrets-exempt.tsv present but NOT applied: §15.4 grants project exemptions only to an explicitly private B-class/C-class repository (--scope=private); current class=$CLASS scope=$SCOPE."
+        WL_ACTIVE=false
+        return 0
+    fi
+    local lineno=0 rule path match reason extra
+    while IFS= read -r raw || [ -n "$raw" ]; do
+        lineno=$((lineno + 1))
+        raw="${raw%$'\r'}"
+        case "$raw" in ''|'#'*) continue ;; esac
+        IFS=$'\t' read -r rule path match reason extra <<< "$raw"
+        if [ -n "$extra" ]; then
+            echo "  [WARN] .badge/secrets-exempt.tsv line $lineno: too many fields (expected 4 TAB-separated) — entry ignored."
+            continue
+        fi
+        if [ -z "$rule" ] || [ -z "$path" ] || [ -z "$match" ] || [ -z "$reason" ]; then
+            echo "  [WARN] .badge/secrets-exempt.tsv line $lineno: missing field (need rule, path, match, reason) — entry ignored."
+            continue
+        fi
+        if _wl_rule_redline "$rule"; then
+            echo "[FAIL] check_secrets: .badge/secrets-exempt.tsv line $lineno: category '$rule' is a §15.4 red line (credential / personal sensitive information) and can NEVER be exempted — entry ignored."
+            FAIL=1
+            continue
+        fi
+        if ! _wl_rule_allowed "$rule"; then
+            echo "  [WARN] .badge/secrets-exempt.tsv line $lineno: unknown rule '$rule' (exemptable: $SECRETS_EXEMPT_ALLOWED_RULES) — entry ignored."
+            continue
+        fi
+        case "$path" in
+            /*|*'*'*|*'?'*|*'['*|*..*)
+                echo "  [WARN] .badge/secrets-exempt.tsv line $lineno: path must be an exact repo-relative path (no globs, absolute path or '..') — entry ignored."
+                continue ;;
+        esac
+        if [ ! -e "$PROJECT_ROOT/$path" ]; then
+            echo "  [WARN] .badge/secrets-exempt.tsv line $lineno: path '$path' does not exist — entry ignored."
+            continue
+        fi
+        WL_ENTRY_RULE[$WL_ENTRY_COUNT]="$rule"
+        WL_ENTRY_PATH[$WL_ENTRY_COUNT]="$path"
+        WL_ENTRY_MATCH[$WL_ENTRY_COUNT]="$match"
+        WL_ENTRY_REASON[$WL_ENTRY_COUNT]="$reason"
+        WL_ENTRY_HIT[$WL_ENTRY_COUNT]=0
+        WL_ENTRY_COUNT=$((WL_ENTRY_COUNT + 1))
+    done < "$f"
+}
+
+# Find an exempting entry for <rule> on <line>. Sets WL_LAST_REASON / WL_LAST_INDEX
+# and returns 0 on a hit. No command substitution is used by callers, so the
+# hit flag survives (bash would lose it inside a subshell otherwise).
+_wl_lookup() {
+    local rule="$1" line="$2" cand i rest
+    if [ "${rule#history_}" != "$rule" ]; then
+        # history lines are "<grep-lineno>:<commit>:<file>:<content>"
+        rest="${line#*:}"
+        rest="${rest#*:}"
+        cand="${rest%%:*}"
+    else
+        # working-tree lines are "<file>:<line>:<content>"
+        cand="${line%%:*}"
+    fi
+    WL_LAST_REASON=""
+    WL_LAST_INDEX=-1
+    [ -n "$cand" ] || return 1
+    for ((i = 0; i < WL_ENTRY_COUNT; i++)); do
+        [ "${WL_ENTRY_RULE[$i]}" = "$rule" ] || continue
+        [ "${WL_ENTRY_PATH[$i]}" = "$cand" ] || continue
+        case "$line" in
+            *"${WL_ENTRY_MATCH[$i]}"*) ;;
+            *) continue ;;
+        esac
+        WL_LAST_REASON="${WL_ENTRY_REASON[$i]}"
+        WL_LAST_INDEX=$i
+        return 0
+    done
+    return 1
+}
+
+# Split <blob> into kept lines (WL_KEPT) and exempted findings (appended to the
+# WL_EXEMPTED_* arrays). With no active whitelist WL_KEPT is exactly <blob> and
+# nothing else happens — that is what keeps the opt-out output byte-identical.
+wl_split() {
+    local rule="$1" blob="$2" line kept=""
+    if ! $WL_ACTIVE || [ "$WL_ENTRY_COUNT" -eq 0 ]; then
+        WL_KEPT="$blob"
+        return 0
+    fi
+    while IFS= read -r line || [ -n "$line" ]; do
+        [ -n "$line" ] || continue
+        if _wl_lookup "$rule" "$line"; then
+            WL_ENTRY_HIT[$WL_LAST_INDEX]=1
+            WL_EXEMPTED_LINES+=("$line")
+            WL_EXEMPTED_REASONS+=("$WL_LAST_REASON")
+            WL_SUPPRESSED=$((WL_SUPPRESSED + 1))
+        else
+            kept+="$line"$'\n'
+        fi
+    done <<< "$blob"
+    WL_KEPT="${kept%$'\n'}"
+}
+
+# Print the accumulated exemptions as an explicit, reasoned WARN block. The
+# finding line itself is always printed — downgrade, never deletion.
+wl_emit_exempted() {
+    [ "${#WL_EXEMPTED_LINES[@]}" -gt 0 ] || return 0
+    echo "[WARN] check_secrets: $1 — finding(s) downgraded FAIL→WARN by the project whitelist (§15.1, .badge/secrets-exempt.tsv):"
+    local i
+    for ((i = 0; i < ${#WL_EXEMPTED_LINES[@]}; i++)); do
+        echo "  ${WL_EXEMPTED_LINES[$i]}"
+        echo "      whitelisted: ${WL_EXEMPTED_REASONS[$i]}"
+    done
+    WL_EXEMPTED_LINES=(); WL_EXEMPTED_REASONS=()
+}
+
+# A valid entry that never matched a finding is stale — report it, so the
+# manifest cannot silently rot.
+_wl_stale_report() {
+    local i stale=0
+    for ((i = 0; i < WL_ENTRY_COUNT; i++)); do
+        if [ "${WL_ENTRY_HIT[$i]}" != "1" ]; then
+            echo "  [WARN] .badge/secrets-exempt.tsv: entry matched no finding (stale): rule=${WL_ENTRY_RULE[$i]} path=${WL_ENTRY_PATH[$i]} match=${WL_ENTRY_MATCH[$i]}"
+            stale=$((stale + 1))
+        fi
+    done
+    [ "$stale" -gt 0 ] && echo "  [WARN] check_secrets: $stale stale whitelist entry(ies) — remove or fix them."
+    return 0
 }
 
 # Indent and print a match blob (uncapped). Report as WARN when `$3` is
@@ -304,22 +550,24 @@ print_matches() {
 # non-relaxable categories (credentials, employee personal sensitive
 # information) call print_matches instead and can never be downgraded.
 print_scope_aware() {
-    local label="$1"
-    local matches="$2"
-    local tier="${3:-relaxable}"
+    local rule="$1"
+    local label="$2"
+    local matches="$3"
+    local tier="${4:-relaxable}"
     [ -n "$matches" ] || return 0
-    if [ "$tier" = "relaxable" ] && [ "$SCOPE" = "private" ]; then
-        echo "[WARN] check_secrets: $label found (§15.4 private tier — internal information, review before publishing):"
-        echo "$matches" | while IFS= read -r line; do
+    wl_split "$rule" "$matches"
+    if [ -n "$WL_KEPT" ]; then
+        if [ "$tier" = "relaxable" ] && [ "$SCOPE" = "private" ]; then
+            echo "[WARN] check_secrets: $label found (§15.4 private tier — internal information, review before publishing):"
+        else
+            echo "[FAIL] check_secrets: $label found:"
+            FAIL=1
+        fi
+        printf '%s\n' "$WL_KEPT" | while IFS= read -r line; do
             echo "  $line"
         done
-    else
-        echo "[FAIL] check_secrets: $label found:"
-        echo "$matches" | while IFS= read -r line; do
-            echo "  $line"
-        done
-        FAIL=1
     fi
+    wl_emit_exempted "$label"
 }
 
 # Indent and print a match blob, capped at $2 lines.
@@ -380,18 +628,23 @@ grep_history() {
 # HISTORY_FAIL (and therefore FAIL, further down) is only set on the strict
 # branch, so a relaxed category can never fail the run in private tier.
 print_history_scope_aware() {
-    local label="$1"
-    local matches="$2"
-    local tier="${3:-relaxable}"
-    local limit="${4:-10}"
+    local rule="$1"
+    local label="$2"
+    local matches="$3"
+    local tier="${4:-relaxable}"
+    local limit="${5:-10}"
     [ -n "$matches" ] || return 0
-    if [ "$tier" = "relaxable" ] && [ "$SCOPE" = "private" ]; then
-        echo "[WARN] check_secrets (history): $label in git history (§15.4 private tier — internal information):"
-    else
-        echo "[FAIL] check_secrets (history): $label in git history:"
-        HISTORY_FAIL=1
+    wl_split "$rule" "$matches"
+    if [ -n "$WL_KEPT" ]; then
+        if [ "$tier" = "relaxable" ] && [ "$SCOPE" = "private" ]; then
+            echo "[WARN] check_secrets (history): $label in git history (§15.4 private tier — internal information):"
+        else
+            echo "[FAIL] check_secrets (history): $label in git history:"
+            HISTORY_FAIL=1
+        fi
+        print_capped "$WL_KEPT" "$limit"
     fi
-    print_capped "$matches" "$limit"
+    wl_emit_exempted "(history) $label"
 }
 
 # Filter out common false positives from history scan results.
@@ -521,12 +774,22 @@ _filter_base64_false_positives() {
     done
 }
 
+# Load the optional project-level exemption manifest before any scan. When the
+# file is absent this is a no-op and every wl_* path below is a pass-through.
+_wl_load
+
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 1: Current working tree scan (always runs)
 # ─────────────────────────────────────────────────────────────────────────
 
 if $HAS_GIT; then
     FILES=$(git ls-files --cached --others --exclude-standard 2>/dev/null || true)
+    # The manifest itself names secret-like match strings; excluding it is
+    # required so it cannot flag itself. Only excluded once it is an active,
+    # git-tracked manifest, so the opt-out file set is unchanged.
+    if $WL_ACTIVE; then
+        FILES=$(printf '%s\n' "$FILES" | grep -vxF '.badge/secrets-exempt.tsv' || true)
+    fi
     if [ -z "$FILES" ]; then
         echo "[PASS] check_secrets: No tracked files found."
         if ! $HISTORY_MODE; then
@@ -558,7 +821,7 @@ PUBLIC_IP_MATCHES=$(echo "$IP_MATCHES" | grep -vE "$(IFS='|'; echo "${PRIVATE_IP
 # Intranet IPs are §15.4-relaxable internal information (allowed for B class /
 # private C class); public IPs are already advisory. Under --scope=public both
 # keep the strict behaviour.
-print_scope_aware "Private/internal IP addresses" "$PRIVATE_IP_MATCHES" relaxable
+print_scope_aware "private_ip" "Private/internal IP addresses" "$PRIVATE_IP_MATCHES" relaxable
 if [ -n "$PUBLIC_IP_MATCHES" ]; then
     echo "[WARN] Public IP addresses found (review if internal endpoints):"
     print_capped "$PUBLIC_IP_MATCHES" 20
@@ -573,13 +836,15 @@ for pattern in "${KEY_PATTERNS[@]}"; do
     if [ -n "$KEY_MATCHES" ]; then
         # Check if matches are in constitution/tools directory (reference only) or actual leaks
         REAL_LEAKS=$(echo "$KEY_MATCHES" | grep -v 'badge-development-constitution/' || true)
-        if [ -n "$REAL_LEAKS" ]; then
+        wl_split api_key "$REAL_LEAKS"
+        if [ -n "$WL_KEPT" ]; then
             echo "[FAIL] check_secrets: Possible API key/token found:"
-            echo "$REAL_LEAKS" | while IFS= read -r line; do
+            printf '%s\n' "$WL_KEPT" | while IFS= read -r line; do
                 echo "  $line"
             done
             FAIL=1
         fi
+        wl_emit_exempted "Possible API key/token"
     fi
 done
 
@@ -596,13 +861,15 @@ for pattern in "${CREDENTIAL_PATTERNS[@]}"; do
         grep -v 'badge-development-constitution/' | \
         grep -v 'check_secrets\.sh' | \
         filter_placeholder_lines || true)
-    if [ -n "$CRED_MATCHES" ]; then
+    wl_split hardcoded_credential "$CRED_MATCHES"
+    if [ -n "$WL_KEPT" ]; then
         echo "[FAIL] check_secrets: Hardcoded credential found:"
-        echo "$CRED_MATCHES" | while IFS= read -r line; do
+        printf '%s\n' "$WL_KEPT" | while IFS= read -r line; do
             echo "  $line"
         done
         FAIL=1
     fi
+    wl_emit_exempted "Hardcoded credential"
 done
 
 # ─── Scan: JWT tokens ────────────────────────────────────────────────────
@@ -612,13 +879,15 @@ JWT_MATCHES=$(grep_tracked "$JWT_PATTERN" | \
     grep -v '\.env-example' | \
     grep -v 'badge-development-constitution/' | \
     grep -v 'check_secrets\.sh' || true)
-if [ -n "$JWT_MATCHES" ]; then
+wl_split jwt "$JWT_MATCHES"
+if [ -n "$WL_KEPT" ]; then
     echo "[FAIL] check_secrets: Possible JWT token found:"
-    echo "$JWT_MATCHES" | while IFS= read -r line; do
+    printf '%s\n' "$WL_KEPT" | while IFS= read -r line; do
         echo "  $line"
     done
     FAIL=1
 fi
+wl_emit_exempted "Possible JWT token"
 
 # ─── Scan: Long base64 strings (potential encoded secrets) ──────────────
 
@@ -654,7 +923,7 @@ for path_pattern in "${INTERNAL_PATH_PATTERNS[@]}"; do
         grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' | \
         grep -vF -- '--mount=type=cache,target=/root/.cache' || true)
     # Internal paths are §15.4-relaxable internal information.
-    print_scope_aware "Internal path ($path_pattern)" "$PATH_MATCHES" relaxable
+    print_scope_aware "internal_path" "Internal path ($path_pattern)" "$PATH_MATCHES" relaxable
 done
 
 # ─── Scan: SSH connection strings ────────────────────────────────────────
@@ -664,12 +933,12 @@ echo "Scanning for SSH strings..."
 # an SSH command against a *credential* would be caught by the key/credential
 # scans above, which are never relaxed.
 SSH_MATCHES=$(grep_tracked 'ssh.*@[0-9]')
-print_scope_aware "SSH connection string with IP" "$SSH_MATCHES" relaxable
+print_scope_aware "ssh_ip" "SSH connection string with IP" "$SSH_MATCHES" relaxable
 
 # Also catch ssh user@host patterns
 SSH_USER_MATCHES=$(grep_tracked 'ssh\s+\w+@[a-zA-Z0-9.-]+' | \
     grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' || true)
-print_scope_aware "SSH user@host string" "$SSH_USER_MATCHES" relaxable
+print_scope_aware "ssh_user_host" "SSH user@host string" "$SSH_USER_MATCHES" relaxable
 
 # ─── Scan: .env in tracked files ─────────────────────────────────────────
 
@@ -683,7 +952,7 @@ fi
 echo "Scanning for cloud credential references..."
 AWS_CRED_MATCHES=$(grep_tracked '~/.aws/credentials\|AWS_ACCESS_KEY_ID\|AWS_SECRET_ACCESS_KEY\|GOOGLE_APPLICATION_CREDENTIALS\|AZURE_CLIENT_SECRET' | \
     grep -v '\.env-example' | grep -v 'badge-development-constitution/' || true)
-print_matches "Cloud credential reference" "$AWS_CRED_MATCHES"
+print_matches "cloud_credential_ref" "Cloud credential reference" "$AWS_CRED_MATCHES"
 
 # ─── Scan: Personal information (PII) — §15.1 category 4 ─────────────────
 #
@@ -710,6 +979,10 @@ if [ "$PII_MODE" != "off" ]; then
         RAW=$(grep_tracked "$pattern" | \
             grep -v 'check_secrets\.sh' | \
             grep -v '\.env-example' || true)
+        # Project whitelist: exempted lines are moved to the reasoned WARN
+        # report and removed from both buckets below.
+        wl_split "${PII_RULE_IDS[$i]}" "$RAW"
+        RAW="$WL_KEPT"
         case "$i" in
             0)
                 # Email pattern: filter per-address so an allowlisted address on
@@ -767,6 +1040,7 @@ if [ "$PII_MODE" != "off" ]; then
             echo "  ... and $((PII_RELAX_COUNT - 20)) more lines"
         fi
     fi
+    wl_emit_exempted "Personal information (PII)"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -796,19 +1070,21 @@ if $HISTORY_MODE; then
             grep -v ':uv\.lock:' | grep -v 'version.*=.*"[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+"' || true)
         HIST_PRIVATE_IP=$(echo "$HIST_IP" | grep -E "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" | \
             _filter_history_false_positives || true)
-        if [ -n "$HIST_PRIVATE_IP" ]; then
+        wl_split history_private_ip "$HIST_PRIVATE_IP"
+        if [ -n "$WL_KEPT" ]; then
             if [ "$SCOPE" = "private" ]; then
                 echo "[WARN] check_secrets (history): Private/internal IPs in git history (§15.4 private tier — internal information):"
             else
                 echo "[FAIL] check_secrets (history): Private/internal IPs in git history:"
                 HISTORY_FAIL=1
             fi
-            print_capped "$HIST_PRIVATE_IP" 30
-            COUNT=$(echo "$HIST_PRIVATE_IP" | wc -l)
+            print_capped "$WL_KEPT" 30
+            COUNT=$(printf '%s\n' "$WL_KEPT" | wc -l)
             if [ "$COUNT" -gt 30 ]; then
                 echo "  ... and $((COUNT - 30)) more lines"
             fi
         fi
+        wl_emit_exempted "(history) Private/internal IPs"
 
         # ── History: API keys ──
 
@@ -817,11 +1093,13 @@ if $HISTORY_MODE; then
             HIST_KEY=$(grep_history "$HIST_STREAM" "$pattern" | \
                 grep -v 'badge-development-constitution/' | grep -v '\.env-example' | \
                 filter_placeholder_lines || true)
-            if [ -n "$HIST_KEY" ]; then
+            wl_split history_api_key "$HIST_KEY"
+            if [ -n "$WL_KEPT" ]; then
                 echo "[FAIL] check_secrets (history): API key/token in git history:"
-                print_capped "$HIST_KEY" 10
+                print_capped "$WL_KEPT" 10
                 HISTORY_FAIL=1
             fi
+            wl_emit_exempted "(history) API key/token"
         done
 
         # ── History: Hardcoded credentials ──
@@ -831,11 +1109,13 @@ if $HISTORY_MODE; then
             HIST_CRED=$(grep_history "$HIST_STREAM" "$pattern" | \
                 grep -v 'badge-development-constitution/' | grep -v 'check_secrets\.sh' | \
                 filter_placeholder_lines || true)
-            if [ -n "$HIST_CRED" ]; then
+            wl_split history_credential "$HIST_CRED"
+            if [ -n "$WL_KEPT" ]; then
                 echo "[FAIL] check_secrets (history): Hardcoded credential in git history:"
-                print_capped "$HIST_CRED" 10
+                print_capped "$WL_KEPT" 10
                 HISTORY_FAIL=1
             fi
+            wl_emit_exempted "(history) Hardcoded credential"
         done
 
         # ── History: SSH strings ──
@@ -845,14 +1125,14 @@ if $HISTORY_MODE; then
             grep -v 'badge-development-constitution/' | \
             grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH" ]; then
-            print_history_scope_aware "SSH connection string" "$HIST_SSH" relaxable
+            print_history_scope_aware "history_ssh_ip" "SSH connection string" "$HIST_SSH" relaxable
         fi
 
         HIST_SSH_USER=$(grep_history "$HIST_STREAM" 'ssh\s+\w+@[a-zA-Z0-9.-]+' | \
             grep -v 'badge-development-constitution/' | \
             grep -v 'check_secrets\.sh' | _filter_history_false_positives || true)
         if [ -n "$HIST_SSH_USER" ]; then
-            print_history_scope_aware "SSH user@host" "$HIST_SSH_USER" relaxable
+            print_history_scope_aware "history_ssh_user_host" "SSH user@host" "$HIST_SSH_USER" relaxable
         fi
 
         # ── History: Internal paths ──
@@ -873,7 +1153,7 @@ if $HISTORY_MODE; then
                 grep -vF -- '--mount=type=cache,target=/root/.cache' | \
                 _filter_history_false_positives || true)
             if [ -n "$HIST_PATH" ]; then
-                print_history_scope_aware "Internal path ($path_pattern)" "$HIST_PATH" relaxable
+                print_history_scope_aware "history_internal_path" "Internal path ($path_pattern)" "$HIST_PATH" relaxable
             fi
         done
 
@@ -882,11 +1162,13 @@ if $HISTORY_MODE; then
         echo "Scanning history for JWT tokens..."
         HIST_JWT=$(grep_history "$HIST_STREAM" "$JWT_PATTERN" | \
             grep -v 'badge-development-constitution/' || true)
-        if [ -n "$HIST_JWT" ]; then
+        wl_split history_jwt "$HIST_JWT"
+        if [ -n "$WL_KEPT" ]; then
             echo "[FAIL] check_secrets (history): JWT token in git history:"
-            print_capped "$HIST_JWT" 10
+            print_capped "$WL_KEPT" 10
             HISTORY_FAIL=1
         fi
+        wl_emit_exempted "(history) JWT token"
 
         # ── History: .env files that were once tracked ──
 
@@ -911,6 +1193,8 @@ if $HISTORY_MODE; then
                     grep -v 'badge-development-constitution/' | \
                     grep -v 'check_secrets\.sh' | \
                     grep -v '\.env-example' || true)
+                wl_split "history_${PII_RULE_IDS[$i]}" "$RAW"
+                RAW="$WL_KEPT"
                 case "$i" in
                     0)
                         HIT=$(printf '%s\n' "$RAW" | filter_email_lines || true)
@@ -959,6 +1243,7 @@ if $HISTORY_MODE; then
                     echo "  ... and $((HIST_PII_RELAX_COUNT - 20)) more lines"
                 fi
             fi
+            wl_emit_exempted "(history) Personal information (PII)"
         fi
 
         # ── History: Result ──
@@ -1026,7 +1311,20 @@ fi
 
 # ─── Result ──────────────────────────────────────────────────────────────
 
+# Project-whitelist bookkeeping: an explicit summary whenever anything was
+# downgraded, and a WARN for every declared entry that never matched (stale).
+if $WL_ACTIVE; then
+    if [ "$WL_SUPPRESSED" -gt 0 ]; then
+        echo "[WARN] check_secrets: $WL_SUPPRESSED finding(s) downgraded from FAIL to WARN by the project whitelist (.badge/secrets-exempt.tsv) — review each reason above."
+    fi
+    _wl_stale_report
+fi
+
 if [ $FAIL -eq 0 ]; then
-    echo "[PASS] check_secrets: No secrets or PII found in tracked files."
+    if [ "$WL_SUPPRESSED" -gt 0 ]; then
+        echo "[PASS] check_secrets: No non-whitelisted secrets or PII found in tracked files ($WL_SUPPRESSED whitelisted finding(s))."
+    else
+        echo "[PASS] check_secrets: No secrets or PII found in tracked files."
+    fi
 fi
 exit $FAIL

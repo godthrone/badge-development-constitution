@@ -78,7 +78,7 @@ OLD_GENERICS=$(echo "$PY_FILES" | xargs grep -nE '\b(Dict|List|Tuple|Set|FrozenS
 if [ -n "$OLD_GENERICS" ]; then
     echo "[WARN] Old-style generics found (Dict, List, Tuple, Set)."
     echo "       In Python 3.11+, use built-in generics: dict[X, Y], list[X], tuple[X, ...]"
-    echo "$OLD_GENERICS" | head -20 | while IFS= read -r line; do
+    printf '%s\n' "$OLD_GENERICS" | sed -n '1,20p' | while IFS= read -r line; do
         echo "  $line"
     done
 fi

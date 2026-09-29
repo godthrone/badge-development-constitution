@@ -38,18 +38,30 @@ echo "Checking configuration system..."
 # Projects may place configs in subdirectories (e.g. samples/configs/).
 CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
-    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
+    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null -print -quit)
 CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
-    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null | head -1)
+    -not -path "*/__pycache__/*" -not -path "*/.venv/*" 2>/dev/null -print -quit)
 
 if [ -n "$CONFIG_EXAMPLE" ] && [ -f "$CONFIG_EXAMPLE" ]; then
     echo "  [OK] Config template found at $CONFIG_EXAMPLE"
 
-    # Check comment density (should be well-commented)
-    TOTAL_LINES=$(wc -l < "$CONFIG_EXAMPLE" 2>/dev/null || echo 0)
-    COMMENT_LINES=$(grep -c '^\s*#' "$CONFIG_EXAMPLE" 2>/dev/null || echo 0)
-    if [ "$TOTAL_LINES" -gt 0 ]; then
+    # Check comment density (should be well-commented).
+    # `grep -c` prints 0 *and* exits 1 when nothing matches, so the old
+    # `|| echo 0` appended a second line and left COMMENT_LINES as "0\n0";
+    # the arithmetic below then aborted with
+    # `syntax error in expression (error token is "0")` and the density check
+    # was skipped silently. Sanitize to a single integer (same idempotent idiom
+    # as check_readme_parity.sh) and report a non-numeric count instead of
+    # skipping the check.
+    TOTAL_LINES=$(wc -l < "$CONFIG_EXAMPLE" 2>/dev/null | tr -dc '0-9' || true)
+    TOTAL_LINES="${TOTAL_LINES:-0}"
+    COMMENT_LINES=$(grep -c '^[[:space:]]*#' "$CONFIG_EXAMPLE" 2>/dev/null || true)
+    COMMENT_LINES="${COMMENT_LINES//[!0-9]/}"
+    COMMENT_LINES="${COMMENT_LINES:-0}"
+    if ! [[ "$TOTAL_LINES" =~ ^[0-9]+$ ]] || ! [[ "$COMMENT_LINES" =~ ^[0-9]+$ ]]; then
+        echo "  [WARN] Config comment density not computed (non-numeric counts: total='$TOTAL_LINES', comments='$COMMENT_LINES', §7.3)."
+    elif [ "$TOTAL_LINES" -gt 0 ]; then
         COMMENT_RATIO=$((100 * COMMENT_LINES / TOTAL_LINES))
         if [ "$COMMENT_RATIO" -lt 10 ]; then
             echo "  [WARN] Config template has low comment density ($COMMENT_RATIO%)."
@@ -104,12 +116,22 @@ if [ -d "$PROJECT_ROOT/src" ]; then
     ENV_ALL=$(grep -rnE '(os\.environ\[|os\.environ\.get\(|os\.getenv\()' "$PROJECT_ROOT/src/" 2>/dev/null | \
         grep -v '__pycache__' | head -50 || true)
 
-    # ① 标准基础设施变量（§7.1 列举 + 同类 CUDA/NCCL/torchrun 变量）
-    INFRA_VARS='CUDA_VISIBLE_DEVICES|NCCL_|PYTORCH_|TORCH_|RANK|LOCAL_RANK|WORLD_SIZE|LOCAL_WORLD_SIZE|NODE_RANK|NPROC_PER_NODE|MASTER_ADDR|MASTER_PORT|OMP_|MKL_|GLOO_|NVIDIA_|CUDA_'
+    # ① 标准基础设施变量（§7.1 列举的 `…等` + 同类 CUDA/NCCL/CUBLAS/torchrun 变量）
+    # LD_LIBRARY_PATH / LD_PRELOAD are standard dynamic-linker variables, same
+    # class of infrastructure input as CUDA_*/NCCL_*.
+    INFRA_VARS='CUDA_VISIBLE_DEVICES|CUDA_|NCCL_|NVIDIA_|CUDNN_|CUBLAS_|PYTORCH_|TORCH_|OMP_|MKL_|GLOO_|RANK|LOCAL_RANK|WORLD_SIZE|LOCAL_WORLD_SIZE|NODE_RANK|NPROC_PER_NODE|MASTER_ADDR|MASTER_PORT|LD_LIBRARY_PATH|LD_PRELOAD'
     # §15.2 用户本地机密（.env）：密钥 / 口令 / token 类变量名
     SECRET_VARS='(_KEY|_TOKEN|_SECRET|_PASSWORD|_PASSWD|_CREDENTIAL|_API_KEY)'
     # ② 第三方组件只接受环境变量的适配层（常见样例，非穷举）
     THIRDPARTY_VARS='(HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy|HF_HOME|HF_TOKEN|HUGGINGFACE_|WANDB_|OPENAI_|ANTHROPIC_|AWS_|AZURE_|GOOGLE_|PIP_INDEX_URL|PIP_EXTRA_INDEX_URL|UV_|DOTENV_)'
+
+    # A hit whose env-var name is a bare identifier (os.environ.get(key),
+    # os.environ[name]) cannot be judged from the line text: §7.1 exception ①
+    # explicitly REQUIRES such variables to be read centrally, which is exactly
+    # this pattern. Report it for review (WARN) instead of FAILing it.
+    DYN_RE='os\.environ\[[[:space:]]*[A-Za-z_]|os\.environ\.get\([[:space:]]*[A-Za-z_]|os\.getenv\([[:space:]]*[A-Za-z_]'
+    ENV_DYNAMIC=$(printf '%s\n' "$ENV_ALL" | grep -E "$DYN_RE" | grep -v '^$' || true)
+    ENV_ALL=$(printf '%s\n' "$ENV_ALL" | grep -vE "$DYN_RE" || true)
 
     ENV_INFRA=$(printf '%s\n' "$ENV_ALL" | grep -E "$INFRA_VARS" | grep -v '^$' || true)
     ENV_SECRET=$(printf '%s\n' "$ENV_ALL" | grep -vE "$INFRA_VARS" | grep -E "$SECRET_VARS" | grep -v '^$' || true)
@@ -128,6 +150,11 @@ if [ -d "$PROJECT_ROOT/src" ]; then
     if [ -n "$ENV_THIRDPARTY" ]; then
         echo "  [WARN] Third-party env vars read (exception ②, §7.1 — verify it is an adapter layer):"
         printf '%s\n' "$ENV_THIRDPARTY" | while IFS= read -r line; do [ -n "$line" ] && echo "    $line"; done
+    fi
+
+    if [ -n "$ENV_DYNAMIC" ]; then
+        echo "  [WARN] Env var read through a dynamic name — verify a §7.1 exception ①/② (cannot be judged statically):"
+        printf '%s\n' "$ENV_DYNAMIC" | while IFS= read -r line; do [ -n "$line" ] && echo "    $line"; done
     fi
 
     if [ -n "$ENV_CONFIG" ]; then

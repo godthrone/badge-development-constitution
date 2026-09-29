@@ -94,7 +94,9 @@ while IFS= read -r file; do
     fi
 
     if [ $NEEDS_IT -eq 0 ]; then
-        LINE_NO=$(grep -n 'from __future__ import annotations' "$file" | head -1 | cut -d: -f1)
+        # `grep -m1` stops after the first match and exits cleanly, so the
+        # pipeline cannot die of SIGPIPE under `set -o pipefail`.
+        LINE_NO=$(grep -n -m1 -F 'from __future__ import annotations' "$file" 2>/dev/null | cut -d: -f1 || true)
         echo "  [WARN] $file:$LINE_NO: from __future__ import annotations may be unnecessary (no forward references detected)"
         WARN_COUNT=$((WARN_COUNT + 1))
     fi

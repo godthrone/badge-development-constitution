@@ -37,7 +37,7 @@ if [ -z "$HITS" ]; then
 fi
 
 echo "[WARN] check_docs_ascii: Box-drawing characters found in documentation (review — §17.2 requires Mermaid for diagrams; directory trees and tables are allowed):"
-echo "$HITS" | head -40
+printf '%s\n' "$HITS" | sed -n '1,40p'
 if [ "$(echo "$HITS" | grep -c '.' || true)" -gt 40 ]; then
     echo "  ... and more"
 fi
