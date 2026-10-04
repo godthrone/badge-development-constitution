@@ -1,4 +1,4 @@
-# BADGE Development Constitution v2.8.0
+# BADGE Development Constitution v2.8.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -284,7 +284,7 @@ The computation-infrastructure separation already provides a natural foundation 
 
 ## VI. Reproduction: The Effect Defined by the Requirement
 
-**When reproduction is needed:** Only when this result **needs to be produced a second time in the future, and the second result must be consistent with this one**, is reproducibility pursued; otherwise reproduction is not pursued — no reproduction-specific mechanism is added, and bit-for-bit consistency is not pursued for tasks whose fluctuation is allowed; mandatory mechanisms such as §14.2, §14.3, and §8.5 are not exempted on that account. The judgment is one sentence: **Will it run again? Does the second run have to be the same as this one?**
+**When reproduction is needed:** Only when this result **needs to be produced a second time in the future, and the second result must be consistent with this one**, is reproducibility pursued; otherwise reproduction is not pursued — no reproduction-specific mechanism is added, and bit-for-bit consistency is not pursued for tasks whose fluctuation is allowed; the mandatory force of mechanisms such as §14.2, §14.3, and §8.5 is independent of whether reproduction is needed, and each applies according to its own scope. The judgment is one sentence: **Will it run again? Does the second run have to be the same as this one?**
 
 **What counts as reproduction: the effect defined by the requirement is achieved again.** Reproduction has no fixed threshold — the meaning of "consistent" is determined by **the effect defined by the requirement**. First clarify what the requirement asks for, then judge reproduction on that basis:
 
@@ -303,7 +303,7 @@ The key is **first clarifying what the effect defined by the requirement is**. W
 
 **Litmus test:** Can you state in one sentence what the effect defined by the requirement for this run's "consistent" is? Calling "consistent" "bit-for-bit identical" when the requirement does not demand it is over-execution; failing to state the effect clearly means reproduction has not yet been defined.
 
-**Boundary:** The reproduction mechanism itself is also subject to the Preamble's "risk gate" — building version gates for a result that will never run a second time, or pursuing bit-for-bit consistency for a task whose fluctuation is allowed, costs far more than it gains and is over-execution. Parameter placement is decided by the principles of §10.1, together with §1.4 (Single Source of Truth) and §7.1 (single configuration entry point); reproduction is only the means of verification (see §10.1).
+**Boundary:** The reproduction mechanism itself is also subject to the Preamble's "risk gate" — additionally building reproduction-specific gates for a result that will never run a second time, or pursuing bit-for-bit consistency for a task whose fluctuation is allowed, costs far more than it gains and is over-execution. Parameter placement is decided by the principles of §10.1, together with §1.4 (Single Source of Truth) and §7.1 (single configuration entry point); reproduction is only the means of verification (see §10.1).
 
 ---
 
@@ -497,7 +497,7 @@ Always use absolute imports — relative imports are forbidden. `from __future__
 
 ### 8.7 Version Number: Single Source of Truth
 
-The project's version number is **automatically derived from git tags via `setuptools-scm`**. `pyproject.toml` declares `dynamic = ["version"]`. This is a stronger embodiment of Constitution 1.4 (Single Source of Truth) and 2.1 (Foolproof Design):
+The project's version number is **automatically derived from git tags via `setuptools-scm`**. `pyproject.toml` declares `dynamic = ["version"]`. This is a stronger embodiment of Constitution §1.4 (Single Source of Truth) and §2.1 (Foolproof Design):
 
 - `pyproject.toml`'s `[tool.setuptools_scm]` section configures version derivation rules (tag format, prefix, etc.) — this is the **single configuration source** for the versioning mechanism
 - The actual version string does not live in any file — it is derived from `git describe --tags`. To release: `git tag vX.Y.Z`
@@ -512,7 +512,7 @@ At runtime, obtain the version via `importlib.metadata.version("package-name")`.
 **Litmus test:** How many files need to change for a release? If more than 0, this clause is violated.
 
 - **Forbidden:** embedding constitution version references (`BADGE Constitution vX.Y`,
-  `constitution vX.Y §Z.W`, or similar patterns) in source code files.  The
+  `constitution vX.Y §Z.W`, or similar patterns) in source code files. The
   constitution version is maintained only in the constitution repository itself.
   Scattering version references across project source files creates drift and
   violates the same single-source-of-truth principle that §8.7 applies to project
@@ -747,7 +747,7 @@ All projects use `uv` as the sole package manager. `.python-version` pins the Py
 
 ### 14.3 Docker Required
 
-Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`). Dockerfile uses two-layer build (dependencies layer + source layer), exploiting layer caching. Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions inside the container as in the development environment. `build.sh` encapsulates the build command.
+Every project must support Docker deployment. Base image is pinned to a specific version tag (never `latest`; a tag can be overwritten — use a digest when strong determinism is required). Dockerfile uses two-layer build (dependencies layer + source layer), exploiting layer caching. Dependencies are installed via `uv sync` or `uv pip install` with `uv.lock` to guarantee the same versions inside the container as in the development environment. `build.sh` encapsulates the build command.
 
 **Docker layer cache design:** The dependency layer copies both `uv.lock` and `pyproject.toml`. The version number is derived by `setuptools-scm` from git tags (§8.7), and `pyproject.toml` uses `dynamic = ["version"]` (no version string in the file), so a version change does not change `pyproject.toml`'s file hash. The dependency layer is only rebuilt when `uv.lock` or `pyproject.toml` actually changes — routine version releases and code changes never trigger a dependency layer rebuild.
 
