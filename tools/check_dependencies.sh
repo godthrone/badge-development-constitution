@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # check_dependencies.sh — Verify dependency management conventions
 # Part of BADGE Constitution §14.1 (license), §14.2 (uv), §19.3 (license file)
+# License policy documentation: docs/license-policy.md
 #
 # Checks for:
 #   - No requirements.txt, Pipfile, poetry.lock, Pipfile.lock

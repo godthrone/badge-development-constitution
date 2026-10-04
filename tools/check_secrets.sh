@@ -2,6 +2,7 @@
 # check_secrets.sh — Scan tracked files, git history, and commit/tag metadata for
 # secrets and personal information (§15.1)
 # Part of BADGE Constitution §15.1
+# Project-level exemption manifest documentation: docs/opt-in-exemptions.md
 #
 # Checks for:
 #   - IP addresses (internal/private ranges flagged)

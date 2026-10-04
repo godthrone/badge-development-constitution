@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # check_legacy_cleanup.sh — Detect technical debt anti-patterns per §18.1
 # Part of BADGE Constitution §18.1, §18.2
+# Opt-in vendored manifest documentation: docs/opt-in-exemptions.md
 #
 # Checks for:
 #   - legacy/ or deprecated/ directories
