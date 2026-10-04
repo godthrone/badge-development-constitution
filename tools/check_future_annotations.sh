@@ -85,6 +85,32 @@ while IFS= read -r file; do
     elif grep -qE -- '["'\''"'\'']([A-Z][a-zA-Z0-9_]*["'\''"'\'']|\s*\|)' "$file"; then
         # String annotation pattern like -> "ClassName" or : "SomeType"
         NEEDS_IT=1
+    elif [ -n "$FILE_CLASSES" ] && \
+        grep -qE -- '(:|->)[[:space:]]*"[^"]*"' "$file" && \
+        grep -oE -- '(:|->)[[:space:]]*"[^"]*"' "$file" | \
+            grep -qE "\b($(printf '%s|' $FILE_CLASSES | sed 's/|$//'))\b"; then
+        # Case 2b — string annotation in a parameter/attribute position whose
+        # text names a class defined in THIS file. case 2 above only matches a
+        # bare `"ClassName"`; a quoted annotation that starts with an uppercase
+        # identifier but carries a space or `|` (`other: "Baz | None"`,
+        # `other: "Multi | None",`, also when the annotation sits on its own
+        # line) slipped through, and such a file was wrongly told its import
+        # was unnecessary. The import is NOT redundant there: inside the class
+        # body the name is not bound yet, so PEP 563 is what makes it work.
+        #
+        # REJECTED ALTERNATIVE — do not "simplify" this into the loose rule
+        # `grep -qE '["'\''"'\''][A-Z][A-Za-z0-9_]*[[:space:]]*\|'`, i.e. "any
+        # UpperIdentifier followed by |". Measured on isaac-sim-server: the
+        # warning count drops 53 -> 39, suppressing 14 files, and 13 of those
+        # 14 match prose in comments/docstrings (`Popen |`, `Lock |`,
+        # `Tensor |`) rather than a self-reference. Re-measured later on a
+        # drifted tree: 54 -> 39, 15 files suppressed, 0 of them referencing
+        # their own class. Such a file does not need PEP 563, so its warning
+        # was right: the loose rule trades a visible false alarm for an
+        # invisible missed report — a false negative, not a fix. The
+        # intersection with the class names actually defined in this file is
+        # what keeps this branch as narrow as the defect.
+        NEEDS_IT=1
     elif [ -n "$SELF_REF_RETURN" ]; then
         # Self-referencing return type annotation (e.g. `-> GraspoConfig`)
         NEEDS_IT=1

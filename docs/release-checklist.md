@@ -31,7 +31,8 @@ it is exercised as **Class C** (`--class=C`) — do not run the full Class A Pyt
 - [ ] `git add BADGE-constitution-vNEW.zh-CN.md && git rm BADGE-constitution-vOLD.zh-CN.md`
       (a new edition is a new file, not a rename; reserve `git mv` for a pure lexical rename).
 - [ ] English edition likewise: `git add BADGE-constitution-vNEW.en.md && git rm BADGE-constitution-vOLD.en.md`
-      (skip only if that release is Chinese-only).
+      (published alongside the Chinese edition, as in section 1; a Chinese-only release happens only
+      if the user explicitly decides so).
 - [ ] Before removing an old edition, confirm it is recoverable — tracked in git and reachable via a
       tag or blob hash (`git ls-tree <old-tag>`, `git cat-file -p <blob>`) (§2.4 操作防呆 / §3 退路).
 - [ ] `grep -rn 'BADGE-constitution-v' --include='*.sh' --include='*.md' --include='*.toml' .` and
