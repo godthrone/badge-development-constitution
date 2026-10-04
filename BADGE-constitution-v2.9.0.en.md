@@ -1,4 +1,4 @@
-# BADGE Development Constitution v2.8.1
+# BADGE Development Constitution v2.9.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
 >
@@ -33,6 +33,12 @@ Here **cost** means effort and resource consumption (tokens, tool calls, footpri
 **This principle only adjusts the depth of execution and the completeness of the deliverable; it exempts no mandatory clause** — security and secrets (§15), contracts and interfaces (§2.1), boundary validation (§2.3), operational foolproofing (§2.4), Single Source of Truth (§1.4), task decomposition (§1.5), fallbacks (§3), and all other mandatory clauses apply in full, **regardless of whether the consequence is reversible.** For reversible tasks the deliverable takes these mandatory clauses and the user's explicit acceptance criteria as its floor and is **minimally sufficient** — stop once the acceptance criteria are met, and do not add unrequested refinements, examples, or review rounds; the floor is not lowered. **§6 reproduction is not among them** — it has its own applicability precondition (see §6): it is pursued only when "the result needs to be produced a second time in the future, and the second time must be consistent with this time", and the meaning of "consistent" is determined by the effect defined by the requirement.
 
 **Escalation signal:** Only escalate to root-cause investigation when a simple approach fails once, or the same problem recurs.
+
+**Complexity discipline (the mirror of the escalation signal):** Complexity may only be added one layer at a time, and every layer must prove that it is necessary.
+
+- **Start from the minimal viable form**: deliver the simplest form that meets the requirement first; do not introduce the next layer of complexity before that one works.
+- **Every layer must be ablated** (an ablation experiment: remove the layer, then re-measure): each added layer (module, parameter, abstraction, branch, dependency) must be justified by an ablation — remove that layer: does the requirement-defined effect degrade noticeably? If you cannot answer, or removing it changes nothing, delete the layer rather than keeping it "just in case."
+- **Never invent requirements for the user**: function and form are defined by the user. The "more general / more complete / more elegant" the user never asked for is not a requirement — it is over-execution.
 
 ---
 
@@ -862,7 +868,7 @@ This rule applies to all configuration that is only needed at build time and mus
 
 **Proxies Must Not Pollute the Runtime (applies to every project that builds an image, not relaxed by project class):**
 
-> **Scope (relation to §0):** This clause is **not** a requirement to "provide a Docker deployment" — Category C does not apply §7–§20 by default (§0), so a project that builds no image has nothing for this clause to govern; but **once** a Category C project does provide a Docker deployment, every constraint of this clause applies to it as well — environment contamination is a correctness problem of the image itself and has nothing to do with project class. The applicability precondition of the "Category B / Category C that is not pushed to a public repository" column in the Value-Passing Rules table above is likewise **that the project provides a Docker deployment**.
+> **Scope (relation to Layer 0):** This clause is **not** a requirement to "provide a Docker deployment" — Category C does not apply §7–§20 by default (Layer 0), so a project that builds no image has nothing for this clause to govern; but **once** a Category C project does provide a Docker deployment, every constraint of this clause applies to it as well — environment contamination is a correctness problem of the image itself and has nothing to do with project class. The applicability precondition of the "Category B / Category C that is not pushed to a public repository" column in the Value-Passing Rules table above is likewise **that the project provides a Docker deployment**.
 
 1. **Forbidden** to pass proxy-class variables via `ENV` — `HTTP_PROXY`, `HTTPS_PROXY`, `FTP_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase forms (`http_proxy`, etc.; the lowercase forms likewise enter `Config.Env`); the equivalent form of `ARG X` followed by `ENV X=$X` is **likewise forbidden**. They write the value into `Config.Env`, and once the running container inherits it, an unreachable proxy makes network access inside the image fail, while troubleshooting rarely traces back to build time.
 2. **Forbidden** to write proxy configuration into **persistent** files inside the image, including but not limited to: `/etc/environment`, `/etc/profile`, `/etc/profile.d/*`, `~/.bashrc`, `~/.profile`, `/etc/apt/apt.conf.d/*`, `/etc/pip.conf`, `~/.pip/pip.conf`, `~/.config/pip/pip.conf`, `~/.npmrc`, `/etc/npmrc`, `~/.wgetrc`, `/etc/curlrc`, `/etc/gitconfig`, `~/.gitconfig`, `~/.docker/config.json`, `~/.config/uv/uv.toml`. If a build-time tool must read the configuration, it may be generated **only within the same `RUN`** and must be deleted before that `RUN` ends — no residue across layers.
