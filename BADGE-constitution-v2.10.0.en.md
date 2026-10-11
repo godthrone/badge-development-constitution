@@ -1,11 +1,13 @@
-# BADGE Development Constitution v2.9.0
+# BADGE Development Constitution v2.10.0
 
-> **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering
+> **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — Boundary and Defensive-Guard Engineering Development Constitution
 >
 > Great projects aren't built by checking harder — they're built by designing so that mistakes are impossible.
-> This constitution is the distillation of engineering taste — it tells you *why* a design is right, not just *what* to do.
+> This constitution is the distillation of engineering taste — it tells you why a design is right, not just what to do.
 >
 > **The three-layer structure of this constitution:** Principles tell you why a design is right. Rules tell you what you must do. Techniques tell you how to do it. Principles without rules are empty words. Rules without techniques are unenforceable. Techniques without principles leave you not knowing why you're doing them. All three are essential — none is optional.
+
+> **How to read this constitution.** Every clause of this constitution is a **conceptual statement**: it gives concepts, criteria, and general explanations. The concrete instances, specific values, specific forms, and literal values that appear in a clause **are examples, not a closed list** — replacing them with other values of the same kind does not change the clause's meaning, and **you must not infer from one example that other cases do not hold**. Concrete samples and decision rules that a tool can mechanically verify **are not in this constitution**; they are carried by the `tools/` scripts (the division of labor in §15.1's first paragraph). The complete rules for the text's writing style, their exceptions, and the revision process are in **§17.8**; this paragraph is only a **reading guide** — **it sets no criterion and carries no mandatory force**.
 
 ---
 
@@ -50,7 +52,7 @@ The BADGE Constitution classifies projects into three categories, each with a di
 
 - **Category A (Open-source Python projects)**: Public repositories, community audience. The full constitution applies (§1–§20; §6 reproduction takes effect according to its applicability precondition and the effect defined by the requirement, see §6).
 - **Category B (Closed-source Python projects)**: Private repositories, internal teams. Apart from the explicit relaxations listed below, all other clauses of this constitution apply: bilingual README exemption (§17.1, taking effect per §17.6), config format is a suggestion rather than a mandate (§7), the `__main__.py` exemption for Docker-deployed projects (§8.1, see that clause for the applicable conditions), and the graded exception for non-credential company-internal information (§15.4, limited to projects not pushed to a public repository). The mandatory core is security (§15), foolproofing (§2), and reproducibility within the scope of §6.
-- **Category C (Other infrastructure projects)**: Non-standard Python packages, data repositories, DevOps tools, documentation projects, etc. Design principles (§1–§5) must be followed; §6 reproduction takes effect according to its applicability precondition, see §6; §7–§20 do not apply by default, but the clauses within them that are engineering embodiments of the design principles (§15 Secrets Management, §16 `.local/`, §17.3–§17.5 Documentation System, §19.1–§19.3 Open Source Management) remain mandatory.
+- **Category C (Other infrastructure projects)**: Projects that are neither Category A nor Category B (see "Classification Determination"). Design principles (§1–§5) must be followed; §6 reproduction takes effect according to its applicability precondition, see §6; §11.5 (acceptance is user-facing acceptance), §15 Secrets Management, §15.4 (graded exception, applicable when the project is not pushed to a public repository), §16 `.local/`, §17.3–§17.5 and §17.7–§17.8 Documentation System, §19.1–§19.3 Open Source Management apply mandatorily; the remaining clauses of §7–§20 do not apply by default.
 
 **Classification decides the scope of clauses, not how §6 reproduction is judged**: across all three categories, §6 reproduction asks only "will it run a second time, and does the second run have to be the same", and judges by the effect defined by the requirement.
 
@@ -76,7 +78,7 @@ When a project's current state conflicts with a constitutional clause, use the t
 
 ## Compliance Detection
 
-Project classification is not hardcoded within the project itself. When running compliance detection scripts, the classification is passed via a command-line argument (e.g., `--class A`), allowing flexible adjustment of the detection level.
+Project classification is not hardcoded within the project itself. When running compliance detection scripts, the classification is passed via a command-line argument (e.g. `--class A`), allowing flexible adjustment of the detection level.
 
 ## Configuration Format: TOML First
 
@@ -94,33 +96,35 @@ Boundaries are the first step of system design. From network boundaries between 
 
 Each module does one thing and does it well. If a module's responsibility can't be described in a single sentence, split it. The internals of a module can be complex, but the boundaries between modules must be clean and simple.
 
-**The practical effect of good boundaries:** when modifying upper-layer code, you never need to open lower-layer files. If an agent main module calls a dozen tools, you only need to know each tool's interface and purpose — you don't need to read their implementations. Even if those tools total thousands of lines, they have nothing to do with your agent scheduling logic changes. This is the power of boundaries — they confine the blast radius of change within the boundary, letting you modify safely without worrying about downstream chain reactions.
+**The practical effect of good boundaries:** when modifying upper-layer code, you never need to open lower-layer files — you only need to know the lower-layer module's interface and responsibility, not read its implementation.
 
 **Litmus test:** Can you, without reading the code, accurately describe a module's responsibility from its name and interface signature alone? If not, the boundary isn't clear. When modifying a module, does the number of downstream files you need to open approach zero? If not, the boundary needs reinforcing.
 
 ### 1.2 Interface Boundaries: Stable Abstractions, Swappable Implementations
 
-Modules communicate through stable abstract interfaces, never depending on each other's concrete implementations. Add a new model backend, a new sampling strategy, a new storage engine — implement the interface and register it, without modifying a single line of existing code. Open for extension, closed for modification.
+Modules communicate through stable abstract interfaces, never depending on each other's concrete implementations. To add any new kind of implementation — just implement the interface and register it, without modifying any existing code. Open for extension, closed for modification.
 
 **Litmus test:** How many lines of existing code need to change to add a new implementation? If the answer is more than zero, the interface boundary needs redesign.
 
 ### 1.3 Layer Boundaries: Computation vs. Infrastructure
 
-There are only two kinds of code: code that does **computation** (algorithms, business rules, data transformations), and code that does **infrastructure** (GPU communication, network I/O, filesystems, databases). Computation code depends on zero infrastructure — it can run single-threaded locally, be tested independently, and reproduce in any environment (same input, same output). Infrastructure code connects computation results to the real world.
+There are only two kinds of code: code that does **computation** (algorithms, business rules, data transformations), and code that does **infrastructure** (access to external resources such as hardware, networks, filesystems, and databases). Computation code depends on zero infrastructure — it can run single-threaded locally, be tested independently, and reproduce in any environment (same input, same output). Infrastructure code connects computation results to the real world.
 
-This idea comes from distributed systems like Flink and Hadoop — don't make engineers juggle business logic, low-level implementation, and infrastructure simultaneously. No one can do all three well at once.
+This idea comes from distributed big-data systems like Flink and Hadoop — don't make engineers juggle business logic, low-level implementation, and infrastructure simultaneously. No one can do all three well at once.
 
 **Litmus test:** Can you run the core computation logic tests without starting a GPU, without a network connection, without reading files? If not, the layers aren't separated.
 
 ### 1.4 Data Boundaries: Single Source of Truth
 
-Every piece of information in the system has exactly **one** authoritative source. Configuration has exactly one authoritative entry point (single source of truth) — no environment variable fallback chains (the narrow env-var exceptions are in §7.1). State is maintained in one place — no multi-copy synchronization. Data flows in one direction — no callbacks, no circular dependencies.
+Every piece of information in the system has exactly **one** authoritative source. Configuration has exactly one authoritative entry point (single source of truth) — no environment variable fallback chains (the narrow env-var exceptions are in §7.1). State is maintained in one place — no multi-copy synchronization. Data flows in only one direction — no callbacks, no circular dependencies.
 
-"The value can come from three places" sounds flexible, but in practice the user changes a parameter, finds it didn't take effect, and spends an afternoon debugging. Flexibility here isn't a feature — it's a bug factory.
+"The value can come from three places" sounds flexible, but in practice it leaves the user changing a parameter and not knowing why it doesn't take effect.
 
 **Litmus test:** If someone asks "where does this value come from?", can you give the unique answer in one second? If not, there are too many sources.
 
 > This principle extends to deployment workflows: on deployment machines, the development machine is the sole source of code — see §14.4.
+
+> This principle extended to where documentation lands: **every piece of information needs only one authoritative source; it is not that every piece of information needs a document.** When a piece of information is implemented by code, **the code is its authoritative source** (§1.6) — check scripts, tests, config schemas, and `--help` are naturally versioned and naturally reviewable, so the problem of "a second document that is not versioned" does not arise, because there is no second document at all. The only form that violates this principle is: **the same piece of information exists both in code and in an independently editable explanatory document, and both can be treated as authoritative** — the solution is to **eliminate the second one** (push it down into code, or delete it), **not to add a directory**. The only home for repository documentation is `docs/` (§17.2); no separate documentation directory is set up; content that is neither user-facing nor acceptance-facing lands in `.local/` (§16.2) or in code comments (§1.6).
 
 ### 1.5 Task Boundaries: Decomposition is Execution
 
@@ -161,20 +165,20 @@ Every interaction across a boundary is governed by a **verifiable contract**, ne
 
 No magic in the code. State is explicit. Data flow is visible. Dependencies are declared. No string-concatenated paths. No `**kwargs` passed all the way through, leaving parameter origins untraceable. No `hasattr` probing for business interfaces. Implicit behavior is the biggest obstacle to understanding code — for humans and AI alike. When everything is explicit, errors have nowhere to hide.
 
-**Reasonable use of `**kwargs`:** In the adapter pattern for ABC abstract methods, `**kwargs` is allowed as an extension point — different subclasses may need different domain parameters, and the base class should not modify its interface for each subclass's special needs. The key: `**kwargs` must document in the docstring what additional parameters subclasses may accept, so callers know what to pass. HuggingFace's `model.generate(**kwargs)` is the canonical example of this pattern.
+**Reasonable use of `**kwargs`:** In the adapter pattern for ABC abstract methods, `**kwargs` is allowed as an extension point — different subclasses may need different domain parameters, and the base class should not modify its interface for each subclass's special needs. The key: `**kwargs` must document in the docstring what additional parameters subclasses may accept, so callers know what to pass.
 
 **Reasonable use of `hasattr`:** The following three scenarios allow `hasattr`:
-1. **Runtime capability detection**: checking whether a PyTorch version supports a feature (e.g. `hasattr(torch, "float8_e8m0fnu")`) — more reliable than parsing version strings
-2. **Cross-version compatibility**: handling upstream libraries (e.g. HuggingFace) returning different output types across versions (`output.logits` vs `output["logits"]`)
-3. **Duck-typing**: determining object type without introducing a hard dependency (e.g. distinguishing tensor from plain numeric values)
+1. **Runtime capability detection**: detecting whether the runtime environment supports a certain feature — more reliable than parsing version strings
+2. **Cross-version compatibility handling**: handling the case where upstream libraries of different versions return different output types
+3. **Duck-typing type judgment**: determining an object's type affiliation without introducing a hard dependency
 
 What is forbidden: using `hasattr` to probe business interfaces in your own project — that means the interface contract is unclear. Use ABC or Protocol to define explicit interfaces instead.
 
-**Null-value semantics: `None` is the only legal null value.** Using `0`, `-1`, `""`, `[]`, `{}`, or any other non-None value to express "absent/not-provided/invalid" semantics is prohibited. `None` is the only value in Python's type system with "null" semantics. Using other sentinel values bypasses the type checker's null detection and introduces ambiguity — is `-1` an "invalid port" or "port number -1"? Is `0` "not set" or "length zero"? `None` has no such ambiguity.
+**Null-value semantics: `None` is the only legal null value.** Using `0`, `-1`, `""`, `[]`, `{}`, or any other non-None value to express "absent/not-provided/invalid" semantics is prohibited. `None` is the only value in Python's type system with "null" semantics; using other sentinel values bypasses the type checker's null detection and introduces the ambiguity of "is this an invalid value or a real value". `None` has no such ambiguity.
 
-**Exception:** Natural zero points of numeric types (e.g., counter `0`, probability `0.0`) are not "null" semantics and are not subject to this rule. Using `-1` as a sentinel is only permitted when the value carries clear, irreplaceable domain semantics (e.g., POSIX error code `-1`) that cannot be expressed with `None`. Such exceptions must be justified in a comment.
+**Exception:** The natural zero point of a numeric value does not carry "null" semantics and is not subject to this rule. Using other non-None values as sentinels is allowed only when the value has clear, irreplaceable semantics in the domain and cannot be expressed with `None`. Such exceptions must be justified in a comment.
 
-**Serialization-boundary exception (TOML):** TOML has no null literal. The base configuration may use `""`, `0`, and `[]` to mean "not provided", but only at the serialization/deserialization boundary, and the loader must immediately normalize them to `None` before any business code sees them (see §7.1). This exception does not apply to semantic expression inside Python code.
+**Serialization-boundary exception (TOML):** TOML has no null literal. The base configuration may use `""`, `0`, and `[]` to mean "not provided", but **only at the serialization/deserialization boundary**, and the loader must immediately normalize them to `None` before any business code sees them (see §7.1). This exception does not apply to semantic expression inside Python code.
 
 **`= None` must be paired with an optional type annotation.** When a parameter or attribute defaults to `None`, the annotation must be written `X | None` (i.e., `x: str | None = None`, not `x: str = None`). The type annotation is part of the contract — `str = None` tells the type checker "this value is always a str", but at runtime it may be `None`, which is a self-contradictory contract.
 
@@ -184,17 +188,17 @@ What is forbidden: using `hasattr` to probe business interfaces in your own proj
 
 ### 2.3 Boundary Validation as Foolproofing
 
-Data must be validated when crossing boundaries. Validate all config fields at load time, reject unknown fields, check required fields. Validate request format before sending, validate response structure on receipt. Check before writing output — whether it would overwrite existing data, whether it would leak sensitive information. Errors are intercepted at the boundary — illegal data never enters the system, sensitive data never leaves it.
+Data must be validated when crossing boundaries. Validate all config fields at load time, reject unknown fields, check required fields. Validate request format before an API request is sent; validate response structure on receipt. Check before output is written to disk — whether it would overwrite existing data, whether it would leak sensitive information. Errors are intercepted at the boundary — illegal data never flows inward, sensitive data never flows outward.
 
-**A critical distinction:** boundary validation that rejects an illegal request (e.g. missing config) is not a "fallback" — it's a **defense line**. Defense lines block. Fallbacks route around. Don't confuse them.
+Boundary validation rejects an illegal request — that is not a "fallback", it is a "defense line".
 
 ### 2.4 Operational Foolproofing
 
-**Principle:** A destructive operation must make "what is about to happen" visible to the operator before execution. Deletion commands (files, directories, images, containers, database records, etc.) must not rely on implicit wildcard expansion — the result of wildcard expansion is invisible to the operator before execution, and this is the root cause of accidental deletion. The way to foolproof is not to trust the operator to be careful; it is to make it impossible for the operator not to see.
+**Principle:** A destructive operation must make "what is about to happen" visible to the operator before execution. Deletion commands must not rely on implicit wildcard expansion — the result of wildcard expansion is invisible to the operator before execution, and this is the root cause of accidental deletion. The way to foolproof is not to trust the operator to be careful; it is to make it impossible for the operator not to see.
 
-**Rule:** Before executing any deletion command, first list the targets with a listing command (`ls`, `docker images`, `git branch`, etc.), confirm they are correct, then delete using specific names one by one. **Wildcards (`*`, `?`, `[...]` and other shell glob patterns) are strictly forbidden in deletion commands.**
+**Rule:** Before executing any deletion command, first list the targets to be deleted with a listing command; once confirmed correct, delete them item by item using specific names. **Wildcards (`*`, `?`, `[...]` and other shell glob patterns) are strictly forbidden in deletion commands.**
 
-**Technique (wildcard exception handling):** When the number of files to delete is genuinely large and a wildcard is truly needed, output the full deletion command to the user for manual review and execution. AI assistants must not automatically execute deletion commands containing wildcards. This is not a matter of judgment — it is a design constraint. Just like the car rev limiter in the opening of §2: it's not about distrusting the driver; it's about giving no one the opportunity to make a mistake.
+**Technique (wildcard exception handling):** When the number of files to delete is genuinely large and a wildcard is truly needed, output the complete deletion command to the user, who reviews it manually and executes it themselves. AI assistants must not automatically execute deletion commands containing wildcards. This is not a matter of judgment — it is a design constraint: not distrusting the driver, but giving no one the opportunity to make a mistake.
 
 **Litmus test:** Before executing a deletion, can you name every single target that will be deleted? If not, the operation does not comply with this clause.
 
@@ -208,36 +212,30 @@ The core principle of fallbacks: **degradation may change the cost, but never th
 
 The system may execute these automatically, without notifying the user. The result is unchanged — only the cost changes (time, resources, speed).
 
-- Retry: takes more time, but the final result is identical. A failed rollout retries 5 times; only errors out if all 5 fail.
-- Slowdown: reduce concurrency under network congestion — slower, but data arrives intact.
-- Spare tire: speed limit 80 km/h, but gets you to your destination.
+Fallbacks the system may execute automatically: the result is unchanged and only the cost changes (time, resources, speed). The concrete form is determined by each project according to this criterion.
 
 ### 3.2 Transparent Fallbacks
 
 The result may be affected, and the system must clearly inform the user. Log at WARNING level, expose in metrics, let the user decide whether to intervene.
 
-- Skipping a corrupted sample: log the sample ID and reason, training continues, but the user knows what happened.
-- Using stale cache: data is expired but the network is unreachable — use the stale cache and notify the user.
+When the result may be affected, the system must clearly inform the user (logs, metrics, etc.) and let the user judge whether to intervene. The concrete form is determined by each project according to this criterion.
 
 ### 3.3 Pre-Authorized Fallbacks
 
 The result changes significantly, and the user must **explicitly declare acceptance** in configuration. Default: off. This is not a runtime decision — it's a pre-deployment decision.
 
-Examples of pre-authorized fallbacks that follow this principle:
-- Skipping corrupted training samples during data loading — acceptable only when the user has explicitly set a config toggle (default off), because the model will train on a different dataset than intended.
-- Overwriting existing output directories — acceptable only when the user has explicitly opted in (default off), because it destroys previous results.
 
-The constitution does not prescribe specific config key names — each project defines its own toggles. The principle is: if the result changes significantly, the user must say "yes" before deployment, not discover it afterward.
+The constitution does not prescribe specific config key names — each project defines its own toggles. The principle is: if the result changes significantly, the user must say "yes" before deployment, not discover it only afterward.
 
 ### 3.4 Fallbacks vs. Defense Lines
 
-Password expired, can't log in? That's not a fallback — that's a **defense line** at work. The authentication boundary validation found non-compliance and blocked access. Config field missing, exit with error? Defense line. Silently downgrading to a worse model? That's a **bad fallback** — it changed the result, and the user doesn't know.
+A rejection that belongs to boundary validation is not a fallback — it is a defense line; a degradation that changes the result while the user is unaware is a bad fallback.
 
 ---
 
 ## IV. Zero-Step Onboarding
 
-A new user clones the project and gets results in two commands. No extra system dependencies to install (all in Docker). No manual configuration (defaults are production-grade reasonable values). No need to understand the internal architecture (copy the example config and go).
+A new user clones the project and gets results with the fewest possible commands. No extra system dependencies to install (all in Docker). No manual configuration (defaults are production-grade reasonable values). No need to understand the internal architecture (copy the example config and go).
 
 **Zero-step does not mean zero configuration. It means the default configuration is a working configuration.** If the user must understand the meaning of 10 parameters before they can begin, zero-step onboarding has failed.
 
@@ -248,13 +246,13 @@ A new user clones the project and gets results in two commands. No extra system 
 **Principle:** If a project requires a shell script as the user entry point (wrapping Docker startup, environment variable setup, CLI parameter passing, etc.), that script must be placed at the project root so the user can spot it immediately without searching the directory tree.
 
 **Rule:**
-- At most **one** startup script at the project root, recommended name `run.sh`. This is the project's first interface to the user — after cloning, `ls` reveals it immediately.
+- At most **one** startup script at the project root (build scripts do not count as the "startup script" of this clause, see §10.2, §14.3), recommended name `run.sh`. This is the project's first interface to the user — after cloning, `ls` reveals it immediately.
 - This script is part of the user contract and is subject to §10.2 institutionalization criteria: it is referenced by the README, used repeatedly by workflows, and is a stable interface — do not casually change its parameter signature.
-- CLI parameters passed by this script must obey the three principles of §10.1 — only input-locating parameters (e.g. `--config`), runtime-environment parameters (e.g. `--gpus`), and run-boundary parameters (e.g. `--smoke`). All output-affecting parameters must go into the config file and must not be hardcoded in `run.sh`.
+- CLI parameters passed by this script must obey the three principles of §10.1 — only input-locating parameters, runtime-environment parameters, and run-boundary parameters (for the definitions and judgment of the three kinds, see §10.1). All output-affecting parameters must go into the config file and must not be hardcoded in `run.sh`.
 - This script does not belong to the `scripts/` directory (§10.2) — `scripts/` holds temporary developer-oriented tools, while `run.sh` is a stable user-facing entry point. The two must not be confused.
 
 **Technique:**
-- The minimal `run.sh`: set necessary environment variables, then call `python -m project --config "$@"`, letting the user override the config path via the command line.
+- The minimal `run.sh`: set the necessary environment variables, then start with `python -m <package>`, passing `--config` through to the user.
 - If the project also has Docker deployment (§14.3), `run.sh` may wrap the `docker run` command so the user can start the project without knowing Docker details.
 - If the project does not need a shell wrapper (i.e. `pip install` followed by `python -m project` works directly), `run.sh` is not required. Not every project needs one.
 
@@ -271,8 +269,8 @@ A new user clones the project and gets results in two commands. No extra system 
 - Only when a third-party component (e.g. a Docker/container interface) accepts nothing but environment variables may `${VAR:-default}` be used inside that adapter boundary. Such usage must be centralized, explicit, and commented — never scattered across the project.
 
 **Technique:**
-- The recommended pattern: `run.sh` defines paths and settings as script variables with defaults and exposes matching `--xxx` flags. Users who need customization create `.local/run.local.sh`, e.g. `exec "$(dirname "$0")/../run.sh" --model-dir /data --port 8080`, passing localized values as parameters.
-- If a third-party tool can only be configured through environment variables, export them in `run.local.sh`, mark them as a "third-party adapter" in a comment, and keep the base `run.sh` independent of them.
+- The recommended pattern: `run.sh` defines paths and settings as script variables with defaults and exposes matching `--xxx` flags; `run.local.sh` calls the base `run.sh` with explicit parameters.
+- If a third-party tool can only be configured through environment variables, export those variables in `run.local.sh`, mark them as a "third-party adapter" in a comment, and keep the base `run.sh` independent of them.
 
 **Litmus test:** Can a new deployment environment start the project without editing `run.sh`? If environment variables must be set first, is it confirmed to be an allowed §7.1 third-party adapter case, clearly documented, and with reasonable defaults?
 
@@ -307,6 +305,8 @@ The key is **first clarifying what the effect defined by the requirement is**. W
 - Explicit configuration: parameters that affect output go into the config file (§10.1); if the task involves randomness and its effect is sensitive to randomness, the random seed is explicitly set in the configuration, never dependent on system time or hardware state
 - Output archival: the configuration of each run is backed up together with the output (§8.5), and when needed it is recorded together with the criterion by which this run is "consistent" (into this run's config backup or work log, §17.5)
 
+The presence of the mechanism is verified by `tools/check_reproducibility.sh`.
+
 **Litmus test:** Can you state in one sentence what the effect defined by the requirement for this run's "consistent" is? Calling "consistent" "bit-for-bit identical" when the requirement does not demand it is over-execution; failing to state the effect clearly means reproduction has not yet been defined.
 
 **Boundary:** The reproduction mechanism itself is also subject to the Preamble's "risk gate" — additionally building reproduction-specific gates for a result that will never run a second time, or pursuing bit-for-bit consistency for a task whose fluctuation is allowed, costs far more than it gains and is over-execution. Parameter placement is decided by the principles of §10.1, together with §1.4 (Single Source of Truth) and §7.1 (single configuration entry point); reproduction is only the means of verification (see §10.1).
@@ -319,19 +319,19 @@ The key is **first clarifying what the effect defined by the requirement is**. W
 
 ### 7.1 Single Configuration Entry Point
 
-**Principle:** Configuration has exactly one authoritative entry point: a git-tracked base `config.toml` holds the defaults, organized by functional domain, optionally overlaid by a gitignored override configuration; after deep merge there is only one configuration in the program. TOML is the standard configuration format of the Python ecosystem (same format as `pyproject.toml`), with a type system that natively supports nested tables and arrays. Except for the environment-variable exceptions this section explicitly allows, do not use environment variables to carry configuration values (NVIDIA's `CUDA_VISIBLE_DEVICES` and `NCCL_*` are already messy enough), and do not use CLI arguments to implicitly override the configuration file. Configuration is configuration, environment is environment — keep them separate.
+**Principle:** Configuration has exactly one authoritative entry point: a git-tracked base `config.toml` holds the defaults, organized into sections by functional domain, optionally overlaid by a gitignored override configuration; after deep merge there is only one configuration in the program. TOML is the standard configuration format of the Python ecosystem (same format as `pyproject.toml`), with a type system that natively supports nested tables and arrays. Except for the environment-variable exceptions this section explicitly allows, do not use environment variables to carry configuration values, and do not use CLI arguments to implicitly override the configuration file. Configuration is configuration, environment is environment — keep them separate.
 
-> This constitution targets Python projects. This section and all subsequent concrete rules (file format, package manager, type annotation syntax, etc.) are anchored in the Python ecosystem. The design philosophy (Layer 1) is language-agnostic and can be applied to other languages by analogy.
+> This constitution targets Python projects. This section and all subsequent concrete rules are anchored in the Python ecosystem. The design philosophy (Layer 1) is language-agnostic and can be applied to other languages by analogy.
 
-**Environment-variable policy:** Environment variables are an invisible, hard-to-control configuration channel and must not be the single source of truth for configuration. They are allowed only for these three uses: ① standard infrastructure variables (`CUDA_VISIBLE_DEVICES`, `NCCL_*`, `PYTORCH_*`, `RANK`, etc.); ② third-party components that accept nothing but environment variables and cannot be adapted through configuration (an adapter layer for that component); ③ genuinely tiny projects that have exactly one configuration. Outside these three cases, environment variables must not carry configuration or path parameters (§10.1). Any configuration that arrives via environment variables must be read centrally at startup and normalized into the same configuration-loading path — never read ad hoc at usage sites. A user's own choice to keep local secrets in `.env` is not restricted by this policy, but the project must never treat it as the configuration source of truth (see §15.2).
+**Environment-variable policy:** Environment variables are an invisible, hard-to-control configuration channel and must not be the single source of truth for configuration. They are allowed only for these three uses: ① standard infrastructure variables — **the exact matching is defined by `tools/check_config_system.sh`** (§15.1 first-paragraph division of labor); ② third-party components that accept nothing but environment variables and cannot be adapted through configuration (an adapter layer for that component); ③ genuinely tiny projects that have exactly one configuration. Outside these three cases, environment variables must not carry configuration or path parameters (§10.1). Any configuration that arrives via environment variables must be read centrally at startup and normalized into the same configuration-loading path — never read ad hoc at usage sites. A user's own choice to keep local secrets in `.env` is not restricted by this policy, but the project must never treat it as the configuration source of truth (see §15.2).
 
 **Layered Configuration Pattern:** When a project needs to separate deployment configuration from public configuration, use a two-layer TOML approach with deep dict merge. Deployment configuration includes two categories of fields:
 
-- **Secret fields**: keys, passwords, tokens, internal IPs — must not appear in git-tracked files (for non-credential fields of Category B and private Category C, see §15.4).
-- **Environment fields**: API endpoint URLs, model names, external service addresses — these vary by deployment environment but are not secrets per se.
+- **Secret fields**: sensitive values that must not appear in git-tracked files.
+- **Environment fields**: configuration values that vary by deployment environment but are not themselves secret.
 
-- **Base configuration** (`config.toml`, git-tracked, loaded by default at startup): Contains **all fields** and is the **single authoritative source** of the configuration schema. Non-deployment fields have production-grade defaults. Secret fields are left empty (`""`, `0`, `[]`, normalized to `None` at load time — see §2.2). Environment fields have **development defaults** (e.g., `"http://localhost:8000"`, `"local-model"`) rather than being left empty — this ensures the project runs out of the box in a development environment.
-- **Override configuration** (recommended location: `.local/config.override.toml`, gitignored, deployment machine only): Overrides only the fields that need deployment-specific values. Copy from the git-tracked `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones". By default the template lists only the common fields that need overriding; when the total number of config fields is fewer than about 30, the template may directly mirror all fields for easier comparison.
+- **Base configuration** (`config.toml`, git-tracked, loaded by default at startup): Contains **all fields** and is the **single authoritative source** of the configuration schema. Non-deployment fields have production-grade defaults. Secret fields are left empty (`""`, `0`, `[]`, normalized to `None` at load time — see §2.2). Environment fields have **development defaults** (reasonable values usable locally) rather than being left empty — this ensures the project runs out of the box in a development environment.
+- **Override configuration** (recommended location: `.local/config.override.toml`, gitignored, deployment machine only): Overrides only the fields that need deployment-specific values. Copy from the git-tracked `config.override.sample.toml` template and fill in real values. **Must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones". By default the template lists only the common fields that need overriding; when the total number of config fields is small, the template may directly mirror all fields for easier comparison.
 - **Merge rule:** On startup, load the base configuration into a dict, then load the override configuration, and **deep merge** them into a single dict — leaf values from the override dict replace leaf values at the same path in the base dict. After merging, there is only **one configuration** in the program, eliminating any ambiguity of "two configuration sources".
 
 **Override file location:** The recommended location for the override file is `.local/config.override.toml`. Other locations are supported via an explicit `--override` parameter passed by the user. The CLI auto-detection priority is: explicit `--override` parameter → `.local/` → adjacent path (backward compatible).
@@ -404,8 +404,8 @@ project/
 │   ├── core/                # Computation layer: pure logic, zero infrastructure
 │   ├── backends/            # Infrastructure layer: distributed, GPU, network
 │   └── domain/              # Domain logic layer (omit if not needed)
-├── configs/                 # Example configs (required for long-running services; batch/training tasks may omit — place example configs in samples/configs/ instead)
-├── docs/                    # Architecture documentation
+├── configs/                 # Example configs (required for long-running services; batch/training tasks may omit — place example configs in samples/configs/)
+├── docs/                    # User-facing documentation: how to use it, the architecture, whether it works well (§17.2); includes the capability and usable-tier matrix (§17.7)
 ├── tests/                   # Tests (mirrors source tree)
 │   ├── core/
 │   ├── backends/
@@ -422,7 +422,7 @@ project/
 └── .gitignore
 ```
 
-**`configs/` directory:** Long-running services (e.g., API services, web applications) require `configs/` for runtime configuration. Batch/training tasks (e.g., model training, data processing scripts) receive configuration via CLI arguments — place example configs in `samples/configs/` instead; a root-level `configs/` is not required.
+**`configs/` directory**: Projects that need runtime configuration for long-running services should use `configs/`; projects that obtain configuration via CLI arguments may omit the root-level `configs/`, and placing example configs under `samples/configs/` is sufficient. **The mechanical validation of the directory structure is carried by `tools/check_directory_layout.sh`** (this project is judged by the same template, and `--class` differences are likewise defined by it).
 
 **Directory organization principle:** The directory structure is a navigation system for the codebase, not a filing cabinet. From directory hierarchy and file names alone, a reader should roughly understand what the code does, which module it belongs to, and its inheritance relationships — without opening any files. A directory should not contain more than 10 code files. When it does, the directory contains multiple sub-domains that can be independently named — create categorized sub-directories and group files by functional domain. This is not a hard limit, but a signal: when you see the 11th file, ask yourself "can this directory's responsibility still be described in a single sentence?"
 
@@ -449,9 +449,9 @@ backends/models/my_model/
 ├── __init__.py          # Re-exports MyModelAdapter from adapter.py
 ├── adapter.py           # Main class definition + template method skeleton
 ├── forward.py           # Forward-pass methods
-├── generation.py        # Generation/sampling methods
-├── checkpoint.py        # Checkpoint save/load methods
-└── helpers.py           # Pure utility functions (no self state)
+├── generation.py        # Generation-related methods
+├── checkpoint.py        # Save/load-related methods
+└── helpers.py           # Pure utility functions
 ```
 
 **Principle:** `adapter.py` keeps the class skeleton — `__init__`, template methods, abstract methods. Each file split out by functional domain contains a group of related methods of that class. External consumers only import the class name, completely unaware whether the internals are a single file or a directory. `__init__.py` is responsible for this "external transparency."
@@ -464,21 +464,21 @@ File names inside a class directory need not match class names — the directory
 
 Object-oriented and functional programming have debated for decades which is better. The answer is: **they are not rivals — they are tools.** The key is letting each do what it's best at.
 
-**OOP excels at:** stateful scenarios, scenarios with a lifecycle, scenarios with multiple implementations needing a unified interface. Class inheritance expresses "same kind of thing, different implementations" — model backends, sampling strategies, scheduling strategies. Template methods let the base class control the flow while subclasses fill in the differences.
+**OOP excels at:** stateful scenarios, scenarios with a lifecycle, scenarios with multiple implementations needing a unified interface. Class inheritance expresses "same kind of thing, different implementations". Template methods let the base class control the flow while subclasses fill in the differences.
 
-**FP excels at:** stateless, pure computation, data transformation scenarios. Functions receive input, return output, no side effects. Reward computation, data cleaning, format conversion, text parsing — these are most natural as pure functions, with clear input-output and tests that need no context.
+**FP excels at:** stateless, pure computation, data transformation scenarios. Functions receive input, return output, no side effects.
 
 **Don't OOP for OOP's sake:** if a piece of logic doesn't need `self` state, don't force it into a class. A standalone pure function is clearer, easier to test, and easier to reuse than a class with a single method.
 
 **Mixing styles within a module requires nuanced grading:**
 
 The following mixing is **benign** (Type A) and does not need splitting:
-- A file defines dataclasses (`frozen=True`, no mutable state, serving only as function return types) alongside pure functions that operate on those dataclasses. For example, `compare.py` contains `CompareResult` (frozen dataclass) and the `dict_compare_score()` family of comparison functions — they are naturally cohesive; splitting them would force readers to jump between two files.
-- A file is primarily a pure-function toolkit, and the "classes" within it are essentially typed tuples (`@dataclass(frozen=True, slots=True)` small data structures), not stateful service objects. For example, `tensor_utils.py` contains `OpMemoryProfile` and similar profiling data containers alongside numerous tensor utility functions.
-- Multiple sibling classes (e.g. several scheduler subclasses) share the same file — they share the same responsibility, and keeping them together is reasonable.
+- A file defines frozen dataclasses that serve only as function return types, alongside pure functions that operate on those dataclasses — they are naturally cohesive.
+- A file is primarily a pure-function toolkit, and the "classes" within it are essentially small data structures (typed tuples, frozen containers), not stateful service objects — they are naturally cohesive.
+- Multiple sibling classes share the same file — they share the same responsibility, and keeping them together is reasonable.
 
 The following mixing **needs splitting** (Type B):
-- A stateful, long-lived service class sits alongside unrelated standalone functions. For example, a `RewardCalculator` class (managing config, cache, state) next to `normalize_targets()`, `validate_tool_calls()`, and other functions that don't depend on `self` — these should be extracted into `helpers.py`.
+- A stateful, lifecycle-bearing service class sits alongside unrelated standalone functions — they should be extracted into a helpers module.
 - Complex state-management classes mixed with pure computation functions, making it impossible for the reader to tell at a glance the scope of a function's side effects.
 
 **Litmus test:** Can the reader tell at a glance whether the functions in this file have side effects? If seeing a class in the file leaves them unsure whether a function depends on the class's state — that's Type B, and it needs splitting.
@@ -511,19 +511,14 @@ The project's version number is **automatically derived from git tags via `setup
 - **Forbidden:** writing version numbers in config comments (`config.toml`, `config.override.sample.toml`) — config files are for users, not version records
 - **Forbidden:** hardcoding version strings in source code
 
-At runtime, obtain the version via `importlib.metadata.version("package-name")`. For users to check the version: `git tag --sort=-v:refname | head -1` or `pip show package-name`.
+At runtime, obtain the version through the standard-library metadata interface; users can check the version via a git tag or the package manager.
 
 **Why not use `pyproject.toml`'s `version` field?** Because `pyproject.toml` carries two entirely unrelated pieces of information: the version number and the dependency declarations. If the version number were hardcoded in `pyproject.toml`, changing the version number during a Docker build would change the file's hash, invalidating the dependency layer cache and forcing a full re-download of all packages. `setuptools-scm` + `dynamic = ["version"]` decouples the version number from the file into git tags — `pyproject.toml` contains no version string, so a version change does not change the file's hash, and `pyproject.toml` can safely go into the dependency layer without triggering a dependency rebuild. A version change then only affects the source layer (`COPY src`), while the dependency layer cache is fully reused. This is §1.4 (Single Source of Truth) and §14.3 (Docker layer caching) working in concert.
 
 **Litmus test:** How many files need to change for a release? If more than 0, this clause is violated.
 
-- **Forbidden:** embedding constitution version references (`BADGE Constitution vX.Y`,
-  `constitution vX.Y §Z.W`, or similar patterns) in source code files. The
-  constitution version is maintained only in the constitution repository itself.
-  Scattering version references across project source files creates drift and
-  violates the same single-source-of-truth principle that §8.7 applies to project
-  versions.  The constitution repo's own `tools/` scripts are exempt — they
-  are part of the constitution's own content, not project code.
+**Forbidden** to embed constitution version references in source code files. The constitution version number is maintained only in the constitution repository itself, so that it is likewise a single source of truth alongside the project version number. **The exact literal patterns are defined by `tools/check_constitution_refs.sh`** (the hardcoded-version check for this project is carried by `tools/check_version.sh`).
+  `tools/check_constitution_refs.sh` and `tools/check_version.sh` are part of the constitution's own content, not project code.
 
 ---
 
@@ -533,9 +528,9 @@ At runtime, obtain the version via `importlib.metadata.version("package-name")`.
 
 All core data structures use pydantic `BaseModel`. Passing bare `dict` or `list` for business data is forbidden. `extra = "forbid"` rejects unknown fields. Nested structures use nested pydantic models — no dict of dicts.
 
-**Model purity:** Data models follow the same one-thing-one-responsibility principle as module boundaries (§1.1). A model should contain only data that belongs to its conceptual domain. When you need to attach unrelated metadata, don't add fields to the existing model — create a new model and use composition (nesting) instead of pollution. For example, an observation should stay clean, containing only observation data itself; additional control flags (such as reset_task_done) should go in a wrapper model, with the observation as one of its fields.
+**Model purity:** Data models follow the same one-thing-one-responsibility principle as module boundaries (§1.1). A model should contain only data that belongs to its conceptual domain. When you need to attach unrelated metadata, don't add fields to the existing model — create a new model and use composition (nesting) instead of pollution.
 
-`frozen = True` is recommended for pure data objects loaded from external data sources that are never modified afterward (e.g. training samples, scoring results) — it prevents accidental mutation. But for scenarios such as configuration objects that need to be overridden by CLI arguments during initialization, `frozen` is not required; in that case, ensure the config object is not modified after initialization completes.
+`frozen = True` is recommended for pure data objects loaded from external data sources that are never modified afterward — it prevents accidental mutation. But for scenarios such as configuration objects that need to be overridden by CLI arguments during initialization, `frozen` is not required; in that case, ensure the config object is not modified after initialization completes.
 
 ### 9.2 Class Inheritance: ABC Template Method
 
@@ -551,7 +546,7 @@ Multiple implementations of the same type are managed through a registry (string
 
 ### 10.1 Config-Driven Commands
 
-**Principle: the config file is the sole description of run output.** Run output includes everything written to disk (model weights, datasets, evaluation results, log and record files) — the on-disk location is part of the output (output_dir and run_name are both config-driven); content sent to external systems counts as output too. The only exception: content printed directly to stdout without touching disk is not output.
+**Principle: the config file is the sole description of run output.** Run output includes everything written to disk, as well as content sent to external systems; the on-disk location is part of the output (output_dir and run_name are both config-driven). The only exception: content printed directly to stdout without touching disk is not output.
 
 **Reproduction definition:** Reproduction means **the effect defined by the requirement is achieved again** (§6) — there is no fixed threshold, and the meaning of consistency is determined by the requirement. **Parameter placement does not depend on whether reproduction is needed**: it is decided by the principles of this section, together with §1.4 (Single Source of Truth) and §7.1 (single configuration entry point) — every parameter that participates in deciding on-disk output must live in the config file; reproduction (§6) is the means of verifying that placement. Whether the config.toml backed up in the output directory (§8.5) alone can make the effect of this run achieved again in a second run is the criterion of that verification.
 
@@ -560,19 +555,19 @@ Multiple implementations of the same type are managed through a registry (string
 **Corollary 2: CLI flags and config fields have zero intersection.** A parameter can have only one source of truth (§1.4). A mechanism where "the config holds a value and the CLI overrides it" is forbidden — override means two sources of truth. Adding a new command is acceptable when it represents a fundamentally different lifecycle operation (training vs. exporting) that cannot be naturally expressed as a config toggle, but the command itself is subject to this section.
 
 **CLI parameters follow three principles (applies to every CLI command):**
-1. **Input-locating parameters**: point at input files or data — they locate input, they are not configuration content. `--config` is the most typical example; whether others like `--data`, `--limit`, `--checkpoint` fall into this category must be judged by project semantics;
-2. **Runtime-environment parameters**: never written to disk, never part of output, only affect "where it runs" (e.g. `--gpus`, `--master_port`);
-3. **Run-boundary parameters**: do not produce a complete run output (e.g. `--smoke` smoke test — equivalent to the config of one training run, no training semantics changed).
+1. **Input-locating parameters**: designate input files or data — locating input, not configuration content. The most typical example is `--config`; whether the remaining parameter names belong to this category must be judged by project semantics;
+2. **Runtime-environment parameters**: never written to disk, never part of output, only affect "where it runs";
+3. **Run-boundary parameters**: do not produce a complete run output (e.g. smoke verification — equivalent to a restricted run, without changing run semantics).
 
 **`--config` is the only explicitly named parameter** — other parameter names vary by project and must be reviewed one by one against the three principles above: under reproduction conditions (the same config; the same seed if the task involves randomness), does a different value of this parameter change the effect defined by the requirement (§6)? If yes, it must move into config.
 
 **Judgment criteria (technique):** for any parameter X — under reproduction conditions (the same config; the same seed if the task involves randomness), if different values of X change the effect defined by the requirement (§6), or change the existence, location, or controllable content of any on-disk output, then X must go into config. (This criterion is independent of whether §6 reproduction is needed: participating in deciding output is enough to be constrained.)
 
-**Output constraint (technique):** every CLI command's on-disk output is decided by the config — "output-locating" flags (`--output`, `--output-dir`, etc.) are forbidden. Tool commands (validate/evaluate/analyze, not part of training output) are equally constrained, with three options only: print without writing to disk; accept `--config` and write into a config-decided directory; or demote to a scripts/ script (§10.2).
+**Output constraint (technique):** every CLI command's on-disk output is decided by the config — "output-locating" parameters are forbidden. Tool commands that do not participate in output are equally constrained, with three options only: print without writing to disk; accept `--config` and write into a config-decided directory; or demote to a scripts/ script (§10.2).
 
 **Foolproofing (technique):**
 - The CLI parameter list is enumerated once in code and locked by tests — a new CLI flag must pass a "does not change the effect" test (run twice with the same config, only X differs, assert that the output is unaffected according to the effect defined in §6: for deterministic tasks compare value by value directly; for tasks involving randomness fix the seed, or compare only the parts unaffected by randomness)
-- Log and record files must not contain runtime-environment metadata (GPU IDs, host paths, container names) — they are not decided by config, are not part of the effect defined by the requirement, and belong to §16.2 environment information
+- Log and record files must not contain runtime-environment metadata — they are not decided by config, are not part of the effect defined by the requirement, and belong to §16.2 environment information
 - Except for the §7.1 third-party adapter cases, custom environment variables must not carry configuration or path parameters; standard CUDA/NCCL/PyTorch infrastructure variables are unaffected; host-path injection goes through CLI flags (e.g. run.sh `--model-dir`)
 - `run.sh` (§4.1) CLI parameters are equally subject to the three principles of this clause — it is a config launcher, not a config substitute
 
@@ -607,7 +602,7 @@ Unit tests cover public interfaces, with external dependencies mocked. End-to-en
 
 ### 11.4 Test-Data-Driven Development
 
-For adaptation algorithms in complex scenarios (e.g. model adapters, protocol converters, format compatibility layers), the completeness of generalized scenarios is extremely difficult to exhaustively establish through formal analysis. In such cases, test-data-driven development is an effective alternative path.
+For complex algorithms whose generalization completeness is extremely difficult to exhaustively establish through formal analysis, test-data-driven development is an effective alternative path.
 
 **Principle:** Use continuously enriched test scenarios as empirical anchor points for the algorithm, in place of formal completeness proofs. The richer the test scenarios, the higher the marginal cost of "cheating" through hardcoded branches, and the algorithm is forced toward genuine logical generalization. However, this is not "add an if for each new case" — each batch of new test scenarios should be followed by an abstraction refactor, so the algorithm covers more scenarios with simpler logic, rather than stacking patches on a branching tree.
 
@@ -615,6 +610,24 @@ For adaptation algorithms in complex scenarios (e.g. model adapters, protocol co
 
 **Technique:** Start from a small set of typical scenarios, progressively expand to boundary and exception scenarios, and after each iteration, examine whether the algorithm's logic has become simpler rather than more complex. If the algorithm's line count grows linearly with the number of test scenarios, cheating or patch accumulation is at work — re-abstract. The sign of convergence: new test scenarios pass without modifying the algorithm's logic.
 
+**The legitimate standing of negative-sample fixtures:** The detection capability of the security and compliance checks (§15) itself also needs to be tested. Synthetic fixtures (negative samples) used to prove that a rule **really fails** are part of the detection capability, not noise to be cleaned up — **fixtures must not be deleted just to make things green**, nor may assertions be relaxed to make a scan pass (see "Rule" in this clause). Such fixtures must use the **acceptable forms** defined in §15.1 item 1 (the same holds under Category A, see that item's "Category A has no named exemption channel"); a conforming form does not constitute a hit and needs no exemption list. **Fixtures must not use real credentials, real personal information, or internal addresses** — even "just for testing". **The fixture list, and each fixture's intent and criterion, are carried by the test file's own comments and naming** (§1.6: code is the first document); no separate fixture documentation is created.
+
+### 11.5 Acceptance Is User-Facing Acceptance
+
+**The purpose of acceptance is to answer "what can users use, how does it perform (VRAM, speed), and how many tiers really work."** Therefore **acceptance-facing artifacts are naturally user-facing artifacts — the two are aligned, not two different kinds of thing**. This is what "acceptance is user-facing acceptance" means.
+
+**Corollary (the only mandatory content of this clause):** When the object of acceptance is **user-facing capability, tiers, effect, or performance**, the acceptance output is **not merely an acceptance record** — the same machine-readable data must **simultaneously** support the capability and usable-tier matrix in `docs/` (§17.2, §17.7). That one matrix document carries two responsibilities: **① the acceptance record; ② the user-facing statement of capability and tiers**. **"Killing two birds with one stone" is a design goal, not a by-product**: one of the marks that such acceptance is complete is that users can already answer "how many tiers are usable, how do they perform, and where are the boundaries".
+
+**The division between what is committed and what is not (two clauses; do not merge):**
+
+- **What is committed = the usability and performance baseline under platform-side datasets and platform-side parameters** — **① it can run through to completion**; **② the effect meets the standard under platform-side datasets and platform-side parameters**; **③ VRAM usage and speed are within the committed range**. All three are **objects of acceptance**, and acceptance must give a conclusion on them.
+- **What is not committed = how it will turn out under users' own tasks, datasets, and hyperparameters.** The matrix may and should **record** the baseline effect values observed on the platform-side dataset (together with their basis, and marked "for reference only"), but **makes no effect commitment to users on that basis**. **The effect depends on users' own tasks, datasets, and parameters and is not within the commitment scope of acceptance** (§17.7).
+
+**The applicability boundary of this clause (to prevent padding documents):** What this clause requires is that "**the conclusions and evidence of acceptance must be captured where users can access them**", **not** that "every acceptance must add or produce a document". The form of the output is decided by the nature of the acceptance object:
+
+- When the acceptance object **has user-facing explanatory value** (capability, tiers, parameters, performance, **and whether it meets the standard on the platform-side dataset and criteria**) → the conclusions and evidence are captured into the matrix in `docs/` (generated data-first, see §17.7).
+- When the acceptance object **has no user-facing explanatory value**, this clause **requires no document to be produced**; the conclusions land in the same run's acceptance record and git commit record (§17.4), and a document **must not** be fabricated to satisfy this clause — that is exactly the "documentation that duplicates the code and therefore inevitably goes stale" that §1.6 opposes.
+- The judgment needs to answer only one sentence: **Among this acceptance's conclusions, which one is something users have a right to know and that currently has nowhere to be found?** If you cannot answer, do not produce a document.
 ---
 
 ## XII. Code Style
@@ -672,7 +685,7 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 **Naming as documentation:** File names are the first line of documentation for a codebase. From directory hierarchy and file names alone, a reader should be able to infer the file's purpose, its owning module, and its inheritance relationships. File names are not labels for yourself — they are navigation signals for future readers (including AI agents). When a file must be renamed for a new reader to understand its responsibility, the original naming was a failure.
 
-**Class-path mirroring:** A class name should encode two pieces of information — its **domain** and its **function**. The domain must map to a directory level in the path; the function must map to a file level in the path. `MyModelAdapter` should live at `.../my_model/adapter.py`, not scattered inside `utils.py`. The mechanical rule follows: **a class name must decompose into path components — the class name's CamelCase words correspond in order to package → directory → filename (snake_case), one word per level.** `MyPackageFlowTrainer` → `my_package/flow/trainer/trainer.py` (`MyPackage`=package, `Flow`=directory, `Trainer`=file), `MyPackageRippleLoss` → `my_package/ripple/loss.py` (`Ripple`=directory, `Loss`=file). **The directory hierarchy already provides domain context; the filename only needs to encode the functional part, without flattening the whole class name into the filename** — `my_package_flow_trainer.py` or `my_package_ripple_loss.py` is redundant, repeating path information. Exemptions: inside class directories (§8.3), files are named by functional domain and the directory name carries class-name locality; mixin classes (`_`-prefixed or `*Mixin`-suffixed) are named by function (`_MyModelGenerationMethods` in `generation.py`, `CheckpointMixin` in `checkpoint.py`); same-family multi-class files (§8.4) are named by functional family (multiple `MyModelStageOp` classes in `ops.py`); data-container types (frozen dataclass, pydantic models) are attached to the function family that operates on them and are named by that family (`CompareResult` in `compare.py`); test files are named after the module under test (§11.2), and their test helper classes are exempt.
+A class name should decompose into path components — the class name's CamelCase words correspond in order to package name → directory name → filename (snake_case), one word per level. **The exact validation is implemented by `tools/check_class_file_naming.sh`** (§15.1 first-paragraph division of labor). **The exempt categories** (files inside a class directory, mixin classes, same-family multi-class files, data containers, test helper classes) are kept as-is; the named instances in parentheses are deleted.
 
 **Why constrain classes but not functions?** Functions get their domain context from the file that contains them — the responsibility for locality lies with the file. Classes are self-locating units referenced across files, and a class may be upgraded into a directory (§8.3) — a class name must carry its own locality information.
 
@@ -684,11 +697,13 @@ Classes PascalCase, functions and variables snake_case, private members `_`-pref
 
 All other files — comments, docstrings, architecture documentation, config annotations — use **either Chinese or English, at the author's discretion**. No other languages are permitted. Keep language broadly consistent within a file; a small amount of technical terms, code references, or structural separators may remain in English.
 
+**This constitution's own two language versions are not subject to this clause's "either one" rule** — the Chinese version is the sole source of truth and the English version is a full translation of the Chinese version, see §17.8.
+
 **Config comments** (base `config.toml` and override template `config.override.sample.toml`) default to **English** — they are a user-facing interface, and English is the common language of the global developer community.
 
-**Commit messages** use **English** (see 19.1).
+**Commit messages** use English (see 19.1).
 
-**Technical terms, algorithm names, framework names, and academic concepts** are kept in their original English form — e.g. Flink, 1F1B, KV cache, attention mask, backpressure. These terms' original English is the shared language of engineers in the field; forcing translation loses information density instead. The principle is: **accuracy first — do not sacrifice technical expression for language purity.**
+Technical terms, algorithm names, framework names, and academic concepts are kept in their original English form — their original English is the shared language of engineers in the field; forcing translation loses information density instead. The principle is: **accuracy first — do not sacrifice technical expression for language purity.**
 
 Comments explain **why**, not **what**. No useless comments.
 
@@ -720,10 +735,7 @@ DEBUG for developers debugging, INFO for users tracking progress, WARNING for us
 
 Log file granularity mirrors module boundaries (§1.1): **independent modules each get their own log files; tightly-coupled pipeline steps share a single log file.** Each independent log domain is split into **readable logs** (human-readable, INFO level) and **raw logs** (machine-parseable, DEBUG full detail). ERROR-level logs are aggregated into a common error log file. All log files live under a `logs/` subdirectory of the output directory (see 8.5 Output Directory Isolation).
 
-The specific filenames and module splits are defined by each project according to its own architecture. For example:
-- In a training framework, rollout generation, reward computation, and policy optimization are tightly-coupled steps of the same training loop — they share a single `training.log` rather than each writing to its own file
-- In a data pipeline, if extraction, transformation, and loading are performed by three independent services (each independently deployable and testable), they may each have their own log file
-- A project that contains both a training module and an API service module — the two are independent of each other, each with its own log file
+The specific filenames and module splits are defined by each project according to its own architecture.
 
 **Core principle: splitting is meant to prevent investigators from having to open irrelevant modules' logs at the same time, but it must not force investigators to stitch together a timeline across files when tracing a single causal chain.** Structured domain-specific logs (e.g., JSONL rollout records, timing event logs) are system-specific extensions (see 13.2) and are not constrained by this rule — they serve machine analysis, not human investigation.
 
@@ -743,13 +755,13 @@ The specific filenames and module splits are defined by each project according t
 
 ### 14.1 License Constraints
 
-All dependencies must be MIT, Apache 2.0, or equivalent permissive licenses suitable for commercial use. GPL, AGPL, and other viral (copyleft) licenses are forbidden. Check license compatibility before introducing any new dependency.
+All dependency packages must be under **permissive licenses suitable for commercial use**; **viral (copyleft) licenses** are forbidden. Check license compatibility before introducing a new dependency. **The exact license list and the FAIL/WARN dividing line are defined by the judgment logic and runtime output of `tools/check_dependencies.sh`** (§15.1 first-paragraph division of labor) — the license categories are defined by this clause, and the concrete determination is not carried by a second document.
 
 ### 14.2 Dependency Management: uv
 
 All projects use `uv` as the sole package manager. `.python-version` pins the Python version. `pyproject.toml` declares dependency constraints (package name + version bounds). `uv.lock` is **generated from** `pyproject.toml` via `uv lock` and records the fully resolved dependency graph with exact versions and content hashes. Together they form the single source of truth for all dependencies — there is no other dependency specification. Both files are committed to git. `uv sync` sets up the development environment in one command.
 
-**Never edit `uv.lock` by hand.** It is a generated artifact. The dependency change workflow is: `pyproject.toml` → `uv lock` → `uv.lock`. No `requirements.txt`, no `Pipfile`, no environment-variable overrides for dependency versions.
+**Never edit `uv.lock` by hand.** It is a generated artifact. The dependency change workflow is: `pyproject.toml` → `uv lock` → `uv.lock`. `pyproject.toml` + `uv.lock` form the single source of truth for dependencies — **there is no other dependency specification**; **the specific forbidden dependency-specification file names are defined by `tools/check_dependencies.sh`.**
 
 ### 14.3 Docker Required
 
@@ -757,9 +769,9 @@ Every project must support Docker deployment. Base image is pinned to a specific
 
 **Docker layer cache design:** The dependency layer copies both `uv.lock` and `pyproject.toml`. The version number is derived by `setuptools-scm` from git tags (§8.7), and `pyproject.toml` uses `dynamic = ["version"]` (no version string in the file), so a version change does not change `pyproject.toml`'s file hash. The dependency layer is only rebuilt when `uv.lock` or `pyproject.toml` actually changes — routine version releases and code changes never trigger a dependency layer rebuild.
 
-**BuildKit cache mount:** All `uv sync` and `uv pip install` commands use `RUN --mount=type=cache,target=/root/.cache/uv`. BuildKit persists the `/root/.cache/uv` directory across builds, so even when the dependency layer is rebuilt (e.g., `uv.lock` changed), packages are read from local cache rather than re-downloaded from PyPI. This is the Docker-recommended pattern and should be standard in every modern Dockerfile.
+All dependency-install commands use a BuildKit cache mount so that packages are read from the local cache instead of over the network (the concrete mount target is defined by `tools/check_dockerfile.sh`).
 
-**Version in Docker builds:** `build.sh` obtains the version via `git describe --tags`, passes it as `--build-arg VERSION=X.Y.Z` to the Dockerfile, and the Dockerfile sets `SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}`. This ensures correct builds in shallow clones, CI environments, and COPY-only contexts (no `.git` directory), while maintaining a single source of truth for the version.
+`build.sh` obtains the version number from a git tag and injects it at build time, for use by build environments without `.git`, while keeping the version number single-sourced (the mechanism is verified by `tools/check_docker_version.sh`).
 
 **Recommended Dockerfile template:**
 
@@ -774,8 +786,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Layer 2: source code
 COPY src ./src
-COPY configs ./configs
-COPY data ./data
+# COPY configs ./configs    # keep only when the project has a root-level configs/; batch/training task example configs live in samples/configs/, see §8.1
+# COPY data ./data          # keep only when the project has a data directory distributed with the image; data/ is in .gitignore by default (§19.2)
 
 ARG VERSION=0.0.0
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
@@ -796,11 +808,6 @@ docker build --build-arg VERSION="${VERSION}" -t "${IMAGE_NAME}" -f docker/Docke
 
 **Proxy and build-time parameters must not pollute the runtime:** When a proxy is needed during builds to access external networks (e.g. `HTTP_PROXY`, `HTTPS_PROXY`), proxy environment variables **MUST NOT** be written into the Dockerfile's `ENV` instruction, and the final image must contain no residual proxy configuration. Internal proxy addresses also constitute secret information as defined in §15.1 — writing them into a Dockerfile is equivalent to permanently embedding internal addresses in git history. **How a value is passed is chosen per the "Value-Passing Rules" table below and is not restated here; for where `ENV` and `ARG` values each end up, see "The two kinds of metadata for build-time parameters" below.** Contamination of the runtime must be avoided entirely: **proxy-class variables MUST NOT be passed via `ENV`**; see "Proxies Must Not Pollute the Runtime" below for the complete constraints.
 
-**Anti-pattern (forbidden):**
-```dockerfile
-ENV HTTP_PROXY=http://proxy.internal.example.com:8080
-ENV HTTPS_PROXY=http://proxy.internal.example.com:8080
-```
 
 **Correct pattern 1 (recommended) — secret scenario: Category A / public repositories, or any credential-bearing proxy, go through secret.**
 
@@ -844,7 +851,7 @@ This rule applies to all configuration that is only needed at build time and mus
 **The two kinds of metadata for build-time parameters: configuration metadata and build history metadata.** "`ARG` does not enter the image" is an incomplete statement — what it does not enter is **configuration metadata**; what it does enter is **build history metadata**. To judge whether a value pollutes the runtime environment or leaks, the two locations must be assessed separately:
 
 - **Configuration metadata** (`docker inspect`'s `Config.Env`/`CMD`/`LABEL`, the image configuration exported by `docker save`): `ENV` values enter it, and the running container inherits them; `ARG` / `--build-arg` values do **not enter** it — which is why passing a proxy via `ARG` does not pollute the runtime environment.
-- **Build history metadata** (`docker history`, the image's layer records): the **literal values** of `ARG` / `--build-arg` **do enter**. BuildKit writes them into the history as a standalone `ARG NAME=VALUE` entry and as a `RUN |N NAME=VALUE /bin/sh -c …` prefix, **even if the parameter is never referenced by any instruction**; `docker inspect` cannot see these values, but `docker history --no-trunc` shows them plainly. (The index `N` is determined by the build process and is not necessarily 1. In addition, BuildKit emits a `SecretsUsedInArgOrEnv` warning when an ARG carries sensitive data.)
+- **Build history metadata** (`docker history`, the image's layer records): the **literal values** of `ARG` / `--build-arg` do enter. BuildKit writes them into the history as a standalone `ARG NAME=VALUE` entry and as a `RUN |N NAME=VALUE /bin/sh -c …` prefix, **even if the parameter is never referenced by any instruction**; `docker inspect` cannot see these values, but `docker history --no-trunc` shows them plainly. (The index `N` is determined by the build process and is not necessarily 1. In addition, BuildKit emits a `SecretsUsedInArgOrEnv` warning when an ARG carries sensitive data.)
 
 **Value-Passing Rules (graded by the kind of value and by project class, not decided by the single dimension of "build time vs. runtime"):**
 
@@ -870,23 +877,15 @@ This rule applies to all configuration that is only needed at build time and mus
 
 > **Scope (relation to Layer 0):** This clause is **not** a requirement to "provide a Docker deployment" — Category C does not apply §7–§20 by default (Layer 0), so a project that builds no image has nothing for this clause to govern; but **once** a Category C project does provide a Docker deployment, every constraint of this clause applies to it as well — environment contamination is a correctness problem of the image itself and has nothing to do with project class. The applicability precondition of the "Category B / Category C that is not pushed to a public repository" column in the Value-Passing Rules table above is likewise **that the project provides a Docker deployment**.
 
-1. **Forbidden** to pass proxy-class variables via `ENV` — `HTTP_PROXY`, `HTTPS_PROXY`, `FTP_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase forms (`http_proxy`, etc.; the lowercase forms likewise enter `Config.Env`); the equivalent form of `ARG X` followed by `ENV X=$X` is **likewise forbidden**. They write the value into `Config.Env`, and once the running container inherits it, an unreachable proxy makes network access inside the image fail, while troubleshooting rarely traces back to build time.
-2. **Forbidden** to write proxy configuration into **persistent** files inside the image, including but not limited to: `/etc/environment`, `/etc/profile`, `/etc/profile.d/*`, `~/.bashrc`, `~/.profile`, `/etc/apt/apt.conf.d/*`, `/etc/pip.conf`, `~/.pip/pip.conf`, `~/.config/pip/pip.conf`, `~/.npmrc`, `/etc/npmrc`, `~/.wgetrc`, `/etc/curlrc`, `/etc/gitconfig`, `~/.gitconfig`, `~/.docker/config.json`, `~/.config/uv/uv.toml`. If a build-time tool must read the configuration, it may be generated **only within the same `RUN`** and must be deleted before that `RUN` ends — no residue across layers.
+1. **Forbidden** to pass build-time variables (proxies, private mirror sources, registries, and the like, including uppercase and lowercase forms) via `ENV`; the equivalent form of `ARG X` followed by `ENV X=$X` is **likewise forbidden**. They write the value into the container's runtime environment, and once the runtime depends on that variable an error occurs, while troubleshooting rarely locates it back to build time. **The exact variable-name list and the class grading are defined by `tools/check_dockerfile.sh`.**
+2. **Forbidden** to write build-time configuration into **persistent** files inside the image (shell startup files, package-manager/build-tool configuration, git/container configuration, etc.). If a build-time tool must read the configuration, it may be generated **only within the same `RUN`** and must be deleted before that `RUN` ends — no residue across layers. **The exact path list is defined by `tools/check_dockerfile.sh`.**
 3. Proxies take effect at **build time** only, and the passing method **MUST be chosen per the "Value-Passing Rules" table above**; no unconditional recommendation is given — the complete grading is in that table and in §15.4 and is not restated here.
 
-**Acceptance (run each after the build; the criteria are mechanically checkable):**
-```bash
-# 1. Configuration metadata: no build-tool-class variable (proxy / mirror source / registry; including lowercase) may appear in `Config.Env`
-docker inspect --format '{{json .Config.Env}}' "${IMAGE_NAME}" | grep -iE "proxy|index_url|default_index|_mirror|_registry"
-# 2. Login-shell environment: no build-tool-class variable (proxy / mirror source / registry) may appear (covers indirect sources such as /etc/profile, /etc/profile.d/*, ~/.bashrc, ~/.profile)
-docker run --rm "${IMAGE_NAME}" sh -lc 'env' | grep -iE "proxy|index_url|default_index|_mirror|_registry"
-# 3. Content of persistent configuration files: no proxy / mirror-source / registry wording or internal-address form may remain (paths match the list in prohibition 2)
-docker run --rm "${IMAGE_NAME}" sh -c 'grep -rniE "proxy|index-url|index_url|default_index|mirror|registry|10\.[0-9]+\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+|\.internal|\.corp|\.lan" /etc/environment /etc/profile /etc/profile.d ~/.bashrc ~/.profile /etc/apt/apt.conf.d /etc/pip.conf ~/.pip/pip.conf ~/.config/pip/pip.conf ~/.npmrc /etc/npmrc ~/.wgetrc /etc/curlrc /etc/gitconfig ~/.gitconfig ~/.docker/config.json ~/.config/uv/uv.toml 2>/dev/null'
-```
+**Acceptance (run after the build):** Confirm item by item that there is no build-time configuration residue in the configuration metadata, the login-shell environment, or the contents of persistent configuration files — **all three outputs must be empty**. **The concrete acceptance commands are chosen by the project and pinned in its build chain; `tools/check_dockerfile.sh` currently performs only static Dockerfile checks and does not cover runtime image acceptance — that runtime check is not yet implemented in the `tools/` scripts.**
 
-The match patterns of checks 1 and 2 target **build-tool-class** variables — proxies, build-time mirror sources / registries (e.g. `UV_INDEX_URL`, `PIP_INDEX_URL`, `NPM_CONFIG_REGISTRY`) — not runtime business variables; configuration of this kind is likewise build-time only and must not linger in the image's runtime environment.
+The match patterns for the configuration metadata and the login-shell environment target **build-tool-class** variables (proxies, build-time mirror sources / registries), not runtime business variables; configuration of this kind is likewise build-time only and must not linger in the image's runtime environment.
 
-The output of checks 1, 2 and 3 **must all be empty** — any matching line (even if only one step matches) means failure; there is no "only unrelated entries" exemption. Step 2 cannot be omitted: a login shell reads `/etc/profile`, `/etc/profile.d/*`, `~/.bashrc`, `~/.profile`, etc. and injects the proxy variables from them into the process environment, which looking at `Config.Env` alone cannot detect. Step 3 checks file **content**: `ls` only proves that a file exists and cannot reveal the proxy inside it (`/etc/apt/apt.conf.d/` is by no means empty in a normal image, so "the directory listing must be empty" as a criterion is bound to misjudge). **Category A / public repositories additionally require**: `docker history --no-trunc "${IMAGE_NAME}" | grep -E "<internal address or credential literal>"` must not match — this check serves **only** to confirm that no literal value is in the history; `ARG` carrying a secret is therefore not allowed, which is a separate matter from "not polluting the runtime environment" (see "Value-Passing Rules" above).
+The output for all three kinds of residue **must be empty** — any matching line (even if only one kind matches) means failure; there is no "only irrelevant entries" exemption. The login-shell environment kind cannot be omitted: a login shell reads shell startup files and injects the proxy variables from them into the process environment, which looking at configuration metadata alone cannot detect. The persistent-configuration-file-content kind checks file **content**: `ls` only proves that a file exists and cannot reveal the proxy inside it. **Category A / public repositories additionally require** confirmation that no internal address or credential literal value appears in the build history — that check serves **only** to confirm that no literal value is in the history; `ARG` carrying a secret is therefore not allowed, which is a separate matter from "not polluting the runtime environment" (the commands are chosen by the project; **the history literal scan of built images is not yet implemented in the `tools/` scripts**).
 
 > For constraints on the source of code used during image builds, see §14.4 — regardless of where the image is built, the source code must come from a definite version on the development machine.
 
@@ -925,11 +924,17 @@ Every commit must pass the following checks. These checks should be integrated i
 > **A push publishes three things:** ① the content of tracked files; ② the entire git history (including deleted files); ③ commit metadata (author/committer names and emails) and commit messages. All three must be verified before pushing — scanning only the current working tree is not enough.
 
 **1. Secrets scan:** No tracked file may contain any secret information. Secrets include:
-- Keys, passwords, tokens, private keys of any form
+- Keys, passwords, tokens, and private keys of any form
 - Internal IP addresses, internal domain names, internal paths
 - Any information you would not want on GitHub after open-sourcing
 
 (For the graded exception for Category B and private Category C projects, see §15.4; credential-class information is not eligible for any exception.)
+
+**Acceptable forms: synthetic values and reserved values.** The preceding sentence "credential-class information is not eligible for any exception" targets **real credentials**. If a value can be **mechanically determined** to be in a synthetic or reserved form, it does not belong to the credential class at the moment of determination and does not fall under this item's prohibition — such values appearing in documentation examples, templates, and test fixtures are legal, **with no exemption list required**. The exact match patterns are defined by `tools/check_secrets.sh` (see this section's first-paragraph division of labor).
+
+**What is let through is the form, not the category.** This paragraph does not constitute an exemption for the information category "credentials"; it merely separates mechanically determinable synthetic/reserved values from real credentials. The following are **not accepted** under any circumstances and must be rewritten in form: credential strings bearing a real issuance prefix, random strings or passwords indistinguishable from real values, **internal addresses** (including internal domain names and internal paths), and real names/emails/phone numbers — these must be rewritten into documentation-example addresses or placeholder forms. The exact match patterns are defined by `tools/check_secrets.sh`.
+
+**Category A has no named exemption channel.** The named-exemption-list mechanism for Category B and Category C projects not pushed to a public repository is **not loaded and does not take effect** under Category A or any project pushed to a public repository: Category A projects **must not** register false positives in any named list, nor let any hit through on the grounds that it is "already registered". The mechanism's syntax, scope of effect, and match patterns are defined by `tools/check_secrets.sh` together with its inline comments and `--help` (§15.1 first-paragraph division of labor), and no separate explanatory document is created. Category A test fixtures have only two compliant paths — use the **acceptable forms** above, or rewrite the fixture into an acceptable form (see §11.4).
 
 **2. File-type check:** The following must not appear in tracked files:
 - `.env` file (only `.env-example` may be committed)
@@ -944,15 +949,18 @@ Every commit must pass the following checks. These checks should be integrated i
 
 **Definition of "training data":** the training data referred to in this item means specifically data that can be used to train a **model for a specific function** — private corpora, labeled sample sets, user behavior data, datasets used to train model weights, and the like; it does **not** include **public** seed data and Ontology data (public vocabularies, schemas, category tables, mapping tables, public corpus indexes, etc.) used to implement a feature. Test: can this data be obtained unconditionally from public channels, and does it not itself constitute a project-unique asset? If so, it is public seed data / Ontology data and is not subject to this item.
 
-**4. Personal information (PII) scan:** No tracked file or git history may contain information that can locate a specific natural person, whether or not it falls under category 1:
+**4. Personal information (PII) scan:** No tracked file or git history may contain information that can locate a specific natural person, whether or not it falls under category 1 secrets:
 - Personal email addresses; instant-messaging accounts such as QQ or WeChat; mobile and landline phone numbers
 - National ID numbers, passport numbers, bank card numbers, student IDs, employee badge numbers
 - A real name combined with other identity fields (anything that alone or in combination points to a specific person)
-- **Exemptions:** public project mailboxes (`noreply@`, maintainer public mailboxes), example/reserved domains (`example.com`, `example.org`), and explicit placeholders (`REPLACE_ME`, `your-email@…`)
+- **Exemptions (reserved domains, reserved number ranges, and placeholders):** public project mailboxes, example and reserved domains, explicit placeholders, pure filler number ranges, reserved fictional phone number ranges — the exact match patterns are defined by `tools/check_secrets.sh`.
+
+**Per-form basis (test fixtures and documentation examples):** Four "accept / do not accept" **category criteria** are retained — (a) example email addresses: those using a reserved domain or a placeholder are **accepted**; an address under any real domain is **not accepted**; (b) example mobile numbers: pure fillers, placeholders, or reserved fictional number ranges are **accepted**; a number with any real country code plus a real structure is **not accepted**; (c) example keys / passwords: only the "acceptable forms" defined in §15.1 item 1 are accepted, and they **must not carry a real issuance prefix**; (d) internal addresses vs. documentation example addresses: **internal addresses are not accepted**, while **documentation example address ranges are accepted** (for the basis see item 1; internal IPs fall under item 1's prohibition, not under a PII entry). The exact form values are defined by `tools/check_secrets.sh`.
+
 
 (For the graded exception for Category B and private Category C projects, see §15.4; employee personal sensitive information is not eligible for any exception.)
 
-**5. Commit metadata and message privacy:** For public repositories, `user.name` / `user.email` must not be a personal mailbox or an address containing a personal account (e.g. a QQ mailbox); use the hosting platform's `noreply` address or a project mailbox. Commit messages are scanned as well. Entry points: `git log --all --format='%an <%ae> %cn <%ce>'` covers metadata, `git log --all -p` covers committed content. See §15.3 for remediating historical leaks.
+**5. Commit metadata and message privacy:** For public repositories, author/committer emails and commit messages must be included in the scan; the verification entry point is provided by `tools/check_secrets.sh` (including git history and metadata). See §15.3 for remediating historical leaks.
 
 ### 15.2 Secrets Management Principles
 
@@ -960,16 +968,16 @@ Secret information must not enter git. Secrets include: keys, passwords, tokens,
 
 **Secrets storage (TOML override preferred; `.env` is an optional user-side channel):**
 
-1. **`.env` file** (for third-party components that read nothing but environment variables, or for flat key-value cases the user explicitly chooses): e.g., `API_KEY`, `DATABASE_URL`. Store in `KEY=VALUE` format in `.env` (local, **never tracked**). `.env-example` serves as a template in git, listing all required environment variable names and descriptions, without real values. Per §7.1, `.env` is not the preferred source of truth for project configuration — configuration that can go into the TOML override should not live here.
+1. **`.env` file** (for third-party components that read nothing but environment variables, or for flat key-value cases the user chooses): store in `KEY=VALUE` format in `.env` (local, **never tracked**). `.env-example` serves as a template in git, listing all required environment variable names and descriptions, without real values. Per §7.1, `.env` is not the preferred source of truth for project configuration — configuration that can go into the TOML override should not live here.
 
-2. **TOML override file** (for secrets nested within configuration structures): e.g., `[task.llm].endpoint`, `[database].password`. Use `.local/config.override.toml` (gitignored), following the §7.1 layered configuration pattern — the base TOML contains all fields (secret fields left empty), and the override TOML only fills in the secret values. The program deep-merges them into a single dict on startup.
+2. **TOML override file** (for secrets nested within configuration structures): use `.local/config.override.toml` (gitignored), following the §7.1 layered configuration pattern — the base TOML contains all fields (secret fields left empty), and the override TOML only fills in the secret values. The program deep-merges them into a single dict on startup.
 
 **Selection criteria:** Prefer the TOML override (the single source of truth for configuration). Use `.env` only when a third-party component reads nothing but environment variables, or when the user explicitly chooses so. **Mixing both approaches for the same field is prohibited** — each secret field must have exactly one source.
 
 **Rules:**
 - No literal secret values may appear in any code, documentation, configuration templates (including `.sample` and `.env-example`), or example files
 - `.env` and override files must be excluded in `.gitignore`
-- Template files (`.env-example` or `config.override.sample.toml`) must be tracked in git, using placeholders (e.g., `REPLACE_ME`) to guide deployers
+- Template files (`.env-example` or `config.override.sample.toml`) must be tracked in git, using placeholders to guide deployers (the forms are defined by `tools/check_secrets.sh`)
 - Personal information (email, phone numbers, instant-messaging accounts, etc.) that must appear in configuration should go into the TOML override (§7.1) in preference; use `.env` only when environment variables are genuinely required. It must not be hardcoded in the base config or templates
 
 **Litmus test:** Can an outsider clone the project and run it (in degraded mode) without access to any secret information? Does the git history contain any secret information or personal information?
@@ -995,6 +1003,8 @@ If what leaked is personal information (PII) rather than a secret, the history-r
 - Credential-bearing addresses: URLs with a username/password, token, or signature (private sources, webhooks, pre-signed links)
 - `.env`, `config.override.toml`, and other override/local files — they MUST always be excluded in `.gitignore` (§16.1, §19.2)
 
+> **Boundary with §15.1 item 1 (this is not an exception):** The object of this section's red lines is the **information category** — real credentials have no exemption whatsoever; §15.1 item 1's "acceptable forms" judge the **form** — a value mechanically determined to be synthetic/reserved does not belong to the credential class at the moment of determination and therefore does not fall under this section's red lines. The two are two different levels, "category vs. form", and read together they do not conflict: **no** real credential may be exempted on the grounds of being a "fixture" or "example"; and a synthetic/reserved form **must not** be treated as a credential (that would force fixtures to be deleted, violating §11.4). Category A and public repositories have no named exemption channel (§15.1 item 1).
+
 **Grading table:**
 
 | Information kind | Category A / public repository | Category B / private Category C |
@@ -1011,7 +1021,7 @@ If what leaked is personal information (PII) rather than a secret, the history-r
 3. **Live information about this project's own runtime environment** may still be written only into `.local/` per §16.2, and this exception does not relax §16.2 — what this exception relaxes is "company-internal information appearing as project content" (the non-credential information kinds listed in the table above, i.e. every row other than the credentials row), not "runtime environment records"; the boundary between this section and §16.2 is: the information kind is judged by the table above, the storage location by §16.2 (see also §17.5 for where the work log goes)
 4. What is relaxed is "company-internal information"; it does not include **employee personal sensitive information** — national ID numbers, passport numbers, bank card numbers, home addresses, private mobile numbers, private email addresses — which must not enter the repository even in an internal repository
 
-**Disambiguation for §15.1 item 4:** With this item-by-item relaxation, the "real name combined with other identity fields" referred to in §15.1 item 4 **no longer by itself constitutes a violation** for Category B and Category C projects not pushed to a public repository (real names, employee IDs / badge numbers, and departments are all relaxed in the table above); however, **employee personal sensitive information** must still not appear in any form or in any combination.
+**Disambiguation for §15.1 item 4:** With this item-by-item relaxation, the "real name **combined** with other identity fields" referred to in §15.1 item 4 **no longer by itself constitutes a violation** for Category B and Category C projects not pushed to a public repository (real names, employee IDs / badge numbers, and departments are all relaxed in the table above); however, **employee personal sensitive information** must still not appear in any form or in any combination.
 
 **Litmus test:** If this repository were made public tomorrow, what would be exposed in tracked files and git history? Only credentials and employee personal sensitive information are **unacceptable** answers; internal addresses and internal data are acceptable — but at that point the visibility change must be handled per §15.3, and it cannot be left to "we'll deal with it later".
 
@@ -1027,25 +1037,35 @@ The `.local/` directory at the project root is the **only** permitted location f
 
 `.local/` is not "suggested here" but "only here". Any local or temporary file found in a tracked path outside `.local/` constitutes a violation.
 
+**The criterion for "local and temporary" is the nature of the file, not its extension or carrier.** Machine-readable data files (such as the capability and usable-tier matrix data defined by §17.7), configurations, templates, generators, and the human-readable views deterministically generated from them are permanent-codebase content; their home is tracked paths such as `docs/`, `configs/`, and `tools/`, and they **do not fall under this clause just because they are "not documentation"**. The "local and temporary files" constrained by this clause refer specifically to the six criteria listed in §16.2 — especially "contains runtime environment information", "describes a one-time operation", "personal notes", and "any engineering artifact that does not belong in the permanent codebase" — and the judgment is based on the nature of the content. **A machine-readable data file must not be judged a local file merely because its extension is not among the Markdown ones.**
+
 `.local/` carries two categories of files:
-- **Local deployment files** (long-term): deployment configuration overrides (`config.override.toml`, etc.), localized startup scripts (`run.local.sh`), and other deployment-specific artifacts that are not part of the permanent codebase but persist across sessions.
-- **Temporary files** (short-term): run logs, migration plans, deployment notes, personal experiments, debug logs, and other one-off artifacts.
+- **Local deployment files** (long-term): deployment configuration overrides, localized startup scripts, and other deployment-specific artifacts that persist across sessions.
+- **Temporary files** (short-term): run logs, phase materials, debug records, and other one-off artifacts.
 
 ### 16.2 What Belongs in `.local/`
 
 A file that meets any of the following criteria is a local or temporary file and must go into `.local/`:
-- As a runtime-environment record, contains runtime environment information (IPs, hostnames, container names, SSH users, internal paths)
-- Is a deployment configuration override (`config.override.toml`, etc.)
-- Describes a one-time operation (migration plans, deployment records, experiment tracking)
+- As a runtime-environment record, contains runtime environment information
+- Is a deployment configuration override
+- Describes a one-time operation
 - Is a personal note, debug record, or run monitor
 - Is temporary data or an experimental config
 - Is any engineering artifact that does not belong in the permanent codebase
 
-If a file has long-term value to the project, turn it into formal documentation under `docs/`. If it only has short-term value to you or the current phase, put it in `.local/`.
+If a file has long-term value to the project, first use the decision tree below to decide where it goes; only if none of them apply does it stay in `.local/`:
 
-**The one exception: the work log (§17.5).** It has long-term value but necessarily contains environment information (resources and environment), so its only home is `.local/` — it must never be promoted to a `docs/` document. This is part of the data boundary (§1.4): environment information never enters tracked files.
+1. **User-facing, or referenced by `docs/`, and its content cannot be expressed by code** → turn it into formal documentation in `docs/` (§17.2).
+2. **Its content can be expressed by code or tools** (the FAIL/WARN dividing line of check rules, match patterns, tool mechanisms, usage parameters) → **do not make it a standalone document**; let the code itself carry it — in-script comments, `--help`, the config schema (§1.6 "code is the first document").
+3. **The rest** (personal records, phase materials, drafts nobody references) → stay in `.local/`.
 
-**Division of labour with §15.4:** This section governs the **storage location**, not the grade of the information kind — "what information may enter tracked files" is decided by the §15.4 grading table (e.g. an internal service address appearing as project content in a Category B project), while "where a file that is a record of the runtime environment goes" is decided by this section (into `.local/` only). Read together they do not conflict: information that may be committed under §15.4 is not thereby allowed to live outside `.local/` as a runtime environment record.
+**Note: a standalone document that is maintainer-specific and neither user-facing nor acceptance-facing has no home in the repository** — **unless it also has user-facing value (i.e. it satisfies one of the three content criteria of §17.2), in which case it may exist as the corresponding subsection in `docs/`**; otherwise it must go through item 2 (push it down into code/tools) or item 3 (`.local/`), and there is no third destination beyond those two. This is the direct consequence of this constitution having no documentation directory, and it is also §1.6's positive requirement: explanatory documentation that duplicates the code inevitably goes stale — do not write it.
+
+**The sole exception: the work log (§17.5).** It has long-term value, but necessarily contains environment information (resources and environment), so it can only exist in `.local/` — it must never be turned into a `docs/` document. This is part of the data boundary (§1.4): environment information is not allowed to enter tracked files.
+
+**Internal implementation plans and schedules do not enter the repository.** Implementation plans, schedules, and gap-closing plans that contain internal nodes, internal paths, internal accounts, or staffing **do not belong in** `docs/` — they do not satisfy §1.4's requirement of being externally obtainable and reviewable, and they violate the §15.1 item 1 prohibition on internal addresses and internal paths. The capability matrix in `docs/` **may** record "items to be filled in and the target state" (for the state values see §17.7), but **must not** record who will implement it, at which internal node, or via which internal path.
+
+**Division of labour with §15.4:** This section governs the **storage location**, not the grading of the information kind — "what information may enter tracked files" is decided by the §15.4 grading table (e.g. an internal service address appearing as project content in a Category B project), while "where a file that is a record of the runtime environment goes" is decided by this section (into `.local/` only). Read together they do not conflict: information that may be committed under §15.4 is not thereby allowed to live outside `.local/` as a runtime environment record.
 
 ### 16.3 Relationship with `scripts/`
 
@@ -1061,17 +1081,39 @@ If a file has long-term value to the project, turn it into formal documentation 
 
 **Except as exempted by §17.6**, `README.md` (English) and `README.zh-CN.md` (Chinese) must be **content mirrors**, not just structural mirrors. The same operation instructions, configuration descriptions, and FAQ entries must exist in both versions — one version must never contain information absent from the other. Both READMEs must be updated simultaneously on every release.
 
+> **This clause governs only the project `README`, and its exemption is bounded by the conditions of §17.6.** This constitution's own two language versions are two different objects: the Chinese version is the sole source of truth and the English version is its **full translation** (the direction is fixed as Chinese → English), see §17.8. The two are isomorphic in that "the two versions' content sets must be identical"; the difference is that §17.8 prescribes a direction, whereas this clause does not prescribe which of the two README versions comes first. **The §17.6 exemption removes only the formal requirement of "bilingual coexistence"; it does not remove any secrets-scanning requirement** — an exempted project is still bound by all of §15.1 and §15.2, and the single README must not contain literal secret values (§15.2).
+
 Chapter structure: Introduction → Quick Start → Data Format → Configuration Reference → Output Description → Development Guide → FAQ.
 
-### 17.2 Architecture Documentation
+### 17.2 User-Facing Documentation (`docs/`)
 
-Split by topic under the `docs/` directory, each file focused on one concern. The content boundary of documentation is defined by §1.6: **write module boundaries, responsibilities, and interfaces — write the structural "why"** — implementation details live in code comments (§12.4), not in docs.
+**`docs/` holds what is meant for users — the project's users and AI Agents, not collaborators in the development process.** Users care about only three things, and the content criteria of `docs/` are exactly these three kinds:
 
-**All diagrams in documentation must be drawn with Mermaid — ASCII hand-drawn diagrams are prohibited.** Mermaid is machine-parseable, natively rendered by GitHub/IDEs, and AI can generate and modify it; ASCII diagrams cannot be maintained, and AI cannot reliably redraw them. Node names must always be wrapped in English double quotes (`"Training Loop"`) for compatibility across renderers. Architecture, flow, data-flow, and swimlane diagrams are essential elements of architecture documentation — after reading it, you know how the system works. Directory trees, tables, and other plain-text structures are not "diagrams" and are exempt from this rule.
+1. **How to use it** — how this software is actually used: quick start, installation and configuration, usage guide, command and parameter reference, minimal runnable example, typical usage, configuration examples, FAQ and troubleshooting.
+2. **What the architecture looks like** — let users understand how the system works so they can use it correctly: module boundaries, responsibilities, interfaces, data flow, key processes, with the necessary structural-level diagrams.
+3. **Whether it works well** — capability and boundaries (what it can do, what it cannot do, where the limits are), **usable tiers and performance baselines**, and the **capability and usable-tier matrix**.
 
-**`docs/` is project-level architecture documentation and does not contain deployment-specific experiment records.** Deployment notes, experiment logs, run monitors, and similar artifacts are local files as defined in §16.2 and belong in `.local/`.
+**The basis for judging the reader and the content is "for whom, facing what", not "at which stage it was produced".** A document does not belong to the intermediate products merely because it "was generated from machine-readable data"; conversely, **things from the development process do not enter `docs/`** — how tests were done, how development was done, the judgments and decisions reached along the way, process records of runs, review records, task plans: **users do not care about them**; they care only about the **finished product already built and already pushed to GitHub**: how the product is, how to use it, what its architecture is, and whether it is good to use.
 
-**Litmus test:** After reading `docs/`, can a reader (human or AI) describe the system's module boundaries, data flows, and key processes? Can they say why a class is designed the way it is? If the first is yes and the answer to the second lives in code comments rather than docs, the docs/comments boundary is correct.
+**Content that goes into `docs/`** (split by topic, each file focused on one concern; the following are examples, not a closed list):
+- Quick start, installation and configuration, usage guide, command and parameter reference
+- Capability and boundary statements — what this project can do, what it cannot do, where the limits are
+- **Capability and usable-tier matrix** — list tier by tier whether each tier is usable (including the list and count of usable tiers), performance and baselines; one document carries two responsibilities at once: **① the acceptance record; ② the user-facing statement of capability and tiers**. See §17.7 for details; **the matrix must explicitly state the commitment boundary (see §17.7 "Boundary-statement obligation")**.
+- Examples: minimal runnable example, typical usage, configuration examples
+- FAQ, troubleshooting
+- User-facing architecture explanation: module boundaries, responsibilities, interfaces, data flow
+
+**Content that does not go into `docs/`:** things from the development process — how tests are done, how development is done, the judgments and decisions reached along the way, process records of runs, review records, task plans; as well as what has only short-term value to an individual or the current phase (§16.2), and what can be expressed by code or tools and therefore needs no standalone document (§1.6). **Note: "does not go into `docs/`" does not mean "has no home"** — they land in `.local/` (§16.2) or in code/tools (§1.6). **The concrete matching rules are carried by the `tools/` scripts themselves** (§15.1 first-paragraph division of labor).
+
+**The boundary with §1.6 still applies:** the **architecture explanation** in `docs/` writes only the structural-level "what" and "why" (module boundaries, responsibilities, interfaces); implementation details live in code comments (§12.4); the usage documents in `docs/` serve "how to use it" and are not allowed to copy implementation details just because they are user-facing.
+
+**All diagrams in documentation must be drawn with Mermaid — ASCII hand-drawn diagrams are prohibited.** Mermaid is machine-parseable, natively rendered by GitHub/IDEs, and AI can generate and modify it; ASCII diagrams cannot be maintained, and AI cannot reliably redraw them. Node names must always be wrapped in English double quotes for compatibility across renderers. **The necessary structural-level diagrams (architecture, flow, data flow, etc.) are essential elements of an architecture explanation** — after reading it, you know how the system works. Directory trees, tables, and other plain-text structures are not "diagrams" and are exempt from this rule.
+
+**Tracked documentation contains no deployment environment records.** Deployment notes, experiment records, run monitoring, and similar artifacts are local files as defined in §16.2 and belong in `.local/`. `docs/` **is allowed** to contain opaque run IDs, acceptance criteria, per-tier conclusions, and failure attribution (acceptance is user-facing acceptance; both the conclusions and the attribution are things users have a right to know).
+
+**The commit rules for internal-network information in `docs/` are judged per the existing division of labor between §15.4 and §16.2; this clause sets up no stricter prohibition of its own.** Specifically: **whether it can enter tracked files** is decided by the §15.4 grading table by **project class and repository visibility** (in Category B and Category C projects not pushed to a public repository, internal IPs / domain names / paths as internal service addresses in project content are allowed); **whether it is a runtime environment record** is decided by §16.2 (host paths, hostnames, container names, and other runtime environment records may only go into `.local/`); internal nodes, internal accounts, and staffing are handled per §15.1 item 1 and §16.2. **The sole exception is the landing point of the capability and usable-tier matrix** — the matrix has its own stricter basis (because it is user-facing and AI-facing), see §17.7 "Relation to the §15.4 graded exception". For the verbatim basis see §17.7.
+
+**Litmus test:** Can a user who **does not know this project** answer three things from `docs/` alone — **① how to use this software** (install it, run the minimal example, find the parameters)? **② what its architecture looks like**? **③ whether it works well** (how many tiers are usable, how VRAM and speed are, where the boundaries are)? If all three are answerable, `docs/`'s positioning is correct.
 
 ### 17.3 AI Assistant Documentation
 
@@ -1106,15 +1148,119 @@ Division of labor between the state-section anchor and the event section: the ev
 
 **Rule:** A project meeting any of the following conditions may keep only a single `README.md`, with language kept consistent (Chinese or English at the author's discretion):
 
-1. **Private project**: the project is not pushed to any public repository (GitHub, GitLab, Gitee, etc.) and is used only within an intranet or private repository.
-2. **Single-language audience project**: the project's target user community is clearly a single-language community (e.g. Chinese-only or English-only), and the maintainer judges that a bilingual README would not yield practical community coverage benefits.
+1. **Private project**: the project is not pushed to any public repository and is used only within an intranet or private repository.
+2. **Single-language audience project**: the project's target user community is clearly a single-language community, and the maintainer judges that a bilingual README would not yield practical community coverage benefits.
+
+**The object of this clause's exemption is the project `README`.** This constitution's own two language versions are not exempted according to project class — the Chinese version is the sole source of truth and the English version is a full translation, see §17.8.
 
 **Technique:**
-- Exempt projects should clearly state the document language in the sole README (e.g. "This document is in Chinese") to avoid reader confusion.
+- Exempt projects should clearly state the document language in the sole README to avoid reader confusion.
 - Choose the language based on the target audience: Chinese for Chinese-speaking communities, English for English-speaking communities.
 - If the project later becomes open-source or expands its audience, add a bilingual README at that point — this is not debt; it is a scope change.
 
 **Litmus test:** Does the project's target audience include both Chinese and English-speaking communities? If not, and the project is not in a public repository, a bilingual README produces no practical value.
+
+### 17.7 Capability and Usable-Tier Matrix (`docs/`)
+
+**The three things to answer.** The capability and usable-tier matrix answers three things for users: **① how many tiers are usable** (the list and count of usable tiers); **② how performance is**; **③ every listed tier is usable** (for the criteria see "Usability criteria" below). The matrix's smallest entry is the **tier** (see the definition at the end of this section), and the smallest unit of a per-tier conclusion is likewise the tier.
+
+**Positioning: one document, two responsibilities.** The matrix lives in `docs/`. It is **both a user-facing document and an acceptance-facing one** — **acceptance is user-facing acceptance** (§11.5), and the purpose of acceptance is to answer "what can users use, how does it perform, and how many tiers really work". Hence acceptance-facing artifacts are naturally user-facing artifacts, and the two are aligned: one matrix document carries both **① the acceptance record** and **② the user-facing statement of capability and tiers**. **This does not constitute a "one file, two readers" problem** — the readers of both responsibilities are the same: users. Only when the **readers of different responsibilities are not the same group of people** is it necessary to split into two documents; this project's capability matrix is not such a case. **The matrix describes the platform's capability and performance baseline, not a commitment about the training effect on users.**
+
+**The two kinds of "effect" must be stated clearly and must not be conflated (the core of this clause).** Effect information in the matrix comes in two kinds with completely different roles:
+
+- **Effect meets the standard on the platform-side dataset — this is a usability criterion** (see "Usability criteria" below, item 2). It answers "did this tier really produce the effect it should, under our own dataset and parameters", and is therefore **evidence that it is "usable and most likely bug-free"**.
+- **The effect under users' own tasks, datasets, and hyperparameters — this is outside the commitment scope.** The training effect depends on users' own tasks, datasets, and parameters; **how users' datasets will turn out and how they will turn out with users' own hyperparameters is not guaranteed by this matrix.** This matrix only guarantees **that it ran on our dataset and produced very good results**. If a user does not get good results on their own data, the cause is most likely their own task, data, or parameters rather than an infrastructure problem — if the infrastructure had a problem, our own dataset should not have produced good results either.
+
+**Usability criteria (determining "usable / unusable" — both must be satisfied):**
+
+1. **Can run through to completion**: exit code zero, the algorithm's mechanism genuinely in effect (not idling), the output can be inferred from or loaded, the output form is compliant, and VRAM and throughput are within the committed range.
+2. **Effect meets the standard under platform-side datasets and platform-side parameters**: judged as meeting the standard according to the criteria and thresholds defined by the platform side.
+
+**What is not part of the commitment:** **the effect under users' own tasks, datasets, and hyperparameters** — it does not enter the commitment scope and does not participate in the "usable / unusable" judgment.
+
+**"Unusable" must state which criterion was not met.** When a tier is marked "unusable", it **must** explicitly state whether what it failed is **item 1 (will not run through / mechanism not in effect / output unusable / over VRAM)** or **item 2 (effect did not meet the standard under platform-side datasets and platform-side parameters)**, and the facts of the items it did pass must be retained. **Not** just the word "failed" — that makes users misread "effect did not meet the standard" as "**the platform cannot run it**". **But item 2 must not for that reason be excluded from the usability criteria**: failing to meet the standard on the platform-side dataset is **unusable**, and presenting it as such is all that is required.
+
+**Boundary-statement obligation (must be explicitly written).** Such a user-facing capability and usable-tier matrix **must** **explicitly state its commitment boundary** in the document, in wording **no weaker than**:
+
+> **The capability and usable-tier matrix states each tier's usability and performance baseline: every listed tier has been run through to completion on our dataset with good results (as evidence that it is "usable and most likely bug-free"). The training effect depends on users' own tasks, datasets, and parameters and is not within the commitment scope of this matrix.**
+
+A matrix that does not state **this boundary statement** is **deemed incomplete in its delivery as a matrix document** — the visibility of the boundary is as important as the matrix data itself; it **must not** be left for users to infer on their own, nor **must** it be hidden in a footnote, appendix, or glossary. This is also the Preamble's "never invent requirements for the user" put into practice in this section: counting the effect on users' tasks as a platform commitment is precisely inventing requirements for the user.
+
+**The content requirements of that boundary statement (verbatim copying is not required, but no item may be missing).** The criterion for "state the boundary statement" is that **the content must cover the three points above**: **① each tier's usability** (every listed tier has been run through to completion) / **② the platform-side dataset conclusion** (the effect meets the standard under platform-side datasets and platform-side parameters, and this is evidence that it is "usable and most likely bug-free") / **③ users' effect is outside the commitment scope** (the effect under users' tasks, datasets, and parameters is not committed by this matrix). **Copying the quotation above certainly satisfies it; different wording that covers all three points likewise satisfies it** — what this clause requires is **semantics no weaker**, not verbatim comparison.
+
+**Who judges, and against what checklist.** ① **Existence** is mechanically judged by the `tools/` scripts against the **three-item checklist** above (any missing item is a FAIL, with **no verbatim comparison**); ② **whether the wording is "no weaker"** is executed by the §17.8 final-review reading, checking **item by item against the same three-item checklist**. **Counter-example (counts as "no weaker" not achieved)**: writing only "the effect is not guaranteed" or "for reference only" without positively stating points ① and ② is judged non-compliant — it evades the positive conclusion "the platform side has run it through and met the standard", and what users read is "this thing may not work".
+
+**Baseline values and criterion bases must carry their basis.** Any effect figure presented as a reference, and any criterion used to judge "the effect meets the standard", **must** state the basis on which it holds, complete enough to be **reviewable**; a figure missing either item **must not** be written into the matrix as a baseline or criterion. **The exact field checklist is defined by the completeness check of the `tools/` scripts** (§17.7 tool division of labor).
+
+**Evaluation data and criterion bases must be reviewable.** Concrete implementation of the preceding paragraph: the matrix **must** state the **dataset identifier, criterion identifier, threshold, and target value** on which the judgment that this tier meets the standard is based; datasets that can be made public **should** state how to obtain them, and those that cannot **must** state the fact that they are "platform-owned / not public" and give reviewable alternative anchors (data version identifier, criterion definition, sample size, and evaluation method). **Must not** omit the basis on the grounds that "the dataset is not public" — omitting the basis leaves users unable to review the statement "the effect is good", and **the conclusion ceases to be evidence**. At the same time, **must not**, to satisfy this paragraph, write dataset contents, host paths, internal addresses, internal paths, or dataset storage locations into `docs/` — **what is to be made public is the basis, not the data**.
+
+**Single-source generation (mandatory):**
+
+1. **Machine-readable data is the sole source of truth.** The tier list, per-tier parameters, and per-tier conclusions are carried by one **machine-readable data file** (inside `docs/`, with the extension chosen by the project), which is the matrix's **only editable source**. **Forbidden** to declare that "the human-readable file and the machine-readable file are both sources of truth" or that "the two are each other's source of truth" — that is not a single source of truth but two sources: even if the two are currently consistent, they will inevitably diverge on the next modification.
+2. **The human-readable view is deterministically generated from the data.** The human-readable file (Markdown, HTML, etc.) that users read **must** be deterministically produced from **that data + a fixed generator**: the same input must produce the same byte string. The generator **must not** read the clock, the environment, the network, or human-computer interaction results.
+3. **No hand-editing.** Any change to the human-readable view must change the **data** or the **generator** and then regenerate. **Manually editing a generated artifact is treated as a violation**, on a par with manually tampering with the data.
+4. **Byte-for-byte rebuildable.** The human-readable view in the repository must be **rebuildable byte-for-byte** from the current data and generator; the check is to regenerate and compare byte-for-byte with the on-disk file, and **any differing byte is a failure**. This turns "has it been hand-edited" into a machine-decidable fact rather than relying on people's diligence.
+5. **Fixed direction.** The derivation direction between the data and the human-readable view must be unique and fixed; **forbidden** to infer in both directions, synchronize bidirectionally, or "backfill the data from the view".
+
+**Single-source generation is not "two sources of truth", and sharing the same home does not change that.** The data file and the human-readable view are both in `docs/`, but **only one is editable**: the data file is the sole source of truth, and the human-readable view is a read-only artifact deterministically generated from it. The basis for judging "are these two sources" is **"can it be edited independently"**, not "which directory it is in" — putting one source and one derived view in the same directory is still one source. **`docs/` is not limited to Markdown**: machine-readable data files and the human-readable views generated from them both live inside `docs/`; the criterion is always the reader and content criteria of this section and §17.2, not the file extension.
+
+**Coverage threshold and failure states: unverified must not masquerade as usable.**
+
+- Every tier **must be explicitly marked with a verification status** in the matrix, and only four values are allowed: **verified usable / verified unusable / not yet verified / not included in acceptance**. A tier with no measured conclusion in the data **must** be shown as "not yet verified" — **must not** omit the tier, **must not** pass off a design target as verified capability, and **must not** use blank space, a placeholder, or a neutral style so that users misread it as usable. The four states must have **distinguishable text labels** (not relying on color, a legend, or blank space). **"Verified usable" may be given only when both "usability criteria" are satisfied** (can run through to completion **and** the effect meets the standard under platform-side datasets and platform-side parameters); **failing either one makes it "verified unusable"**, and it must state which one was failed (see '"Unusable" must state which criterion was not met' above). **Tiers not yet measured must be marked "not yet verified" and must not be counted into the number of usable tiers.**
+- **Coverage threshold:** Only when **all tiers already have a definite conclusion** — a value among "**verified usable / verified unusable / not included in acceptance**" (that is, not "not yet verified") — is it allowed to claim the project's overall capability commitment anywhere in the document. **"Not included in acceptance" must be explicitly marked per tier, stating the reason for exclusion and the applicable scope**, and must not be substituted with a blank space. When this condition is not met, an explicit warning **must** be written on the document's first screen (the warning wording is composed by the project according to this criterion), and the title and summary must not use capability-commitment wording, and the list and count of "not yet verified" tiers must be given at the same time.
+- **An overall commitment cannot be proven by individual passes.** When several tiers together constitute one capability commitment (for example, "the full combination is usable"), **must not** declare that commitment to hold because individual tiers passed; the condition for the commitment to hold is that **all** tiers in that commitment set pass; otherwise it must explicitly state "that commitment is not yet met" and list the tiers that failed and those not yet verified.
+- The matrix **must not** use "verified unusable" to mask "not yet verified": writing a never-measured tier as "unusable" is just as distorted as writing it as "usable".
+
+**Must not play down platform-side failure by "not committing to the effect".** "The effect on users' tasks is not committed by this matrix" only moves **the effect under users' tasks / data / hyperparameters** out of the commitment scope; it does **not** demote **platform-side failure** to "for reference only": **failure to run through, exceeding VRAM, unusable output, or a non-conforming output form must still be presented truthfully as "verified unusable", with the failed item stated.** The two obligations run in parallel — "not committing to the effect" **does not relax** "truthfully presenting the platform's capability"; the matrix **must not**, on the grounds that "the effect is not ours to manage anyway", write a tier that will not run as "not yet verified" or in vague wording. **Symmetrically**, it must not write "the effect did not meet the standard on the platform-side dataset" as "will not run" or vaguely as "not yet verified" — that too is "verified unusable", only the failed item is criterion 2.
+
+**Auto-generated tracked documents (the matrix's human-readable view is of this kind):**
+
+1. **Explicitly mark the generation relationship.** The file header must have a machine-readable generation marker, and the document's first screen must have a user-visible explanation; both must state "This file is automatically generated by `<generator path>` from `<data path>`; **manual editing is forbidden**".
+2. **No scan exemption.** Generated artifacts enter the §15.1 scope of secrets, personal information, and runtime-environment checks **on the same footing** as hand-written documents; **must not** be exempted from scanning on the grounds that "this is machine-produced".
+3. **Reviewable diff.** Generated artifacts must be byte-for-byte rebuildable from the data (see "Same-source generation" item 4, "byte-for-byte rebuildable", above), which puts the review cost on the **diff of the data and the generator** — the reviewer need not read the generated artifact line by line, only look at the changes to the data and the generator and then confirm that the on-disk generated artifact can be rebuilt from the current data.
+
+**Matrix data and the compliance floor (single track; division of labor with §15.1 item 1 and §16.2):**
+
+- **What the matrix in `docs/` is allowed to contain:** opaque run IDs, acceptance criteria, per-tier conclusions, and **failure attribution** (cause analysis, criterion threshold details, difference values, identifiers of the criteria not passed). Rationale: acceptance is user-facing acceptance, and **both the conclusions and the attribution are things users have a right to know** — users must be able to judge "does this conclusion still hold, why does this tier not work, and which criterion it fails on".
+- **What is still forbidden in the matrix:** host paths, internal addresses, internal domain names, internal paths, machine names, personal names, and **internal nodes and internal accounts**. The basis divides three ways: **host paths and machine names** belong to §16.2's runtime environment records (which may only go into `.local/`); **internal IPs / domain names / paths** belong to the "non-credential company-internal information" of the §15.4 grading table — **the §15.4 relaxation for Category B and private Category C projects does not apply at this landing point, the matrix** (for the reason see "Relation to the §15.4 graded exception" below); **internal nodes, internal accounts, and personal names** belong to the §15.1 item 1 secret categories. **This clause sets up no further prohibition applying to `docs/` as a whole** — the commit rules for non-matrix content in `docs/` follow §15.4 and §16.2 (§17.2).
+- **Relation to §16.2:** §16.2 governs the **storage location** (what belongs in `.local/`), while this clause governs the **two lists of matrix content** (what is allowed, what is forbidden). Read together they do not conflict: information that may be committed under §15.1 is not thereby allowed to appear in the matrix as a runtime environment record.
+- **Relation to §15.1 item 1:** item 1 defines the **check categories** and the scripts define the **exact match patterns** (§15.1 first-paragraph division of labor). This clause's "forbidden" list is a **restatement** of item 1 at the landing point of the matrix; it adds no independent category and constitutes no exception.
+- **Relation to the §15.4 graded exception (Category B and Category C not pushed to a public repository):** what the §15.4 relaxation settles is "whether this information may enter tracked files"; what this clause's forbidden list settles is "whether this information may appear at this user-facing landing point, the capability and usable-tier matrix" — the matrix's readers are users (including external users) and AI, not internal collaborators, so **the matrix does not get the §15.4 relaxation**: Category B and private Category C projects likewise must not write internal IPs, internal domain names, internal paths, machine names, internal nodes, or internal accounts into the matrix; if such information must be recorded, it goes into `.local/` (§16.2). This clause neither relaxes nor tightens the §15.4 grading conclusions for **other** landing points (code, configuration); the commit rules for **non-matrix** content in `docs/` are decided by §15.4 and §16.2 (§17.2).
+- **The §15.4 grading table is not changed (except for the tightening of the matrix landing point in the preceding item):** the grading table grades by **project class and repository visibility**. **Category A and any project pushed to a public repository must not, because of this clause, contain any internal information** (they are strict under §15.4 anyway).
+
+**Tier.** A **supported configuration combination** that this project offers to users along one capability dimension; each tier is an independently verifiable, independently referenceable unit with a **stable identifier**. The capability and usable-tier matrix takes the tier as its **smallest entry**; per-tier conclusions take the tier as the **smallest unit of conclusion**; the data, the human-readable view, and the acceptance record are aligned by **the same set of stable identifiers**. A tier's definition and list are governed by its machine-readable data (item 1 of this clause). **Which dimensions make up a configuration combination is defined by each project according to its own capability dimensions and is not fixed by this clause.**
+
+> **Tool division of labor:** This clause only prescribes **categories and criteria** (data uniqueness, deterministic generation, no hand-editing, byte-for-byte rebuildability, prohibition items for desensitization, consistency of states with the usability criteria, completeness of the basis, existence of the boundary statement). The concrete generation commands, the file pairs to compare, the match patterns for "hand-editing", the basis field checklist, and the existence check for the boundary statement are defined by the `tools/` scripts (following the existing §15.1 first-paragraph division of labor). **The matrix's desensitization scan (host paths, intranet addresses/domains/paths, machine names, person names, internal nodes and internal accounts) currently has no supporting script and is not yet implemented in the `tools/` scripts** — the prohibitions prescribed in this clause remain unchanged.
+
+**Litmus test:** If you delete the matrix's human-readable view from `docs/`, can you rebuild every byte of it from the data and the generator alone? If the rebuild result is not completely identical to the on-disk file, there is hand-editing or a second source. **Does the matrix answer those three things — how many tiers are usable (the list and count of usable tiers), how performance is, and whether every listed tier has a conclusion that "both criteria are satisfied"?** Is there any cell so vague that users would mistake it for usable? Is there anywhere that writes only "failed" without stating which criterion was not met, making users think the platform cannot run it? If there is, this clause is violated.
+
+### 17.8 Language, Writing Style, and Revision of the Constitution Text
+
+This clause governs the relationship between **this constitution's own** two language versions and its textual writing style. §17.1 governs the project `README`, §17.6 governs the README's single-language exemption; the three have different objects and read together they do not conflict.
+
+**The Chinese version is the sole source of truth.** The authoritative definition of the constitution's content is the Chinese version (`BADGE-constitution-v<version>.zh-CN.md`). The English version (`BADGE-constitution-v<version>.en.md`) is a **full translation** of the Chinese version, a derived artifact, not a second source of truth — it adds nothing, removes nothing, and independently interprets no clause.
+
+**Revision process: first change the Chinese version and finalize it, then translate the whole thing into the English version.** Any addition, modification, or deletion of a clause is completed and finalized in the Chinese version first; the English version takes the **finalized Chinese version** as its sole input and is retranslated as a whole. **Forbidden** for the two versions to evolve independently: forbidden to change the English version first and "backfill" the Chinese version, forbidden for the two versions to separately absorb content the other does not have, forbidden to change only one place without retranslating the remaining affected clauses.
+
+**The two versions must be consistent:**
+- The version numbers are identical — two language versions with the same version number are the product of the same translation relationship and are released together
+- The chapter structure and numbering are identical — §a.b points to the same clause in the English version
+- The clause sets are identical — every clause the Chinese version has must exist clause by clause in the English version, and vice versa
+
+**The writing style of the constitution text.** This constitution writes only **concepts, criteria, and general explanations**. Any expression that could be replaced by a value of the same kind without changing the clause's meaning — a specific instance, a specific number, a specific form, a literal value, and metaphors/analogies — is not written at all; the exception is enumerations necessary to the criteria — **the reason they cannot be deleted is explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan), **not repeated inside the clause**. **Specific examples that a tool can mechanically verify are all pushed down into `tools/`**: the constitution writes only the categories and criteria of checks, and the concrete determination rules are carried by the scripts themselves (§15.1 first-paragraph division of labor).
+
+**Relation to the opening "How to read this constitution".** The opening passage is only a **reading guide**; **it sets no criterion and carries no mandatory force**; all criteria for the text's writing style are governed by this clause. Where the two disagree, this clause prevails.
+
+**Exceptions (forms that may be kept; the reasons they cannot be replaced are uniformly explained at constitution-revision review and recorded in the revision record, see below, and are not repeated inside the clause):**
+1. **Standard templates** — **executable landing points** where replacing them would change the reader's actions or the tool's behavior (directory trees, config file skeletons, build scripts, paste-ready command blocks, etc.). They are not "replaceable values of the same kind"; deleting or replacing them would directly change the reader's actions.
+2. **Enumerations necessary to the criteria** — **category lists** without which it could not be determined "what to do / what to scan / what to compare" (such as the secret categories in §15.1 item 1, the personal-information categories in item 4, the four state values in §17.7, and the three residue locations in §14.3). Such enumerations are the criteria themselves, not examples.
+3. **Bundled examples explicitly marked "not a closed list"** — example lists that are **explicitly marked** with "the following are examples, not a closed list" or an equivalent sentence and that **do not serve as a basis for judgment** (such as the "content that goes into `docs/`" list in §17.2) are **exempt from this clause**: their demonstrative value outweighs the risk of overfitting, and they have been explicitly marked as open sets. **An example list without that marking is not exempt.**
+
+**How the reasons are recorded.** Criterion-necessary enumerations and standard templates **may be kept**, but **their reason for not being deletable must be explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan) — **not repeated inside the clause**. The granularity of the reasons: **category 1 (standard templates) uses a single unified reason** — "**executable landing points** where replacing them would change the reader's actions or the tool's behavior" (all 7 standard templates share this one, not expanded one by one); **category 2 (criterion-necessary enumerations) explains item by item** "what could not be determined if it were deleted"; **category 3 (examples explicitly marked "not a closed list") is exempt from the explanation obligation** (it has been marked as an open set).
+
+**Scope of effect:** This clause **takes effect only for newly revised and newly added clauses**; clauses that already existed before this revision **do not immediately violate it because of this clause**, and are **handled in batches** under §18's debt management: at revision time the constitution maintainers create debt entries for existing clauses (recording the clause location, the violation form, and the planned batch), apply it first in newly added and revised clauses, and de-example existing clauses batch by batch. **Forbidden** to use this clause as grounds to launch an unplanned one-off full rewrite of existing clauses.
+
+**Litmus test:** Take any clause of the English version — can you find exactly one corresponding source text in the Chinese version? Does the English version contain any clause the Chinese version does not have at all? Take any clause of the Chinese version — does it contain an instance, number, literal value, or metaphor that "could be replaced by a value of the same kind without changing the clause's meaning"? If it is an exception (a standard template / a criterion-necessary enumeration / an example explicitly marked "not a closed list") yet its reason for not being deletable is **not explained in the revision record**, that likewise counts as a violation. If the former cannot be done, or the latter exists, or the writing-style criteria are violated, this clause is violated.
 
 ---
 
@@ -1124,7 +1270,7 @@ Technical debt is the cancer of engineering quality. Today's shortcut becomes to
 
 ### 18.1 No Debt Left Behind
 
-- After the new architecture is online, tested, and stable, old code is **deleted immediately**. No "compatibility mode" kept around. No `legacy/` directory. No `# TODO: remove after v2` comments. The codebase contains exactly one current architecture (migration scripts are an explicit exception, see §18.2).
+- After the new architecture is online, tested, and stable, old code is **deleted immediately**: no "compatibility mode", no old-architecture directory, no version/legacy naming, no "to be deleted" comments — **the exact matching is defined by `tools/check_legacy_cleanup.sh`**. The codebase contains exactly one current architecture (migration scripts are an explicit exception, see §18.2).
 - When deleting old code, simultaneously update: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), config templates (`config.toml` and `config.override.sample.toml` reflect the current architecture), documentation (architecture descriptions in README and docs/), tests (delete tests for the old architecture — don't keep them "just in case").
 - Version numbers are updated on every release, following `MAJOR.MINOR.PATCH`: architecture refactors and incompatible config changes bump MAJOR, new features bump MINOR, bug fixes bump PATCH.
 
@@ -1149,28 +1295,16 @@ When users of an old version need to upgrade to the new architecture, provide a 
 - All development happens on feature branches: `feature/<description>`, `fix/<description>`, `docs/<description>`
 - Merging to main requires a PR — at minimum, review the diff yourself once
 - Commit messages are **recommended** to be in English, format: `type: short description` (feat, fix, docs, refactor, test, chore). English is the de facto standard of the open source community — the `git log --oneline` toolchain is English-first, and it enables international contributors to understand. Projects whose primary contributor community uses another language (e.g. Chinese) may use that language, but should stay consistent within one repository.
-- **History continuity over retroactive fixes.** Commits already pushed to a public repository MUST NOT be retroactively rewritten to fix commit message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. Exception: if historical commits contain leaked secrets or personal information, history MUST be rewritten (see §15.3).
+- **History continuity over retroactive fixes.** Commits already pushed to a public repository **MUST NOT** be retroactively rewritten to fix commit message language — changing pushed history breaks every collaborator's local clone. The specification takes effect from the current commit forward. Exception: if historical commits contain leaked secrets or personal information, history MUST be rewritten (see §15.3).
 - One commit does one thing
 
 ### 19.2 .gitignore Must Cover
 
-- Python runtime: `__pycache__/`, `*.pyc`
-- Virtual environments: `.venv/`, `venv/`, `venvs/`
-- Test and type check caches: `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`
-- Build artifacts: `dist/`, `build/`, `*.egg-info/`
-- Environment config: `.env`, `*.env` **must always be ignored** (`.env` is never tracked, §15.1); `.env-example` is only needed when the project has non-infrastructure environment variables — a project that uses only the standard CUDA/NCCL/PyTorch distributed environment variables
-  (e.g. `CUDA_VISIBLE_DEVICES`, `NCCL_*`, `PYTORCH_*`, `RANK`, `LOCAL_RANK`,
-  `WORLD_SIZE`, `MASTER_ADDR`, `MASTER_PORT`) may omit `.env-example`
-- Configuration overrides: `config.override.toml`, `my_config*.toml`, `config.local.toml`, `*.local.toml`
-- Outputs and data: `outputs/`, `data/` (except sample data)
-- IDE: `.idea/`, `.vscode/`
-- AI assistant local files: assistant-specific local instruction/draft files (must be excluded in `.gitignore`)
-- Local and temporary files: `.local/`
-- System files: `.DS_Store`, `Thumbs.db`
+`.gitignore` must cover all kinds of runtime caches, virtual environments, build artifacts, environment configuration and secret overrides, outputs and data, IDE and system files, and local temporary files — **the exact entry list and required ignore patterns are defined by `tools/check_gitignore.sh`** (following the §15.1 first-paragraph division of labor). **`.env` and its override files never enter the repository; this is a red line and is not relaxed by the list being pushed down.**
 
 ### 19.3 Open Source License
 
-Default: MIT license. `LICENSE` file at the project root. If the project depends on Apache 2.0-licensed libraries, consider using Apache 2.0 for compatibility.
+Use a permissive, commercially usable license by default; if the project depends on a library whose license requires compatibility to be maintained, choose a license compatible with it. The concrete determination is carried by `tools/check_dependencies.sh`.
 
 ---
 
@@ -1219,4 +1353,3 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 ```
-
