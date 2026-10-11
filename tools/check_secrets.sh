@@ -186,6 +186,30 @@ PRIVATE_IP_PATTERNS=(
     '192\.168\.[0-9]{1,3}\.[0-9]{1,3}'
 )
 
+# ─── IETF/IANA-reserved forms — §15.1 项 1「可接受形态」─────────────────────
+#
+# §15.1 项 1 states that a value a mechanical check can identify as synthetic or
+# reserved is not a credential or PII, and is legal in documentation examples,
+# templates and test fixtures. 宪法定义检查类别，脚本定义具体匹配模式 — so the match
+# patterns for both reserved classes live here. They only ever REMOVE a finding.
+#
+# 1. RFC 6890 §2.1 — the fictitious telephone block +1-555-0100 … +1-555-0199,
+#    set aside for fictional use and never assigned to a person. Accepted
+#    spelling: optional country code (`+1` or `1`, separated by space/dot/hyphen),
+#    the `555` exchange, optional parentheses around it, and a line number in
+#    0100-0199. The pattern requires a separator after the country code and
+#    rejects a preceding `-`, so the tail of an ordinary number never matches:
+#    `555-1234` and `+1-800-555-0100` are NOT accepted.
+# 2. RFC 5737 (the 192.0.2.x/24, 198.51.100.x/24 and 203.0.113.x/24 blocks) and
+#    RFC 3849 (2001:db8::/32) — the IETF documentation address blocks. They are
+#    reserved, not routable and not assignable, so they are accepted outright
+#    instead of the advisory public-IP WARN. RFC 1918 private ranges (10/8,
+#    172.16/12, 192.168/16) are NOT documentation addresses and keep their
+#    existing behaviour — they are handled by PRIVATE_IP_PATTERNS above.
+RFC5737_DOC_IPV4_PATTERN='(^|[^0-9])(192\.0\.2|198\.51\.100|203\.0\.113)\.[0-9]{1,3}($|[^0-9])'
+RFC3849_DOC_IPV6_PATTERN='(^|[^0-9A-Fa-f:])2001:0?[Dd][Bb]8:'
+RFC6890_FICTITIOUS_PHONE_PATTERN='(^|[^0-9-])([+]?1[ .-])?\(?555\)?[ .-]?01[0-9]{2}([^0-9]|$)'
+
 # Personal information (PII) patterns — §15.1 category 4
 #
 # Boundary rule for the digit-run patterns (mobile / landline / ID card). The
@@ -222,9 +246,21 @@ PII_PATTERNS=(
     '(^|[^0-9A-Fa-f.])[1-9][0-9]{5}(19|20)[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]($|[^0-9A-Fa-f])'
 )
 
+# RFC 2606 §2 / RFC 6761 §6.1–6.4 — the reserved top-level domains `.test`,
+# `.example` and `.invalid` are set aside for documentation, testing and
+# demonstration: they are never registered and never resolve. An address under
+# one of them is therefore a reserved form, not a real one, and is accepted.
+# The TLD is ANCHORED to the end of the extracted address (`$`) so that a real
+# domain which merely embeds the string — `foo.test.com`, `invalid.com`,
+# `a.example.cn` — never matches and stays a finding. Subdomains of the RFC 2606
+# `example.com/.net/.org` domain keep their separate, pre-existing handling in
+# the allowlist below; `.local`, also special-use, likewise keeps its existing
+# handling there.
+RESERVED_TLD_EMAIL_PATTERN='@[a-zA-Z0-9.-]*\.(invalid|test|example)$'
+
 # Addresses that are legitimately public / documented, exempt from PII findings:
 # project mailboxes, example/reserved domains, placeholders, local addresses.
-PII_ALLOWLIST='(example\.(com|org|net)|@example\.|noreply@|users\.noreply\.github\.com|maintainers?@|git@github\.com|anthropic\.com|REPLACE_ME|your-?email|placeholder|@[a-zA-Z0-9.-]*\.local)'
+PII_ALLOWLIST='(example\.(com|org|net)|@example\.|noreply@|users\.noreply\.github\.com|maintainers?@|git@github\.com|anthropic\.com|REPLACE_ME|your-?email|placeholder|@[a-zA-Z0-9.-]*\.local|'"$RESERVED_TLD_EMAIL_PATTERN"')'
 
 # ─── Personal vs company mailbox — §15.4 红线 ───────────────────────────
 #
@@ -775,6 +811,45 @@ _filter_base64_false_positives() {
     done
 }
 
+# §15.1 项 1 可接受形态 — keep only lines that still carry an IPv4 address
+# outside the RFC 5737 documentation blocks. A whole-line `grep -vE` would let a
+# documentation address mask a real public IP sharing the line, so the decision
+# is made per address (same reason as filter_email_lines above).
+filter_rfc5737_lines() {
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        local addrs kept=0 a
+        addrs=$(printf '%s\n' "$line" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' || true)
+        while IFS= read -r a; do
+            [ -z "$a" ] && continue
+            if ! printf '%s\n' "$a" | grep -qE "$RFC5737_DOC_IPV4_PATTERN"; then
+                kept=1
+                break
+            fi
+        done <<< "$addrs"
+        [ "$kept" -eq 1 ] && printf '%s\n' "$line"
+    done
+}
+
+# §15.1 项 1 可接受形态 — keep a PII line unless the only part of it matching
+# <pattern> is an RFC 6890 fictitious number. The reserved span is removed and
+# the pattern re-tested, so a real number sharing the line is never masked;
+# lines without a reserved number are returned untouched.
+filter_rfc6890_lines() {
+    local pattern="$1" line residual tok
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        residual="$line"
+        while IFS= read -r tok; do
+            [ -z "$tok" ] && continue
+            residual="${residual//"$tok"/ }"
+        done <<< "$(printf '%s\n' "$line" | grep -oE "$RFC6890_FICTITIOUS_PHONE_PATTERN" || true)"
+        if printf '%s\n' "$residual" | grep -qE "$pattern"; then
+            printf '%s\n' "$line"
+        fi
+    done
+}
+
 # Load the optional project-level exemption manifest before any scan. When the
 # file is absent this is a no-op and every wl_* path below is a pass-through.
 _wl_load
@@ -817,7 +892,12 @@ IP_MATCHES=$(echo "$IP_RAW" | grep -v '^uv\.lock:' | grep -v '^package-lock\.jso
 
 # Highlight private/internal IPs specifically
 PRIVATE_IP_MATCHES=$(echo "$IP_MATCHES" | grep -E "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" || true)
-PUBLIC_IP_MATCHES=$(echo "$IP_MATCHES" | grep -vE "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" || true)
+# §15.1 项 1 可接受形态: RFC 5737 documentation addresses are reserved, not
+# routable and not assignable — accepted outright instead of the advisory
+# public-IP WARN below. RFC 1918 ranges keep their existing behaviour, because
+# they never reach this bucket (they are in PRIVATE_IP_MATCHES).
+PUBLIC_IP_MATCHES=$(echo "$IP_MATCHES" | grep -vE "$(IFS='|'; echo "${PRIVATE_IP_PATTERNS[*]}")" | \
+    filter_rfc5737_lines || true)
 
 # Intranet IPs are §15.4-relaxable internal information (allowed for B class /
 # private C class); public IPs are already advisory. Under --scope=public both
@@ -826,6 +906,16 @@ print_scope_aware "private_ip" "Private/internal IP addresses" "$PRIVATE_IP_MATC
 if [ -n "$PUBLIC_IP_MATCHES" ]; then
     echo "[WARN] Public IP addresses found (review if internal endpoints):"
     print_capped "$PUBLIC_IP_MATCHES" 20
+fi
+
+# State the accepted reserved forms explicitly — an acceptance must never be
+# silent, and these are INFO, never a WARN/FAIL. Own source excluded so the
+# pattern literals above are not counted against the script itself.
+DOC_ADDR_MATCHES=$( { grep_tracked "$RFC5737_DOC_IPV4_PATTERN"; grep_tracked "$RFC3849_DOC_IPV6_PATTERN"; } \
+    | grep -v 'check_secrets\.sh' || true)
+if [ -n "$DOC_ADDR_MATCHES" ]; then
+    DOC_ADDR_COUNT=$(printf '%s\n' "$DOC_ADDR_MATCHES" | wc -l | tr -d ' ')
+    echo "[INFO] check_secrets: $DOC_ADDR_COUNT line(s) with RFC 5737/3849 reserved documentation addresses accepted (§15.1 项 1 — reserved, not routable)."
 fi
 
 # ─── Scan: API keys ──────────────────────────────────────────────────────
@@ -973,6 +1063,14 @@ print_matches "cloud_credential_ref" "Cloud credential reference" "$AWS_CRED_MAT
 
 if [ "$PII_MODE" != "off" ]; then
     echo "Scanning for personal information (PII)..."
+    # §15.1 项 1 可接受形态 — RFC 6890 fictitious telephone numbers are reserved
+    # for fictional use, so they are accepted explicitly (INFO, never a finding).
+    FICTITIOUS_PHONE_MATCHES=$(grep_tracked "$RFC6890_FICTITIOUS_PHONE_PATTERN" | \
+        grep -v 'check_secrets\.sh' || true)
+    if [ -n "$FICTITIOUS_PHONE_MATCHES" ]; then
+        FICTITIOUS_PHONE_COUNT=$(printf '%s\n' "$FICTITIOUS_PHONE_MATCHES" | wc -l | tr -d ' ')
+        echo "[INFO] check_secrets: $FICTITIOUS_PHONE_COUNT line(s) with RFC 6890 fictitious telephone numbers accepted (§15.1 项 1 — reserved for fictional use)."
+    fi
     PII_HITS=""
     PII_HITS_RELAX=""
     for i in "${!PII_PATTERNS[@]}"; do
@@ -1000,8 +1098,10 @@ if [ "$PII_MODE" != "off" ]; then
                 ;;
             1|2|3|4)
                 # Mobile / landline / IM account numbers: the concrete personal
-                # ranges are re-checked below and stay in PII_HITS.
-                HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                # ranges are re-checked below and stay in PII_HITS. RFC 6890
+                # fictitious numbers are accepted per token, so a real number
+                # sharing the line is still reported.
+                HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" | filter_rfc6890_lines "$pattern" || true)
                 if [ "$SCOPE" = "private" ]; then
                     HIT_PERSONAL=$(printf '%s\n' "$HIT" | grep -E "$PERSONAL_MOBILE_PATTERN" || true)
                     PII_HITS="${PII_HITS}${HIT_PERSONAL}"$'\n'
@@ -1207,7 +1307,9 @@ if $HISTORY_MODE; then
                         fi
                         ;;
                     1|2|3|4)
-                        HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" || true)
+                        # RFC 6890 fictitious numbers are accepted per token; a
+                        # real number sharing the line stays a finding.
+                        HIT=$(printf '%s\n' "$RAW" | grep -vE "$PII_ALLOWLIST" | filter_rfc6890_lines "$pattern" || true)
                         if [ "$SCOPE" = "private" ]; then
                             HIST_PII="${HIST_PII}$(printf '%s\n' "$HIT" | grep -E "$PERSONAL_MOBILE_PATTERN" || true)"$'\n'
                             HIST_PII_RELAX="${HIST_PII_RELAX}${HIT}"$'\n'

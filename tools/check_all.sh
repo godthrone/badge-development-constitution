@@ -308,6 +308,11 @@ echo ""
 
 fi  # end class-specific §17 checks
 
+# §17.7 — Capability & Availability Tier Matrix (all classes). The check is
+# self-skipping: a project that declares no capability matrix exits 0 with a
+# single [SKIP] line, so no extra class gate is needed here.
+run_check "Capability Matrix (§17.7)"          "$SCRIPT_DIR/check_capability_matrix.sh"
+
 # §8.7 — Constitution Refs in Source (all classes)
 run_check "Constitution References (§8.7)"     "$SCRIPT_DIR/check_constitution_refs.sh"
 
