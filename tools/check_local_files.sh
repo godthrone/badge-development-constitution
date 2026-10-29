@@ -180,8 +180,12 @@ fi
 
 echo "Checking for log, temp, and backup files in tracked paths..."
 
+# §16.1/§16.2 judge a file by its nature, not by its capitalisation; §3 already
+# folds basenames to lower case before matching. These extension checks must use
+# the same contract, otherwise a tracked `X.TMP` / `X.BAK` / `X.LOG` is never
+# reported while its lower-case twin is a hard failure (internal inconsistency).
 # *.log files (outside .local/ and standard log directories like outputs/)
-LOG_FILES=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -E '\.log$' 2>/dev/null | \
+LOG_FILES=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -iE '\.log$' 2>/dev/null | \
     grep -v '^outputs/' | grep -v '^\.local/' || true)
 if [ -n "$LOG_FILES" ]; then
     echo "  [WARN] .log files tracked outside outputs/ or .local/:"
@@ -191,8 +195,8 @@ if [ -n "$LOG_FILES" ]; then
     echo "         Log files should be in outputs/ or .local/."
 fi
 
-# *.tmp, *.bak, *.swp files
-TEMP_EXT_FILES=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -E '\.(tmp|bak|swp|swo|~)$' 2>/dev/null || true)
+# *.tmp, *.bak, *.swp files (case-insensitive, see the §16 note above)
+TEMP_EXT_FILES=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -iE '\.(tmp|bak|swp|swo|~)$' 2>/dev/null || true)
 if [ -n "$TEMP_EXT_FILES" ]; then
     echo "  [FAIL] Temp/backup/swap files tracked in git:"
     echo "$TEMP_EXT_FILES" | while IFS= read -r f; do
@@ -225,7 +229,8 @@ fi
 
 # ─── 6. Check for data dumps / serialized data in tracked paths ────────
 
-DATA_DUMPS=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -E '\.(pkl|pickle|joblib|h5|hdf5|parquet|feather)$' 2>/dev/null | \
+# case-insensitive, see the §16 note above.
+DATA_DUMPS=$(echo "$TRACKED_OUTSIDE_LOCAL" | grep -iE '\.(pkl|pickle|joblib|h5|hdf5|parquet|feather)$' 2>/dev/null | \
     grep -v '^tests/' | grep -v '^data/sample' || true)
 if [ -n "$DATA_DUMPS" ]; then
     echo "  [WARN] Data files tracked outside tests/ or sample data:"
