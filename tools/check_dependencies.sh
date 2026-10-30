@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # check_dependencies.sh — Verify dependency management conventions
 # Part of BADGE Constitution §14.1 (license), §14.2 (uv), §19.3 (license file)
-# License policy documentation: docs/license-policy.md
+# Mechanism (fields, search roots, matching patterns, strict switch) is defined
+# here — this header, the section comments below, and `--help`. The criteria
+# (severity, offline rule, no-false-pass) live in BADGE-constitution §14.1 /
+# §14.2 / §19.3; there is no separate policy document (§17.8).
 #
 # Checks for:
 #   - No requirements.txt, Pipfile, poetry.lock, Pipfile.lock
@@ -17,6 +20,12 @@
 # Usage: ./check_dependencies.sh [project_root]
 
 set -euo pipefail
+
+case "${1:-}" in
+    -h|--help)
+        awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+        exit 0 ;;
+esac
 
 PROJECT_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo '.')}"
 cd "$PROJECT_ROOT"

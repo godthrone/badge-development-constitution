@@ -2,8 +2,8 @@
 # check_docs_ascii.sh — Detect ASCII-art diagrams in documentation per §17.2.
 # Part of BADGE Constitution §17.2
 #
-# §17.2: "All diagrams in documentation must be drawn with Mermaid — ASCII
-# hand-drawn diagrams are prohibited."
+# §17.2: diagrams must be a machine-parseable, versionable text language chosen
+# by the project (default Mermaid) — ASCII hand-drawn diagrams are prohibited.
 #
 # Scans docs/**/*.md and README*.md for box-drawing characters. Warn-only:
 # directory trees and tables are plain-text structures, not diagrams, and are
@@ -41,7 +41,7 @@ printf '%s\n' "$HITS" | sed -n '1,40p'
 if [ "$(echo "$HITS" | grep -c '.' || true)" -gt 40 ]; then
     echo "  ... and more"
 fi
-echo "         §17.2: all diagrams must be Mermaid; node names wrapped in English double quotes."
+echo "         §17.2: diagrams must be a machine-parseable, versionable text language chosen by the project (default Mermaid); node names wrapped in English double quotes."
 
 # Warn-only: directory trees and tables are legitimate plain-text structures
 exit 0

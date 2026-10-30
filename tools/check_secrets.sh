@@ -2,7 +2,10 @@
 # check_secrets.sh — Scan tracked files, git history, and commit/tag metadata for
 # secrets and personal information (§15.1)
 # Part of BADGE Constitution §15.1
-# Project-level exemption manifest documentation: docs/opt-in-exemptions.md
+# Mechanism (manifest syntax, exemptable ids, matching, tier gate) is defined
+# here — this header, the section comments below, and `--help`. The criteria
+# (opt-in, downgrade-only, fail-closed, stale) live in BADGE-constitution
+# §15.1 / §15.4; there is no separate policy document (§17.8).
 #
 # Checks for:
 #   - IP addresses (internal/private ranges flagged)
@@ -82,6 +85,9 @@ for arg in "${@}"; do
         --meta-pii=off|--meta-pii=warn|--meta-pii=fail) META_PII_MODE="${arg#--meta-pii=}" ;;
         --scope=public|--scope=private) SCOPE="${arg#--scope=}" ;;
         --class=A|--class=B|--class=C) CLASS="${arg#--class=}" ;;
+        -h|--help)
+            awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+            exit 0 ;;
         -*) echo "Usage: check_secrets.sh [--no-history] [--pii=off|warn|fail] [--meta-pii=off|warn|fail] [--class=A|B|C] [--scope=public|private] [project_root]" >&2
             echo "       Project-level exemptions, opt-in: .badge/secrets-exempt.tsv —" >&2
             echo "       <rule-id><TAB><relative-path><TAB><matched-substring><TAB><reason>" >&2

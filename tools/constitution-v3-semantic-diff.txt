@@ -1,0 +1,93 @@
+# constitution-v3-semantic-diff.txt — semantic rewrite manifest for v3.0.0
+#
+# Purpose: the mechanical evidence required by §17.8 "生效范围" condition ③ —
+# after every applicability marker is stripped from the v3.0.0 Chinese text, the
+# result may differ from the previous release (v2.10.0) only inside the ranges
+# declared below.  Read by tools/check_constitution_text.sh (check C5).
+#
+# Coordinates: **previous-release line numbers** (the v2.10.0 zh-CN file), not
+# v3.0.0 numbers — a declared range says "this part of the old text was
+# deliberately rewritten", which stays meaningful after the new file grew.
+#
+# Strip rule used to produce the comparison (do not widen it):
+#   1. delete a marker at the END of a line:      s/[ \t]*〔[^〕]*〕[ \t]*$//
+#   2. delete a line that is ONLY a marker:       /^[ \t]*〔[^〕]*〕[ \t]*$/
+# Never a global 〔〕 deletion: inline examples in the §17.8 syntax paragraph
+# (and similar prose) are clause text, not markers.
+#
+# Format:  <M ids>  <start>-<end>  <anchor + why>
+#   M ids   : the modification point(s) of the revision plan that own this
+#             range (M1–M40); F<n> = a fix from the Chinese final-text review
+#             round; M0 = non-semantic (version string only).
+#   range   : previous-release lines, inclusive, 1-based.
+# Sources : task-final-plan/final-plan.md §4 (M1–M40, with zh: line numbers),
+#           task-fix-cn-review/fix-report.md (F1–F14 + review round 2).
+#
+# Notes on what is deliberately absent:
+#   * M6 (whole-document marker pass) contributes NO line to this file — that
+#     is the point of the invariant: markers are metadata and vanish under the
+#     strip rule, so they can never justify a textual difference.
+#   * Marker-only fixes of the review round (F5a, F5b, F6a, F9, F10) likewise
+#     leave nothing behind after stripping.
+#   * F4a–F4d2, F6b, F6c, F7, F8, F11–F14 land inside the M ranges below; only
+#     F1, F2 and F3 needed a range of their own.
+#
+# Reviewed by: constitution revision review (recorded in the v3.0.0 commit).
+
+M0        1-1      title version string v2.10.0 -> v3.0.0 (non-semantic)
+M3        8-8      opening "how to read" — layer names replace 原则/规则/技法
+M3        10-10     opening "how to read" — three-layer reading guide written out
+M13       35-35     总纲 — risk-gate paragraph split, §-numbers demoted to index
+F3        44-44     总纲 — add L1 heads 必须真实 / 使用者可读 (review fix F3)
+M7        49-49     第〇层 — Python is a reference implementation, not a premise
+M8,M9,M10 53-55    第〇层 — A/B/C class definitions rewritten (L3 note, B-class enumeration, C-class L1+L2-M)
+M11       61-61     第〇层 — classification decoupled from form triggers
+M4,M10    77-77    第〇层 — C-class litmus restated + new §"适用性判据" inserted
+M11       81-81     第〇层 — tooling must not use one class's form as an all-class criterion
+M12       85-85     第〇层 — TOML preference demoted to R with a trigger
+M15       105-105   §1.2 — implementation examples made form-neutral
+M14       115-115   §1.3 — judgement criterion de-instantiated (accelerator/GPU)
+M15       125-125   §1.4 — deployment extension given an explicit precondition
+M15       127-127   §1.4 — documentation single-landing rule restated
+M16       148-150   §1.6 — comment/architecture-doc rules merged with §12.4 (two lines)
+M17       162-187   §2.1/§2.2 — Python bindings of contract/explicitness split out (11 hunks in range)
+M14       191-191   §2.3 — boundary validation criterion de-instantiated
+M18       211-221   §三 — duplicated passages merged, general dividing line added (3 hunks in range)
+M14       238-242   §四 — zero-step criteria de-instantiated (3 hunks in range)
+M19       245-268   §4.1/§4.2 — startup script demoted to a triggered L2 (5 hunks in range)
+M14       298-298   §六 — acceptance wording de-instantiated
+M20       303-308   §六 — reproducibility de-instantiated, tool pointer made generic
+M21       322-371   §7 — configuration system de-instantiated (7 hunks in range)
+M7        324-324   §7.1 — Python premise replaced by the §0 applicability pointer
+M22       365-365   §7.2 — validation-at-load restated as a universal rule
+M1        392-431   §8.1 — directory tree demoted to L3 example + `__main__.py` by entry form (5 hunks in range)
+M23       441-498   §8.2/§8.3/§8.5 — sample values and layouts marked as examples (5 hunks in range)
+M24       475-484   §8.4 — local A/B naming clash with project A/B removed (3 hunks in range)
+M25       506-520   §8.7 — version source given an explicit trigger; self-reference fixed
+M26       527-537   §9.1/§9.2 — pydantic/ABC bindings removed from headings and bodies (4 hunks in range)
+M27       593-597   §11.1/§11.2 — tool names and test layout demoted to R with triggers
+M2        617-628   §11.5 — acceptance bound to tiers/quantified claims (4 hunks in range)
+M28       651-674   §12.1 — typing rules given applicable-when conditions (2 hunks in range)
+M28       688-688   §12.2 — naming rule de-instantiated
+M28       696-696   §12.3 — bilingual README restated as a pointer to §17.1
+M28,F2    702-704   §12.3 — comment/commit-message language unified with §19.1 (2 hunks in range)
+M16       712-715   §12.4 — file-header obligation given a trigger, exclusions added
+M29       732-736   §13.2/§13.3 — logging channel bound to data-artifact/long-running (2 hunks in range)
+M39       758-758   §14.1 — dependency-licence criteria absorbed from docs/license-policy.md
+M30       762-764   §14.2 — package manager de-instantiated (uv demoted to example)
+M31       766-878   §14.3 — "Docker 必须支持" becomes triggered container imaging; templates marked L3 (10 hunks in range)
+M32       893-893   §14.4 — section-header applicability statement added
+M33       922-1021  §15 — security clauses de-formalised (14 hunks in range)
+F1        935-935   §15.1 — "not accepted" scoped by class and visibility (review fix F1)
+M39       1025-1025  §15.4 — opt-in exemption principles absorbed from docs/opt-in-exemptions.md
+M34       1040-1066  §16 — local/temporary file rules restated (4 hunks in range)
+M35       1086-1112  §17.1/§17.2 — documentation forms de-instantiated (4 hunks in range)
+M2        1094-1116  §17.2 — capability description tied to tiers/quantified claims (4 hunks in range)
+M40       1107-1107  §17.2 — process-document exception added (new paragraph)
+M36       1134-1141  §17.5 — work-log sample values marked as examples (2 hunks in range)
+M2        1163-1235  §17.7 — capability matrix becomes generic capability documentation (13 hunks in range)
+M3,M5     1252-1252  §17.8 — writing rules: layer/modality/applicability must be explicit
+M5        1256-1263  §17.8 — exception wording, recording rule, effective scope, judgement test (3 hunks in range)
+M37       1274-1307  §18/§19 — sample landing points and triggers (5 hunks in range)
+M39       1276-1276  §18.1 — vendored-third-party registry absorbed from docs/opt-in-exemptions.md
+M38       1312-1319  §二十 — section-header applicability + pyproject sample values (2 hunks in range)

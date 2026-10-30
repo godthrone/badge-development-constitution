@@ -1,102 +1,122 @@
 # BADGE Constitution — Release Checklist
 
-Maintainer process for releasing this repository. This is **not** a consumer-facing document
-(where a `README` exists it is the consumer entry point; this repository currently has none); it is
-tracked by git so the process itself is reviewable and survives across sessions (§17.2, §17.4).
+This file is the sole authoritative source for this repository's release procedure. It describes steps and cites `§` numbers only — it does not restate clause text (§17.2 process-document exception, §17.8 sole-landing rule).
+It is git-tracked so it survives sessions (§17.4).
 
-Runtime rule of thumb for this repo: the constitution is a documentation/governance project, so
-it is exercised as **Class C** (`--class=C`) — do not run the full Class A Python checks here.
+Runtime rule of thumb: **Class C** (`--class=C`) only — never the full Class A Python checks here.
+**Section 1 blocks translation, tag and push** until green; the constitution wins any conflict.
 
----
-
-## 0. Scope
+## 0. Scope and version
 
 - [ ] Define what changes: new clause, edit, or bug fix.
-- [ ] Version bump per §18.1: **MAJOR** = restructure / incompatible change, **MINOR** = new
-      clause or feature, **PATCH** = fix. Record the new version `vX.Y.Z`.
+- [ ] Bump the version per §18.1 and record it here.
+- [ ] If this release is the **layered restructure**, say so here. The tagging pass must satisfy §17.8's
+      four conditions; record the evidence in the commit message.
 
-## 1. Edit both language editions in lockstep
+## 1. Chinese final-text review — BLOCKING GATE
 
-- [ ] `BADGE-constitution-vX.Y.Z.zh-CN.md` — a new edition is a **new file**, not a rename:
-      `git add` it after editing (an untracked file is invisible to `git commit -a`; see section 6).
-- [ ] `BADGE-constitution-vX.Y.Z.en.md` (the English edition is published alongside the Chinese one).
-- [ ] Version string in line 1 of every language edition.
-- [ ] Section structure identical between every language edition. **This is a maintainer convention
-      of this repo, not a §17.1 requirement** — §17.1 mirrors `README.md` / `README.zh-CN.md` only
-      and does not constrain the constitution's own language editions.
-- [ ] Cross-references (§a.b) still point at existing sections after any renumbering.
+Read `BADGE-constitution-vX.Y.Z.zh-CN.md` clause by clause — a *read*: items 8–9 credit 1–7.
 
-## 2. Add the new files and remove the old version
+- [ ] **1. Logical contradiction** — clause against clause and against 总纲 / 第〇层, especially whether
+      a clause's *applies-when* condition and its marker contradict. Read bodies, not just
+      cross-references. *Criterion:* clauses on one action can both hold, or a stated rule resolves it.
+- [ ] **2. Internal inconsistency** — terminology (`L1`/`L2`/`L3`, `M`/`R`, `A`/`B`/`C`, trigger words),
+      numbering and definitions each have one home. *Criterion:* each term and each `§a.b` resolves to a
+      single defining site, and every reference resolves at all.
+- [ ] **3. Duplicated content** — one requirement stated in several places, repeated paragraphs, and
+      spots that should be "defined once, pointed at elsewhere". *Criterion:* every requirement has one
+      normative home; every other mention is a bare pointer.
+- [ ] **4. Markers match their body** — each heading's marker (layer/mode/category/trigger) is earned
+      by its text, the vocabulary is the §17.8 closed set, and `宪自` has a definition. *Criterion:* the
+      marker alone tells whether the clause binds a reader, and none is marked weaker or narrower than
+      its own wording.
+- [ ] **5. Agreement with `tools/`** — every `§` in a tool comment still names an existing section,
+      tool behaviour matches its clause (an opt-in check is not an unconditional mandate), and every
+      clause that defers to a script still holds. *Criterion:* each cited `§` names a section that says
+      what the tool does — and vice versa.
+- [ ] **6. Boundary with `docs/`** — check every file there against §17.2: no restated clause, criterion
+      or enumeration, steps and `§` citations only. *Criterion:* anything in `docs/` that reads as a rule
+      rather than a step is folded into the constitution or deleted.
+- [ ] **7. Decidability** — every mandatory requirement can be judged *met* or *not met*. *Criterion:*
+      name the evidence that settles each 必须 / 禁止 line; where none exists, supply the criterion or
+      downgrade the clause's marker or wording.
+- [ ] **8. Full read by fresh eyes** — someone who did not write the text reads the whole edition once.
+      *Criterion:* reader and findings are in the revision record; "the scripts passed" is not this.
+- [ ] **9. Strip-marker invariance (marker-carrying releases only)** — Run `tools/check_constitution_text.sh`
+      (see `--help`); C5 strips only line-end and standalone block markers, never inline examples.
 
-- [ ] `git add BADGE-constitution-vNEW.zh-CN.md && git rm BADGE-constitution-vOLD.zh-CN.md`
-      (a new edition is a new file, not a rename; reserve `git mv` for a pure lexical rename).
-- [ ] English edition likewise: `git add BADGE-constitution-vNEW.en.md && git rm BADGE-constitution-vOLD.en.md`
-      (published alongside the Chinese edition, as in section 1; a Chinese-only release happens only
-      if the user explicitly decides so).
-- [ ] Before removing an old edition, confirm it is recoverable — tracked in git and reachable via a
-      tag or blob hash (`git ls-tree <old-tag>`, `git cat-file -p <blob>`) (§2.4 操作防呆 / §3 退路).
-- [ ] `grep -rn 'BADGE-constitution-v' --include='*.sh' --include='*.md' --include='*.toml' .` and
-      update every **hardcoded** filename reference (`tools/`, `.gitignore`, work log, `docs/`),
-      including the **language-suffix** dimension: a tool that assumes `*.en.md` is the version
-      source of truth breaks silently when only another language edition is present.
-- [ ] Filename-based exemption / regex filters in `tools/` must be **version-independent**
-      (prefix match, not exact filename). Regression source: `check_constitution_refs.sh` matched
-      `BADGE-constitution\.` and silently stopped exempting the constitution after a version rename.
-- [ ] Regenerate the **DSH skill handover artifact** from the new edition and have the **user**
-      replace `~/.dsh/skills/badge-constitution.md` on their machine: `~/.dsh/` is outside this
-      repository, so tooling running inside the repo cannot write it. Re-verify that the skill's
-      version string (`description:` and the `# BADGE 开发宪法 vX.Y.Z` heading) matches `vX.Y.Z` —
-      a stale skill silently teaches the previous edition to every later session.
+## 2. English edition — whole-text translation
 
-## 3. Regression — consumer-facing tooling
+Starts only after section 1 is green and Chinese is final — that file is the *only* input (§17.8).
+
+- [ ] Translate the whole document continuously — no patch over the previous English edition, no "only
+      the clauses that moved", no independent English edit, nothing back-filled into Chinese.
+- [ ] Verify the consistency criteria in §17.8 (per §17.8) plus the marker-token sequence.
+
+## 3. Swap files and update references
+
+- [ ] `git add BADGE-constitution-vNEW.zh-CN.md && git rm BADGE-constitution-vOLD.zh-CN.md`, likewise
+      for `.en.md` (`git mv` is for lexical renames only) — English ships with Chinese, a Chinese-only
+      release only by the user's decision. Before deleting, confirm the old edition is recoverable —
+      tracked in git, reachable via a tag or blob (`git ls-tree`, `git cat-file -p`) (§2.4, §3).
+- [ ] `grep -rn 'BADGE-constitution-v' --include='*.sh' --include='*.md' --include='*.toml' .` and update
+      every **hardcoded** filename reference (`tools/`, `.gitignore`, work log, `docs/`), including the
+      language dimension: a tool treating `*.en.md` as the version source of truth breaks silently when
+      only another language edition is present.
+- [ ] Filename-based exemption / regex filters in `tools/` stay **version-independent** (prefix match, not
+      exact filename). Regression source: `check_constitution_refs.sh` matched `BADGE-constitution\.` and
+      silently stopped exempting the constitution after a version rename.
+- [ ] Regenerate the **DSH skill handover artifact**; the **user** replaces
+      `~/.dsh/skills/badge-constitution.md` (outside this repo) and re-checks its version string
+      (`description:`, `# BADGE 开发宪法 vX.Y.Z`) — a stale skill teaches the old edition to every session.
+
+## 4. Tooling regression and privacy audit
 
 - [ ] `for f in tools/*.sh; do bash -n "$f"; done`
-- [ ] `bash tools/check_all.sh --class=C --meta-pii=fail` (full run; on a WSL `/mnt/c` 9p mount
-      prefer `--no-history` or copy to a native disk first — heavy git-history scans can wedge 9p
-      into a fake read-only state). `--meta-pii=fail` makes a personal author/committer email a
-      hard failure; it is required for public repositories (§15.1 category 5).
-- [ ] Re-run the full `check_all.sh --class=C` gate **whenever a constitution filename is changed or
-      deleted**, and confirm it actually ran — a silent exit / empty output means the gate did not
-      run (e.g. the `.en.md`-hardcoded glob in `check_all.sh`). Re-run it after the language-suffix
-      tool fix lands, before tagging.
+- [ ] `bash tools/check_all.sh --class=C --meta-pii=fail` — on a WSL `/mnt/c` 9p mount use
+      `--no-history` or a native disk first (history scans wedge 9p into fake read-only). `--meta-pii=fail`
+      fails a personal author/committer email, required for public repositories (§15.1).
+- [ ] Re-run that full gate whenever a constitution filename is changed or deleted, and confirm it ran —
+      a silent exit or empty output means it did not (e.g. the `.en.md`-hardcoded glob in `check_all.sh`);
+      re-run after the language-suffix fix lands, before tagging. Tool-comment `§` numbers: gate item 5.
 - [ ] Privacy audit before a public push: `git log --all --format='%an <%ae> %cn <%ce>' | sort -u`
-      **and** `git for-each-ref --format='%(taggeremail)' refs/tags | sort -u` must show only
-      `noreply@` / project mailboxes (commit author/committer **and** annotated-tag tagger).
-      Content, history, and identity metadata are covered by `tools/check_secrets.sh`
-      (PII patterns + allowlist; run with `--meta-pii=fail`).
-- [ ] Any tool that reads the base config must accept `config.toml` (base default) **and**
-      legacy `config_example.toml` / `config_example.yaml` (`check_config_system.sh`,
-      `check_directory_layout.sh`, `check_gitignore.sh`, `check_reproducibility.sh`,
-      `check_version.sh`).
-- [ ] Cross-check that §-numbers quoted in tool comments still match the constitution.
+      **and** `git for-each-ref --format='%(taggeremail)' refs/tags | sort -u` must show only `noreply@`
+      / project mailboxes — author, committer **and** tag tagger. Content, history and identity metadata
+      are covered by `tools/check_secrets.sh`.
+- [ ] Any tool reading the base config accepts `config.toml` (base default) **and** legacy
+      `config_example.toml` / `config_example.yaml` (`check_config_system.sh`, `check_directory_layout.sh`,
+      `check_gitignore.sh`, `check_reproducibility.sh`, `check_version.sh`).
 
-## 4. Stale-reference sweep
+## 5. Stale-reference sweep
 
 - [ ] `grep -rn 'vOLD' .` → no hits.
 - [ ] `grep -rn 'config_example\.\(toml\|yaml\)\|config\.yaml' .` → only intentional legacy fallbacks.
 - [ ] `grep -rn 'pyyaml' .` → none (TOML is the preferred format; Python 3.11 has `tomllib`).
 
-## 5. Work log (§17.5) — manual check
+## 6. Work log (§17.5) — manual check, no automation by decision
 
-- [ ] **Manual check, no automation by decision:** `tools/` deliberately ships no work-log script
-      (§17.5 is a human handover discipline). Verify by hand that the state area is current and every
-      history entry starts with `YYYY-MM-DD HH:MM`.
-- [ ] Refresh `.local/work_log_current.md` (state area). Keep the "用户原始提示词" anchor frozen —
-      append only when the user explicitly changes the goal.
-- [ ] Append 3–5 timestamped lines to `.local/work_log_history.md`.
-- [ ] `.local/` stays out of git; it is the local-only home for logs and temp files (§16).
+`tools/` deliberately ships no work-log script: §17.5 is a human handover discipline.
 
-## 6. Commit & release
+- [ ] State area current; every history entry carries a timestamp (format per §17.5).
+- [ ] Per §17.5: refresh the state area, keep the intent anchor append-only.
+- [ ] Append timestamped entries to `.local/work_log_history.md` (count and layout per §17.5);
+      `.local/` stays out of git (§16).
+
+## 7. Commit and release
 
 - [ ] Pre-flight `git status --porcelain`: only this release's changes appear. Isolate unrelated
-      uncommitted changes (e.g. a modified `tools/check_reproducibility.sh`) — never let another
-      person's in-flight edit ride along in the release commit.
-- [ ] Stage the new constitution edition(s) (`git add BADGE-constitution-vX.Y.Z.*.md`); a new file
-      left untracked would be missing from the commit and the tag.
-- [ ] Commit message follows §19.1: `type: short description` (feat/fix/docs/refactor/test/chore).
-      §19.1 **recommends** English; this repo has used English consistently — keep one language
-      consistent across the repository.
-- [ ] `git tag -a vX.Y.Z -m "..."` (annotated tag, matching the existing tags and the tagger-email
-      audit in section 3).
-- [ ] Push branch and tag.
-- [ ] Verify the GitHub repository description / latest release still matches the version.
+      uncommitted changes (e.g. a modified `tools/check_reproducibility.sh`) — never let another person's
+      in-flight edit ride along in the release commit.
+- [ ] Stage the new edition(s) (`git add BADGE-constitution-vX.Y.Z.*.md`); a new file left untracked
+      would be missing from the commit and from the tag.
+- [ ] Follow §19.1 for commit-message format and language (per §19.1); this repo has used one
+      language consistently — keep it that way.
+- [ ] A ride-along fix bundled with the release (e.g. `d93d5e1 fix: make check_local_files extension
+      checks case-insensitive`) is named as its own item in the commit message; §19.1 prefers it as a
+      separate commit entirely.
+- [ ] `git tag -a vX.Y.Z -m "..."` (annotated tag, matching the existing tags and the tagger-email audit
+      in section 4).
+- [ ] **Push approval gate:** before any `git push`, hand the user `git log -1`, `git show --stat`, the tag
+      object (`git for-each-ref --format='%(refname) %(taggername) %(subject)' refs/tags/vX.Y.Z`) and the
+      gate readings from sections 1 and 4. No `git push` without explicit approval.
+- [ ] Push branch and tag; verify the GitHub repository description / latest release still matches.

@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
-# check_capability_matrix.sh — Verify the capability & availability tier matrix
-# per §17.7.
-# Part of BADGE Constitution §17.7
+# check_capability_matrix.sh — Optional tool: a reference implementation of the
+# data-driven capability & availability tier matrix shape.
+# Not registered in check_all.sh since v3.0.0.
 #
-# §17.7 requires every project that publishes a capability/availability tier
-# matrix to keep the machine-readable data as the single source of truth, to
-# regenerate the human-readable view byte-for-byte from it, to tag every tier
-# with one of four verification states that agree with the two availability
-# criteria, to state the measurement basis (口径) of every reference effect
-# value and of every pass/fail criterion, and to declare the commitment
-# boundary. The constitution fixes the *categories*; this script fixes the
-# concrete matching patterns (declaration convention and data grammar), the
-# same way §15.1 assigns "具体判定由 tools/ 脚本定义".
+# For a project that chooses to publish a data-driven capability/availability
+# tier matrix, this script keeps the machine-readable data as the single source
+# of truth, regenerates the human-readable view byte-for-byte from it, tags every
+# tier with one of four verification states that agree with the two availability
+# criteria, states the measurement basis (口径) of every reference effect value
+# and of every pass/fail criterion, and requires the commitment boundary to be
+# declared. Those are this script's own matching conventions, not a constitution
+# gate: it fixes the concrete patterns (declaration convention and data
+# grammar) in the same style §15.1 assigns "具体判定由 tools/ 脚本定义".
 #
 # ─── Applicability ────────────────────────────────────────────────────────
-# §17.7 applies only to a project that actually publishes a capability matrix.
+# The check applies only to a project that actually publishes a capability
+# matrix.
 # A project declares one by adding a marker file at its repository root:
 #
 #     .badge-capability-matrix.conf
@@ -42,7 +43,8 @@
 #     status                verified-available | verified-unavailable |
 #                           unverified | not-in-scope
 #                           (Chinese equivalents 已验证可用 / 已验证不可用 /
-#                            尚未验证 / 未纳入验收 are accepted as well)
+#                            尚未验证 / 未纳入承诺范围 are accepted; the older
+#                            wording 未纳入验收 is kept as an alias)
 #     criterion-complete    pass|fail — criterion ①: runs end to end
 #     criterion-effect      pass|fail — criterion ②: effect meets target
 #     criterion-failed      required iff status = verified-unavailable;
@@ -79,7 +81,7 @@ set -euo pipefail
 PROJECT_ROOT=""
 for arg in "${@}"; do
     case "$arg" in
-        --class=A|--class=B|--class=C) ;;   # accepted; §17.7 is class-independent
+        --class=A|--class=B|--class=C) ;;   # accepted; the check is class-independent
         -*) echo "Usage: check_capability_matrix.sh [--class=A|B|C] [project_root]" >&2; exit 2 ;;
         *) PROJECT_ROOT="$arg" ;;
     esac
@@ -91,11 +93,11 @@ cd "$PROJECT_ROOT" || { echo "[FAIL] check_capability_matrix: cannot enter proje
 DECL_FILE=".badge-capability-matrix.conf"
 
 if [ ! -f "$DECL_FILE" ]; then
-    echo "[SKIP] check_capability_matrix: no capability matrix declared (no $DECL_FILE); §17.7 does not apply."
+    echo "[SKIP] check_capability_matrix: no capability matrix declared (no $DECL_FILE); the check does not apply."
     exit 0
 fi
 
-echo "Checking capability & availability tier matrix (§17.7)..."
+echo "Checking capability & availability tier matrix..."
 
 FAIL=0
 ISSUES=0            # total [FAIL] lines; per-check deltas decide the [OK] line
@@ -208,7 +210,7 @@ norm_status() {
         verified-available|已验证可用) printf 'available' ;;
         verified-unavailable|已验证不可用) printf 'unavailable' ;;
         unverified|尚未验证) printf 'unverified' ;;
-        not-in-scope|未纳入验收) printf 'outscope' ;;
+        not-in-scope|未纳入承诺范围|未纳入验收) printf 'outscope' ;;
         *) printf 'invalid' ;;
     esac
 }
@@ -221,7 +223,7 @@ if [ -z "$VIEW_PATH" ] || [ ! -f "$VIEW_PATH" ]; then
     echo "  [SKIP] Byte-exact rebuild not checked — declared view file is missing or undeclared."
 elif [ -z "$GENERATOR" ]; then
     echo "  [SKIP] Byte-exact rebuild not checked — $DECL_FILE declares no 'generator' command."
-    echo "         §17.7 makes the view regenerable from the data; declare one to make that checkable."
+    echo "         The data-driven shape makes the view regenerable from the data; declare one to make that checkable."
 else
     ORIG="$(mktemp)"
     cp -- "$VIEW_PATH" "$ORIG"
@@ -248,7 +250,7 @@ fi
 
 if [ -z "$DATA_PATH" ] || [ ! -f "$DATA_PATH" ]; then
     echo ""
-    echo "[FAIL] check_capability_matrix: matrix data missing — the four §17.7 checks cannot run."
+    echo "[FAIL] check_capability_matrix: matrix data missing — the four checks cannot run."
     exit 1
 fi
 
@@ -432,7 +434,7 @@ F4_BEFORE=$ISSUES
 BOUNDARY_SEC="$(section_names | grep -x 'boundary' || true)"
 
 if [ -z "$BOUNDARY_SEC" ]; then
-    fail "No [boundary] section — §17.7 requires the commitment boundary to be written out explicitly."
+    fail "No [boundary] section — the commitment boundary must be written out explicitly."
 else
     for k in tier-availability platform-dataset-conclusion user-effect-out-of-scope; do
         if [ -z "$(get_val boundary "$k")" ]; then
@@ -449,7 +451,7 @@ fi
 
 echo ""
 if [ "$FAIL" -eq 0 ]; then
-    echo "[PASS] check_capability_matrix: Capability matrix is regenerable, consistent and fully documented (§17.7)."
+    echo "[PASS] check_capability_matrix: Capability matrix is regenerable, consistent and fully documented."
 else
     echo "[FAIL] check_capability_matrix: Issues found."
 fi
