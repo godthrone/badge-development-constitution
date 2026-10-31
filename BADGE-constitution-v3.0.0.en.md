@@ -20,7 +20,7 @@
 >
 > **Whether one requirement applies is asked in three sentences, in order:**
 > 1. **What layer is it?** L1 always applies and cannot be waived; L3 constitutes no obligation; only L2 goes on to the questions below.
-> 2. **Does its form trigger condition hold here for me?** (code / container / deployment environment / optional tiers or quantified claims / data artifacts / CLI provided / multiple configuration combinations ...) If it does not hold → this requirement creates no obligation for you.
+> 2. **Does its form trigger condition hold here for me?** (code / container / deployment environment / optional tiers or quantified claims / data artifacts / CLI provided / multiple implementations of the same interface ...) If it does not hold → this requirement creates no obligation for you.
 > 3. **Does its category include me?** (Category A = public Python project, Category B = closed-source Python project, Category C = other infrastructure project; definitions in Layer 0) If it does not include you → no obligation arises.
 >
 > All three pass → act according to the modality: `M` must be achieved; `R` is a recommendation, and not adopting it requires being able to state a reason. **When in doubt, treat it as applicable.**
