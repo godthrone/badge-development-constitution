@@ -33,9 +33,10 @@
 #   --class A  (default) Run all checks
 #   --class B  Skip §17.1 bilingual checks (exemption), relax YAML/__main__.py checks
 #   --class C  Run §15, §16, §17.3-§17.5, §19.1-§19.3 checks. §6 (复现) still
-#              applies per its applicability premise (§0); §8.7 and §19.2 are
-#              always executed regardless of class (see below). Docker deployment
-#              is NOT required, but §14.3 is checked whenever a Dockerfile exists.
+#              applies per its applicability premise (§0); §17.2, §18.1, §8.7 and
+#              §19.2 are 全类·无条件 and therefore always executed, outside the
+#              class branches (see the shared block below). Docker deployment is
+#              NOT required, but §14.3 is checked whenever a Dockerfile exists.
 #
 # Exit code: 0 if all checks pass, 1 if any check fails.
 
@@ -282,23 +283,11 @@ if [ "$CLASS" = "A" ]; then
 # §17.1 — README Parity (class A only; class B/C exempt per §17.6)
 run_check "README Parity (§17.1)"              "$SCRIPT_DIR/check_readme_parity.sh"
 
-# §17.2 — Docs ASCII Diagrams (warn-only)
-run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh"
-
-# §18.1 — Legacy Cleanup
-run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
-
 elif [ "$CLASS" = "B" ]; then
 
 echo "── README Parity (§17.1) ──"
 echo "  [SKIP] §17.6 exemption: bilingual README check skipped for Class B projects."
 echo ""
-
-# §17.2 — Docs ASCII Diagrams (warn-only)
-run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh"
-
-# §18.1 — Legacy Cleanup
-run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
 
 elif [ "$CLASS" = "C" ]; then
 
@@ -306,7 +295,13 @@ echo "── README Parity (§17.1) ──"
 echo "  [SKIP] §17.6 exemption: bilingual README check skipped for Class C projects."
 echo ""
 
-fi  # end class-specific §17 checks
+fi  # end class-specific §17.1 check
+
+# §17.2 — Docs ASCII Diagrams (warn-only, all classes: §17.2 is 全类·无条件)
+run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh"
+
+# §18.1 — Legacy Cleanup (all classes: §18.1 is 全类·无条件)
+run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
 
 # §8.7 — Constitution Refs in Source (all classes)
 run_check "Constitution References (§8.7)"     "$SCRIPT_DIR/check_constitution_refs.sh"

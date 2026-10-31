@@ -31,6 +31,16 @@
 #     leave nothing behind after stripping.
 #   * F4a–F4d2, F6b, F6c, F7, F8, F11–F14 land inside the M ranges below; only
 #     F1, F2 and F3 needed a range of their own.
+#   * Pre-push release fix (RM1): §8.7's "constitution-repository itself"
+#     paragraph moved into §17.8 — a 宪自-only obligation cannot sit under an
+#     A/B marker (§17.8 "read the marker alone"). The move needs no new range:
+#       - source side: the paragraph vanishes from §8.7, which widens the M25
+#         hunk from prev line 520 to prev lines 520-522 (the deleted paragraph
+#         plus the blank line it left behind) — hence M25 is now 506-522;
+#       - destination side: §17.8's new paragraph lands on prev line 1252, in
+#         the M3,M5 hunk that already rewrote §17.8's closing paragraphs.
+#     The moved paragraph carries no applicability marker, so the marker
+#     invariant (80 markers / 11 block markers) is untouched by the move.
 #
 # Reviewed by: constitution revision review (recorded in the v3.0.0 commit).
 
@@ -63,7 +73,7 @@ M22       365-365   §7.2 — validation-at-load restated as a universal rule
 M1        392-431   §8.1 — directory tree demoted to L3 example + `__main__.py` by entry form (5 hunks in range)
 M23       441-498   §8.2/§8.3/§8.5 — sample values and layouts marked as examples (5 hunks in range)
 M24       475-484   §8.4 — local A/B naming clash with project A/B removed (3 hunks in range)
-M25       506-520   §8.7 — version source given an explicit trigger; self-reference fixed
+M25       506-522   §8.7 — version source given an explicit trigger; the constitution-repository paragraph moved to §17.8 (release fix)
 M26       527-537   §9.1/§9.2 — pydantic/ABC bindings removed from headings and bodies (4 hunks in range)
 M27       593-597   §11.1/§11.2 — tool names and test layout demoted to R with triggers
 M2        617-628   §11.5 — acceptance bound to tiers/quantified claims (4 hunks in range)

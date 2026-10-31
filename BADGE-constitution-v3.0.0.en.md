@@ -579,9 +579,6 @@ At runtime the version number is obtained through the standard library's metadat
 
 **Litmus test:** How many files must be changed to make a release? If the number exceeds 0, this clause is violated.
 
-**This clause applies only to this constitution repository itself** (see §17.8): repositories that implement the constitution are **forbidden** to embed constitution version references in source files — the constitution version number is maintained only in the constitution repository itself, so that it is a single source of truth just like the project version number. **Project repositories do not bear this obligation.** **The concrete literal patterns are defined by `tools/check_constitution_refs.sh`** (the hardcoded-version check for this project is carried by `tools/check_version.sh`).
-  `tools/check_constitution_refs.sh` and `tools/check_version.sh` are part of the constitution's own content, not project code.
-
 ---
 
 ## IX. Data and Interfaces
@@ -1303,6 +1300,9 @@ This section governs the relationship between **this constitution's own** two la
 **Markers are not part of the clause content.** The applicability marker at the end of the heading line is **declarative metadata**; it takes no part in the semantic interpretation of the clause and is not bound by the preceding paragraph's "do not write specific forms" — what it describes is "whom this clause governs", not "what this clause requires".
 
 **The sole landing point of constitution content.** All of this constitution's **clauses and the categories / principles of its criteria** exist only in the Chinese and English constitution files; **concrete match patterns, lists, and fields** are carried by `tools/` (§15.1 first-paragraph division of labor) and do not enter `docs/`. Clauses and criteria must not be defined anew, restated, or rewritten in `docs/`, `README`, skill addenda, or any other file. A project's own process documentation may exist, but it describes steps only and cites only `§` numbers, without restating clause content. Violating this section constitutes "constitution content has a second source of truth" (§1.4) and leaves the constitution skill missing entries.
+
+**Repositories that implement the constitution** (see §8.7): such a repository is **forbidden** to embed constitution version references in source files — the constitution version number is maintained only in the constitution repository itself, so that it is a single source of truth just like the project version number. **Project repositories do not bear this obligation.** **The concrete literal patterns are defined by `tools/check_constitution_refs.sh`** (the hardcoded-version check for this constitution repository itself is carried by `tools/check_version.sh`).
+  `tools/check_constitution_refs.sh` and `tools/check_version.sh` are part of the constitution's own content, not project code.
 
 **Relation to the opening "How to read this constitution".** The opening passage **defines the meaning of the three layers and the applicability determination procedure**; all criteria for writing style, marker obligations, and the revision process are governed by this section. Where the two disagree, this section prevails.
 
