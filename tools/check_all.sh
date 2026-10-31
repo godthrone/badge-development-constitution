@@ -33,10 +33,13 @@
 #   --class A  (default) Run all checks
 #   --class B  Skip §17.1 bilingual checks (exemption), relax YAML/__main__.py checks
 #   --class C  Run §15, §16, §17.3-§17.5, §19.1-§19.3 checks. §6 (复现) still
-#              applies per its applicability premise (§0); §17.2, §18.1, §8.7 and
-#              §19.2 are 全类·无条件 and therefore always executed, outside the
-#              class branches (see the shared block below). Docker deployment is
-#              NOT required, but §14.3 is checked whenever a Dockerfile exists.
+#              applies per its applicability premise (§0); §17.2, §18.1 and §19.2
+#              are 全类·无条件 and therefore always executed, outside the class
+#              branches (see the shared block below) — as is the
+#              constitution-refs check, which belongs to §17.8 (宪自·无条件,
+#              binding on this constitution repository itself only) and likewise
+#              runs outside the class branches. Docker deployment is NOT
+#              required, but §14.3 is checked whenever a Dockerfile exists.
 #
 # Exit code: 0 if all checks pass, 1 if any check fails.
 
@@ -303,8 +306,8 @@ run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh
 # §18.1 — Legacy Cleanup (all classes: §18.1 is 全类·无条件)
 run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
 
-# §8.7 — Constitution Refs in Source (all classes)
-run_check "Constitution References (§8.7)"     "$SCRIPT_DIR/check_constitution_refs.sh"
+# §17.8 — Constitution Refs in Source (all classes)
+run_check "Constitution References (§17.8)"    "$SCRIPT_DIR/check_constitution_refs.sh"
 
 # §19.2 — .gitignore Coverage (all classes)
 run_check ".gitignore Coverage (§19.2)"        "$SCRIPT_DIR/check_gitignore.sh"

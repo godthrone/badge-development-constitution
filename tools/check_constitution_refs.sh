@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check_constitution_refs.sh — Scan tracked source files for constitution
-# version references (forbidden by §8.7).
+# version references (forbidden by §17.8).
 #
 # Exempt: the constitution files themselves, docs/, CLAUDE.md and tools/
 # (they are part of the constitution's own content, not consumer project code).
@@ -39,7 +39,7 @@ fi
 
 # ─── Scan for constitution version references ─────────────────────────────
 
-# Patterns to detect (English + Chinese). §8.7 forbids embedding the
+# Patterns to detect (English + Chinese). §17.8 forbids embedding the
 # constitution VERSION in source files, in any of its forms
 # (`BADGE Constitution vX.Y`、`constitution vX.Y §Z.W` 或类似模式):
 #   "BADGE Constitution v1.6"
@@ -50,7 +50,7 @@ fi
 #   "v1.5 §8.1"  (version + section, without the word "constitution")
 #   "BADGE-constitution"
 # etc.
-# Note: a version-less §-reference (e.g. "per §8.7") is NOT flagged — §8.7
+# Note: a version-less §-reference (e.g. "per §17.8") is NOT flagged — §17.8
 # forbids *version* references, and the constitution's own tools use §-refs
 # without versions. Only patterns that carry a version number are listed.
 PATTERNS=(
@@ -80,7 +80,7 @@ done
 MATCHES=$(echo "$MATCHES" | grep -v '^$' | sort -u || true)
 
 if [ -n "$MATCHES" ]; then
-    echo "[FAIL] check_constitution_refs: Constitution version references found in source files (forbidden by §8.7):"
+    echo "[FAIL] check_constitution_refs: Constitution version references found in source files (forbidden by §17.8):"
     echo "$MATCHES" | while IFS= read -r line; do
         [ -n "$line" ] && echo "  $line"
     done
