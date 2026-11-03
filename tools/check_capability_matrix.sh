@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # check_capability_matrix.sh — Optional tool: a reference implementation of the
 # data-driven capability & availability tier matrix shape.
-# Not registered in check_all.sh since v3.0.0.
+# Not registered in check_all.sh, by design: it applies only to projects that
+# publish such a matrix (see Applicability below), so registering it would turn
+# an optional form into an obligation on every project.
 #
 # For a project that chooses to publish a data-driven capability/availability
 # tier matrix, this script keeps the machine-readable data as the single source
