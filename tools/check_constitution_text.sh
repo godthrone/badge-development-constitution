@@ -57,6 +57,14 @@
 #       the previous release, `git show <prev-tag>:<file>`, only inside the
 #       ranges declared in the semantic rewrite manifest. Anything else means
 #       an undeclared semantic edit → FAIL. A missing tag → SKIP, never FAIL.
+#       The same manifest also carries *change records* ("what did this release
+#       change?") in new-edition coordinates — N<n> a new clause, X<n> a revised
+#       line. Each record is a positive assertion and is verified, so a wrong
+#       line number or an anchor on an unchanged line FAILS rather than passing
+#       silently. Range coverage alone cannot express "this section is new in
+#       this release": a hunk is the finest granularity the range model has, and
+#       an inserted section that abuts a rewritten paragraph shares that hunk
+#       under every diff alignment.
 #
 # Output: one status line per check ([PASS]/[FAIL]/[WARN]/[SKIP]) and a final
 # summary (Passed / Failed / Warnings / Skipped). Exit code: 0 when no check
@@ -80,8 +88,8 @@ ZH_CATEGORIES="A B C A/B 全类 宪自"
 EN_CATEGORIES="A B C A/B all self"
 # Trigger forms, in the order §17.8 lists them. `+` joins several; each part is
 # checked against this list on its own.
-ZH_TRIGGERS="无条件 有代码 有容器 有部署环境 有可选档位或量化结论 有数据产物 提供 CLI 有多套同接口实现 有配置文件 有自动化测试 有启动脚本 有版本发布 有 git 仓库 有 README 使用 AI 助手 采用本模板时 长时运行 面向公开分发"
-EN_TRIGGERS="unconditional code container deployment tiers-or-quantified-claims data-artifacts cli multiple-implementations config-files automated-tests startup-script versioned-releases git-repo readme ai-assistant template-adopted long-running public-distribution"
+ZH_TRIGGERS="无条件 有代码 有容器 有部署环境 有可选档位或量化结论 有数据产物 提供 CLI 有多套同接口实现 有配置文件 有自动化测试 有启动脚本 有版本发布 有 git 仓库 有 README 有提示词 使用 AI 助手 采用本模板时 长时运行 面向公开分发"
+EN_TRIGGERS="unconditional code container deployment tiers-or-quantified-claims data-artifacts cli multiple-implementations config-files automated-tests startup-script versioned-releases git-repo readme prompt-text ai-assistant template-adopted long-running public-distribution"
 # Block-level marker used by C3 (one line of its own, immediately above the block).
 ZH_BLOCK_MARKER="〔L3｜采用本模板时〕"
 EN_BLOCK_MARKER="〔L3｜template-adopted〕"
@@ -334,6 +342,7 @@ normalize_en() {
     m="${m//unconditional/无条件}"
     m="${m//container/有容器}"
     m="${m//readme/有 README}"
+    m="${m//prompt-text/有提示词}"
     m="${m//code/有代码}"
     m="${m//cli/提供 CLI}"
     m="${m//all/全类}"
@@ -665,7 +674,11 @@ if want C5; then
                 sed -nE 's/^@@ -([0-9]+)(,([0-9]+))? \+\+?[0-9]+.*/\1\t\3/p' > "$tmpdir/hunks.txt" || true
 
             # Declared ranges from the manifest: "<ids> <start>-<end> <note>".
+            # Change records ("<N|X><n> <line> <anchor>") use new-edition line
+            # numbers and are verified separately below — they are NOT coverage
+            # ranges, so they are filtered out here.
             grep -vE '^[[:space:]]*(#|$)' "$SEMANTIC_DIFF" |
+                grep -vE '^[[:space:]]*[NX][0-9]' |
                 awk '{ n = split($2, a, "-"); start = a[1]; end = (n > 1) ? a[2] : a[1]; printf "%s\t%s\t%s\n", start, end, $1 }' \
                 > "$tmpdir/declared.txt" || true
 
@@ -712,9 +725,98 @@ if want C5; then
 
                 n_declared=$(grep -c . "$tmpdir/declared.txt" || true)
                 n_hunks=$(grep -c . "$tmpdir/hunks.txt" || true)
-                echo "  $n_hunks hunk(s) after stripping, $n_declared declared range(s) in $(basename "$SEMANTIC_DIFF")"
 
-                if [ -n "$uncovered" ]; then
+                # ── Change records: what this release actually changed ────
+                # "<N|X><n>  <line>  <anchor>  — note", new-edition line
+                # numbers.  A record asserts something, so a wrong record must
+                # fail rather than pass quietly:
+                #   * the anchor must sit on the declared line;
+                #   * the anchor must be scope-unique — N: the only *heading*
+                #     containing it, X: the only *line* — so a mistyped line
+                #     number cannot match by luck;
+                #   * the full text of that line, after the marker strip, must
+                #     NOT occur verbatim in PREV_TAG: a line that did not
+                #     change is not a change;
+                #   * N must be a heading (a new clause), X must not be (that
+                #     would be a new clause declared as a revision).
+                records="$(grep -E '^[[:space:]]*[NX][0-9]+[[:space:]]' "$SEMANTIC_DIFF" || true)"
+                n_records=0
+                rec_issues=""
+                if [ -n "$records" ]; then
+                    while IFS= read -r rec; do
+                        [ -n "$rec" ] || continue
+                        n_records=$((n_records + 1))
+                        rid="$(printf '%s\n' "$rec" | awk '{print $1}')"
+                        rline="$(printf '%s\n' "$rec" | awk '{print $2}')"
+                        ranchor="$(printf '%s\n' "$rec" | awk '{print $3}')"
+                        case "$rline" in
+                            ''|*[!0-9]*)
+                                rec_issues="${rec_issues}  ${rid}: line number '${rline}' is not a number"$'\n'
+                                continue ;;
+                        esac
+                        if [ -z "$ranchor" ]; then
+                            rec_issues="${rec_issues}  ${rid}: no anchor given (expected '<id> <line> <anchor> — note')"$'\n'
+                            continue
+                        fi
+                        rtext="$(sed -n "${rline}p" "$ZH_FILE")"
+                        if [ -z "$rtext" ]; then
+                            rec_issues="${rec_issues}  ${rid}: $(basename "$ZH_FILE") line ${rline} is empty or missing — the declared line is wrong"$'\n'
+                            continue
+                        fi
+                        case "$rtext" in
+                            *"$ranchor"*) : ;;
+                            *)
+                                rec_issues="${rec_issues}  ${rid}: anchor '${ranchor}' is not on $(basename "$ZH_FILE"):${rline} — the declared line is wrong"$'\n'
+                                continue ;;
+                        esac
+                        case "$rid" in
+                            N*)
+                                case "$rtext" in
+                                    '#'*) : ;;
+                                    *)
+                                        rec_issues="${rec_issues}  ${rid}: declares a NEW clause but line ${rline} is not a heading"$'\n'
+                                        continue ;;
+                                esac
+                                hits="$(grep -E '^#{1,3}[ \t]' "$ZH_FILE" | grep -Fc -- "$ranchor" || true)"
+                                ;;
+                            *)
+                                case "$rtext" in
+                                    '#'*)
+                                        rec_issues="${rec_issues}  ${rid}: declares a REVISED line but line ${rline} is a heading (a new clause belongs in N<n>)"$'\n'
+                                        continue ;;
+                                esac
+                                hits="$(grep -Fc -- "$ranchor" "$ZH_FILE" || true)"
+                                ;;
+                        esac
+                        if [ "${hits:-0}" -ne 1 ]; then
+                            rec_issues="${rec_issues}  ${rid}: anchor '${ranchor}' matches ${hits:-0} line(s) in scope — it must be distinctive (exactly 1)"$'\n'
+                            continue
+                        fi
+                        # Compare on the marker-stripped line: `prev.md` is the
+                        # previous release, where a heading carries no 〔…〕
+                        # marker (the marker system postdates it).  Comparing the
+                        # RAW line against it could never match — every heading
+                        # record would pass the "is it really a change?" test
+                        # vacuously, which is worse than not testing at all.
+                        # Same strip rule as C5's hunk comparison, applied to the
+                        # one line (a marker-only line strips to empty and is
+                        # then "identical" to the blank lines of the old file,
+                        # i.e. correctly not a change).
+                        rtext_s="$(printf '%s\n' "$rtext" | sed -E 's/[ \t]*〔[^〕]*〕[ \t]*$//')"
+                        if grep -Fxq -- "$rtext_s" "$tmpdir/prev.md"; then
+                            rec_issues="${rec_issues}  ${rid}: $(basename "$ZH_FILE"):${rline} is identical to $PREV_TAG after the marker strip — a declared change must differ from it"$'\n'
+                            continue
+                        fi
+                    done <<< "$records"
+                fi
+
+                echo "  $n_hunks hunk(s) after stripping, $n_declared declared range(s), $n_records change record(s) in $(basename "$SEMANTIC_DIFF")"
+
+                if [ -n "$rec_issues" ]; then
+                    printf '%s' "$rec_issues"
+                fi
+
+                if [ -n "$uncovered" ] || [ -n "$rec_issues" ]; then
                     # Cap the detail: a wholly undeclared edit would otherwise
                     # print every hunk of the document.
                     shown=0
@@ -732,7 +834,15 @@ if want C5; then
                     if [ "$shown" -gt 20 ]; then
                         echo "  … $(($shown - 20)) more undeclared hunk(s) not listed"
                     fi
-                    status FAIL C5 "$(printf '%s\n' "$uncovered" | grep -c .) undeclared difference(s) vs $PREV_TAG — either the edit is out of scope (§17.8 condition ③) or the manifest is incomplete."
+                    c5_why=""
+                    if [ -n "$uncovered" ]; then
+                        c5_why="$(printf '%s\n' "$uncovered" | grep -c .) undeclared difference(s) vs $PREV_TAG"
+                    fi
+                    if [ -n "$rec_issues" ]; then
+                        [ -z "$c5_why" ] || c5_why="$c5_why and "
+                        c5_why="${c5_why}$(printf '%s\n' "$rec_issues" | grep -c .) invalid change record(s)"
+                    fi
+                    status FAIL C5 "$c5_why — either the edit is out of scope (§17.8 condition ③) or the manifest is wrong."
                 else
                     if [ -n "$stale" ]; then
                         # Highlighted with a plain `note:` rather than a [WARN]
@@ -743,7 +853,7 @@ if want C5; then
                             [ -n "$line" ] && echo "    $line"
                         done
                     fi
-                    status PASS C5 "all differences vs $PREV_TAG fall inside the declared rewrite list."
+                    status PASS C5 "all differences vs $PREV_TAG fall inside the declared rewrite list, and every declared change record verifies."
                 fi
             fi
         fi

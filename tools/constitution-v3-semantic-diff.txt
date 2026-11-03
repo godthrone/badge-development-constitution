@@ -1,13 +1,16 @@
-# constitution-v3-semantic-diff.txt — semantic rewrite manifest for v3.0.0
+# constitution-v3-semantic-diff.txt — semantic rewrite manifest for the
+# current release
 #
 # Purpose: the mechanical evidence required by §17.8 "生效范围" condition ③ —
-# after every applicability marker is stripped from the v3.0.0 Chinese text, the
-# result may differ from the previous release (v2.10.0) only inside the ranges
-# declared below.  Read by tools/check_constitution_text.sh (check C5).
+# after every applicability marker is stripped from the Chinese text of the
+# release under test, the result may differ from the previous release (v2.10.0)
+# only inside the ranges declared below.  Read by
+# tools/check_constitution_text.sh (check C5).
 #
 # Coordinates: **previous-release line numbers** (the v2.10.0 zh-CN file), not
-# v3.0.0 numbers — a declared range says "this part of the old text was
-# deliberately rewritten", which stays meaningful after the new file grew.
+# the current-release numbers — a declared range says "this part of the old
+# text was deliberately rewritten", which stays meaningful after the new file
+# grew.
 #
 # Strip rule used to produce the comparison (do not widen it):
 #   1. delete a marker at the END of a line:      s/[ \t]*〔[^〕]*〕[ \t]*$//
@@ -18,10 +21,28 @@
 # Format:  <M ids>  <start>-<end>  <anchor + why>
 #   M ids   : the modification point(s) of the revision plan that own this
 #             range (M1–M40); F<n> = a fix from the Chinese final-text review
-#             round; M0 = non-semantic (version string only).
+#             round; M0 = non-semantic (version string only); R<n> = a range
+#             whose only justification is diff realignment — an insertion that
+#             re-split hunks already owned by another range — never a rewording.
 #   range   : previous-release lines, inclusive, 1-based.
 # Sources : task-final-plan/final-plan.md §4 (M1–M40, with zh: line numbers),
 #           task-fix-cn-review/fix-report.md (F1–F14 + review round 2).
+#
+# Change records answer a different question — "what did this release change?" —
+# and are verified positively instead of by hunk coverage.  Coverage alone cannot
+# say "this section is new here": a hunk is the finest granularity the range
+# model has, so an inserted section that abuts a rewritten paragraph shares that
+# hunk under any diff alignment.  Records are in NEW-edition coordinates:
+#   Format:  <N|X><n>  <line>  <anchor>  — <what changed>
+#     N<n> : a clause this release ADDS — <line> must be a heading.
+#     X<n> : a line this release REVISES — <line> must not be a heading.
+#     <line>   : line number in the published Chinese edition of this release.
+#     <anchor> : a distinctive substring of that line.  The check requires it to
+#                sit on <line>, to be scope-unique (N: the only *heading*
+#                containing it; X: the only *line* containing it), and requires
+#                the whole line NOT to occur verbatim in PREV_TAG after the
+#                marker strip — an unchanged line is not a change.  A wrong
+#                <line> therefore FAILS instead of passing quietly.
 #
 # Notes on what is deliberately absent:
 #   * M6 (whole-document marker pass) contributes NO line to this file — that
@@ -40,11 +61,13 @@
 #       - destination side: §17.8's new paragraph lands on prev line 1252, in
 #         the M3,M5 hunk that already rewrote §17.8's closing paragraphs.
 #     The moved paragraph carries no applicability marker, so the marker
-#     invariant (80 markers / 11 block markers) is untouched by the move.
+#     invariant (80 markers at v3.0.0 / 11 block markers) is untouched by the
+#     move.  That count is a record of the v3.0.0 state, not a live
+#     expectation: C1 prints the current totals itself and asserts none of them.
 #
 # Reviewed by: constitution revision review (recorded in the v3.0.0 commit).
 
-M0        1-1      title version string v2.10.0 -> v3.0.0 (non-semantic)
+M0        1-1      title version string only — the bump carries no clause text (non-semantic)
 M3        8-8      opening "how to read" — layer names replace 原则/规则/技法
 M3        10-10     opening "how to read" — three-layer reading guide written out
 M13       35-35     总纲 — risk-gate paragraph split, §-numbers demoted to index
@@ -101,3 +124,24 @@ M5        1256-1263  §17.8 — exception wording, recording rule, effective sco
 M37       1274-1307  §18/§19 — sample landing points and triggers (5 hunks in range)
 M39       1276-1276  §18.1 — vendored-third-party registry absorbed from docs/opt-in-exemptions.md
 M38       1312-1319  §二十 — section-header applicability + pyproject sample values (2 hunks in range)
+
+# ── R1: why the v3.1.0 §17.9 insertion needs a realignment range ──────────
+# The R<n> convention itself is defined once, in "Format" above.  This block
+# records only why R1 exists.  The insertion adds a new section after §17.8's
+# last paragraph and rewrites no existing sentence, yet it shifts the
+# surrounding text enough that diff(1)'s default (Myers) alignment re-pairs
+# lines *inside* §17.8: the two hunks that M3,M5 (1252) and M5 (1256-1263)
+# already own get re-split, and 7 hunks appear in prev lines 1237-1257 where
+# v3.0.0 had fewer, larger ones.  Evidence that no wording changed in that
+# stretch: `git diff --no-index --patience` over the same two texts reports only
+# prev 1252 and 1256 as genuinely different lines — both v3.0.0 rewrites already
+# declared above — and not a single v3.1.0 edit.
+R1        1237-1257  §17.8 — v3.1.0 changed no wording here: inserting §17.9 re-aligned diff and re-split M3,M5 (1252) / M5 (1256-1263); every other line in the envelope is identical to v2.10.0 after the marker strip. §17.9 itself is new content and is declared as N1 below, not by this range
+
+# ── Change records: what v3.1.0 changed (new-edition coordinates) ─────────
+# The coverage ranges above answer "is this difference declared?", not "what is
+# it" — hence these records.  The release has four changes; the fourth (the
+# title version string) is non-semantic and is already declared by M0 above.
+N1        1320  17.9          — §17.9「面向模型的提示词文本」是本节新增加条文（L2·M｜全类·有提示词，MINOR 级新增；v3.0.0 无此节）
+X1        81    §17.7–§17.9   — 第〇层「C 类按自身标记判定」清单由 §17.7–§17.8 扩为 §17.7–§17.9：新节进入该清单，属适用范围的实质变更
+X2        1298  增补触发词属  — §17.8「标记语法」：触发形态闭集增补 `有提示词`（MINOR 级修订），同行"增补"括注同步计入该词
