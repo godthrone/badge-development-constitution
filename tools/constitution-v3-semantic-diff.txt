@@ -3,11 +3,11 @@
 #
 # Purpose: the mechanical evidence required by §17.8 "生效范围" condition ③ —
 # after every applicability marker is stripped from the Chinese text of the
-# release under test, the result may differ from the previous release (v2.10.0)
+# release under test, the result may differ from the previous release (v3.1.0)
 # only inside the ranges declared below.  Read by
 # tools/check_constitution_text.sh (check C5).
 #
-# Coordinates: **previous-release line numbers** (the v2.10.0 zh-CN file), not
+# Coordinates: **previous-release line numbers** (the v3.1.0 zh-CN file), not
 # the current-release numbers — a declared range says "this part of the old
 # text was deliberately rewritten", which stays meaningful after the new file
 # grew.
@@ -16,17 +16,18 @@
 #   1. delete a marker at the END of a line:      s/[ \t]*〔[^〕]*〕[ \t]*$//
 #   2. delete a line that is ONLY a marker:       /^[ \t]*〔[^〕]*〕[ \t]*$/
 # Never a global 〔〕 deletion: inline examples in the §17.8 syntax paragraph
-# (and similar prose) are clause text, not markers.
+# (and similar prose) are clause text, not markers.  The same rule is applied
+# to BOTH editions, the previous release included: stripping one side only
+# turns that side's own markers into phantom differences.
 #
-# Format:  <M ids>  <start>-<end>  <anchor + why>
-#   M ids   : the modification point(s) of the revision plan that own this
-#             range (M1–M40); F<n> = a fix from the Chinese final-text review
-#             round; M0 = non-semantic (version string only); R<n> = a range
-#             whose only justification is diff realignment — an insertion that
-#             re-split hunks already owned by another range — never a rewording.
+# Format:  <ids>  <start>-<end>  <anchor + why>
+#   ids     : the modification point(s) of the revision plan that own this
+#             range — M<n> a planned change, F<n> a fix from the final-text
+#             review round, M0 a non-semantic change (version string only),
+#             R<n> a range whose only justification is diff realignment — an
+#             insertion that re-split hunks already owned by another range —
+#             never a rewording.
 #   range   : previous-release lines, inclusive, 1-based.
-# Sources : task-final-plan/final-plan.md §4 (M1–M40, with zh: line numbers),
-#           task-fix-cn-review/fix-report.md (F1–F14 + review round 2).
 #
 # Change records answer a different question — "what did this release change?" —
 # and are verified positively instead of by hunk coverage.  Coverage alone cannot
@@ -44,104 +45,64 @@
 #                marker strip — an unchanged line is not a change.  A wrong
 #                <line> therefore FAILS instead of passing quietly.
 #
-# Notes on what is deliberately absent:
-#   * M6 (whole-document marker pass) contributes NO line to this file — that
-#     is the point of the invariant: markers are metadata and vanish under the
-#     strip rule, so they can never justify a textual difference.
-#   * Marker-only fixes of the review round (F5a, F5b, F6a, F9, F10) likewise
-#     leave nothing behind after stripping.
-#   * F4a–F4d2, F6b, F6c, F7, F8, F11–F14 land inside the M ranges below; only
-#     F1, F2 and F3 needed a range of their own.
-#   * Pre-push release fix (RM1): §8.7's "constitution-repository itself"
-#     paragraph moved into §17.8 — a 宪自-only obligation cannot sit under an
-#     A/B marker (§17.8 "read the marker alone"). The move needs no new range:
-#       - source side: the paragraph vanishes from §8.7, which widens the M25
-#         hunk from prev line 520 to prev lines 520-522 (the deleted paragraph
-#         plus the blank line it left behind) — hence M25 is now 506-522;
-#       - destination side: §17.8's new paragraph lands on prev line 1252, in
-#         the M3,M5 hunk that already rewrote §17.8's closing paragraphs.
-#     The moved paragraph carries no applicability marker, so the marker
-#     invariant (80 markers at v3.0.0 / 11 block markers) is untouched by the
-#     move.  That count is a record of the v3.0.0 state, not a live
-#     expectation: C1 prints the current totals itself and asserts none of them.
+# Notes:
+#   * Markers are metadata: they vanish under the strip rule, so they can never
+#     justify a textual difference — no marker-only edit needs a range or a
+#     record.
+#   * Records are verified on every run, including a run whose diff is empty:
+#     an empty diff says nothing about whether the records are right.
 #
-# Reviewed by: constitution revision review (recorded in the v3.0.0 commit).
+# Declarations: the v3.1.0 ones were retired together with the base move
+# (v2.10.0 → v3.1.0): their line numbers address the old base and would have
+# authorized any hunk inside them.  This revision's own ranges and records
+# follow below; an empty list would be a real statement too (every difference
+# from v3.1.0 is undeclared and C5 FAILS), not a truncated file.
 
-M0        1-1      title version string only — the bump carries no clause text (non-semantic)
-M3        8-8      opening "how to read" — layer names replace 原则/规则/技法
-M3        10-10     opening "how to read" — three-layer reading guide written out
-M13       35-35     总纲 — risk-gate paragraph split, §-numbers demoted to index
-F3        44-44     总纲 — add L1 heads 必须真实 / 使用者可读 (review fix F3)
-M7        49-49     第〇层 — Python is a reference implementation, not a premise
-M8,M9,M10 53-55    第〇层 — A/B/C class definitions rewritten (L3 note, B-class enumeration, C-class L1+L2-M)
-M11       61-61     第〇层 — classification decoupled from form triggers
-M4,M10    77-77    第〇层 — C-class litmus restated + new §"适用性判据" inserted
-M11       81-81     第〇层 — tooling must not use one class's form as an all-class criterion
-M12       85-85     第〇层 — TOML preference demoted to R with a trigger
-M15       105-105   §1.2 — implementation examples made form-neutral
-M14       115-115   §1.3 — judgement criterion de-instantiated (accelerator/GPU)
-M15       125-125   §1.4 — deployment extension given an explicit precondition
-M15       127-127   §1.4 — documentation single-landing rule restated
-M16       148-150   §1.6 — comment/architecture-doc rules merged with §12.4 (two lines)
-M17       162-187   §2.1/§2.2 — Python bindings of contract/explicitness split out (11 hunks in range)
-M14       191-191   §2.3 — boundary validation criterion de-instantiated
-M18       211-221   §三 — duplicated passages merged, general dividing line added (3 hunks in range)
-M14       238-242   §四 — zero-step criteria de-instantiated (3 hunks in range)
-M19       245-268   §4.1/§4.2 — startup script demoted to a triggered L2 (5 hunks in range)
-M14       298-298   §六 — acceptance wording de-instantiated
-M20       303-308   §六 — reproducibility de-instantiated, tool pointer made generic
-M21       322-371   §7 — configuration system de-instantiated (7 hunks in range)
-M7        324-324   §7.1 — Python premise replaced by the §0 applicability pointer
-M22       365-365   §7.2 — validation-at-load restated as a universal rule
-M1        392-431   §8.1 — directory tree demoted to L3 example + `__main__.py` by entry form (5 hunks in range)
-M23       441-498   §8.2/§8.3/§8.5 — sample values and layouts marked as examples (5 hunks in range)
-M24       475-484   §8.4 — local A/B naming clash with project A/B removed (3 hunks in range)
-M25       506-522   §8.7 — version source given an explicit trigger; the constitution-repository paragraph moved to §17.8 (release fix)
-M26       527-537   §9.1/§9.2 — pydantic/ABC bindings removed from headings and bodies (4 hunks in range)
-M27       593-597   §11.1/§11.2 — tool names and test layout demoted to R with triggers
-M2        617-628   §11.5 — acceptance bound to tiers/quantified claims (4 hunks in range)
-M28       651-674   §12.1 — typing rules given applicable-when conditions (2 hunks in range)
-M28       688-688   §12.2 — naming rule de-instantiated
-M28       696-696   §12.3 — bilingual README restated as a pointer to §17.1
-M28,F2    702-704   §12.3 — comment/commit-message language unified with §19.1 (2 hunks in range)
-M16       712-715   §12.4 — file-header obligation given a trigger, exclusions added
-M29       732-736   §13.2/§13.3 — logging channel bound to data-artifact/long-running (2 hunks in range)
-M39       758-758   §14.1 — dependency-licence criteria absorbed from docs/license-policy.md
-M30       762-764   §14.2 — package manager de-instantiated (uv demoted to example)
-M31       766-878   §14.3 — "Docker 必须支持" becomes triggered container imaging; templates marked L3 (10 hunks in range)
-M32       893-893   §14.4 — section-header applicability statement added
-M33       922-1021  §15 — security clauses de-formalised (14 hunks in range)
-F1        935-935   §15.1 — "not accepted" scoped by class and visibility (review fix F1)
-M39       1025-1025  §15.4 — opt-in exemption principles absorbed from docs/opt-in-exemptions.md
-M34       1040-1066  §16 — local/temporary file rules restated (4 hunks in range)
-M35       1086-1112  §17.1/§17.2 — documentation forms de-instantiated (4 hunks in range)
-M2        1094-1116  §17.2 — capability description tied to tiers/quantified claims (4 hunks in range)
-M40       1107-1107  §17.2 — process-document exception added (new paragraph)
-M36       1134-1141  §17.5 — work-log sample values marked as examples (2 hunks in range)
-M2        1163-1235  §17.7 — capability matrix becomes generic capability documentation (13 hunks in range)
-M3,M5     1252-1252  §17.8 — writing rules: layer/modality/applicability must be explicit
-M5        1256-1263  §17.8 — exception wording, recording rule, effective scope, judgement test (3 hunks in range)
-M37       1274-1307  §18/§19 — sample landing points and triggers (5 hunks in range)
-M39       1276-1276  §18.1 — vendored-third-party registry absorbed from docs/opt-in-exemptions.md
-M38       1312-1319  §二十 — section-header applicability + pyproject sample values (2 hunks in range)
+# ── Rewrite ranges — v3.1.0 coordinates, inclusive. A pure insertion has a
+#    zero-width hunk and is written as the single point it was inserted after.
+#    One declaration per line: continuation lines would be parsed as ranges.
+M0   1-1     version string only: title v3.1.0 → v3.2.0, no clause text touched
+M1   23-23   reading guide question 2 names §17.8「标记语法」as the closed set the trigger list comes from, replacing the trailing「……」ellipsis
+M2   44-44   「为何简单优先」rewritten: the mechanism is stated plainly (fewer steps, fewer judgements) and its scope narrowed to operations — product complexity is handed to「熵与复杂度纪律」
+M3   52-52   reversible bullet:「把整栋楼的电路都查一遍」→「做全量核验」, the same waste without the building metaphor
+M4   55-55   the floor is stated of「交付物」, plus「不可逆只增加验证与退路，不增加功能与篇幅」
+M5   61-61   heading「复杂度纪律」→「熵与复杂度纪律」; the section that follows is re-cut below, so one restructure produces three hunks
+M5   64-64   「每层须消融」: structural items (模块/接口/测试) leave ablation judgement and are handed to §1.1/§1.2/§11 instead
+M5   65-65   same restructure, insertion side: the two-kinds-of-entropy paragraph and the「一次只加一个」/「结构可留，空壳不留」bullets are new text here, so this is the prev-side point they land at
+M6   358-358 §6「边界」: parameter ownership now cites §10.1 alone; the §1.4/§7.1 detour is gone
+M7   810-810 §13.4「原则」: methodology pointer「简单优先」→「熵判据」, naming「熵与复杂度纪律」and「执行第一原则」
+M8   1356-1356 §18 lead-in: debt is framed as growing with project lifetime instead of the「癌症」/「复利」metaphor
+M9   138-138   §1.1「一事一责」: internal complexity is free, cross-boundary complexity is not — structure entropy named where modules are defined
+M10  164-164   §1.4「单一真相源」: duplication named as structural entropy — every editable copy is one more place that drifts
+M11  497-497   §8.2「文件粒度」: both granularity extremes are entropy — too large is structural, too fine is functional
+M12  692-692   §11.5「验收」: documents produced beyond need are functional entropy, not diligence
+M13  1251-1251 §17.7「docs/」: a fabricated tier is functional entropy — more for the reader to read, nothing more he can do
+M14  1289-1289 §17.8「宪法文本的写法」: named as where the entropy criterion lands on the constitution's own text
+M15  1360-1360 §18.1「不留负债」: old code named as structural entropy — the reader must judge「还用不用」every time
 
-# ── R1: why the v3.1.0 §17.9 insertion needs a realignment range ──────────
-# The R<n> convention itself is defined once, in "Format" above.  This block
-# records only why R1 exists.  The insertion adds a new section after §17.8's
-# last paragraph and rewrites no existing sentence, yet it shifts the
-# surrounding text enough that diff(1)'s default (Myers) alignment re-pairs
-# lines *inside* §17.8: the two hunks that M3,M5 (1252) and M5 (1256-1263)
-# already own get re-split, and 7 hunks appear in prev lines 1237-1257 where
-# v3.0.0 had fewer, larger ones.  Evidence that no wording changed in that
-# stretch: `git diff --no-index --patience` over the same two texts reports only
-# prev 1252 and 1256 as genuinely different lines — both v3.0.0 rewrites already
-# declared above — and not a single v3.1.0 edit.
-R1        1237-1257  §17.8 — v3.1.0 changed no wording here: inserting §17.9 re-aligned diff and re-split M3,M5 (1252) / M5 (1256-1263); every other line in the envelope is identical to v2.10.0 after the marker strip. §17.9 itself is new content and is declared as N1 below, not by this range
-
-# ── Change records: what v3.1.0 changed (new-edition coordinates) ─────────
-# The coverage ranges above answer "is this difference declared?", not "what is
-# it" — hence these records.  The release has four changes; the fourth (the
-# title version string) is non-semantic and is already declared by M0 above.
-N1        1320  17.9          — §17.9「面向模型的提示词文本」是本节新增加条文（L2·M｜全类·有提示词，MINOR 级新增；v3.0.0 无此节）
-X1        81    §17.7–§17.9   — 第〇层「C 类按自身标记判定」清单由 §17.7–§17.8 扩为 §17.7–§17.9：新节进入该清单，属适用范围的实质变更
-X2        1298  增补触发词属  — §17.8「标记语法」：触发形态闭集增补 `有提示词`（MINOR 级修订），同行"增补"括注同步计入该词
+# ── Change records — v3.2.0 coordinates. No N record: this release adds no
+#    clause and no heading (the only heading that differs is the title, which
+#    the M0 range above already owns — and a heading cannot be an X record).
+#    NB: they are checked against whatever --zh names, so pointing --zh at the
+#    v3.1.0 edition fails them by construction — the baseline run is a hunk
+#    question (0 hunks), not a record question.
+X1   23   完整词表见 §17.8  — reading guide points at the closed set
+X2   44   它管的是操作，不是产物  — simple-first no longer claims product simplicity
+X3   52   为此做全量核验，是巨大浪费  — metaphor replaced by the plain action
+X4   55   不可逆只增加验证与退路  — irreversibility adds verification, not scope
+X5   61   熵与复杂度纪律（与升级信号对称）  — section retitled to the entropy criterion
+X6   63   系统的熵分两种，方向相反  — new paragraph: functional vs structural entropy,「最小功能 + 最大秩序」, and the「简单」disambiguation
+X7   66   模块、接口、测试等结构不由消融判定  — ablation no longer judges structure
+X8   68   一次只加一个他明确要求的功能或形态  — new bullet: one addition at a time
+X9   69   结构可留，空壳不留  — new bullet: reserve structure, never shells
+X10  71   删掉哪一半，用户仍认为这是他要的东西  — new closing test for over-delivery
+X11  364  参数归属由 §10.1 决定，复现只是检验手段  — §6 boundary trimmed to §10.1
+X12  816  见总纲「熵与复杂度纪律」与「执行第一原则」  — §13.4 pointer updated
+X13  1362 技术负债会随项目寿命放大  — debt restated without the compounding metaphor
+X14  144  模块内部的复杂度不增加维护代价  — §1.1 now names structure entropy at the module boundary
+X15  170  重复是结构熵  — §1.4 names duplication as structural entropy
+X16  503  粒度的两侧都是熵  — §8.2: over-large and over-fine granularity are both entropy
+X17  698  多产出的文档是功能熵  — §11.5: surplus documents are functional entropy
+X18  1257 杜撰的档位是功能熵  — §17.7: invented tiers are functional entropy
+X19  1295 本节是熵判据在文本上的落点  — §17.8: the text-writing rule is where the criterion lands
+X20  1366 旧代码是结构熵  — §18.1: legacy code is structural entropy

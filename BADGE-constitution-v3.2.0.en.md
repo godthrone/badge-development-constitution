@@ -1,4 +1,4 @@
-# BADGE Development Constitution v3.1.0
+# BADGE Development Constitution v3.2.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — Boundary and Defensive-Guard Engineering Development Constitution
 >
@@ -20,7 +20,7 @@
 >
 > **Whether one requirement applies is asked in three sentences, in order:**
 > 1. **What layer is it?** L1 always applies and cannot be waived; L3 constitutes no obligation; only L2 goes on to the questions below.
-> 2. **Does its form trigger condition hold here for me?** (code / container / deployment environment / optional tiers or quantified claims / data artifacts / CLI provided / multiple implementations of the same interface ...) If it does not hold → this requirement creates no obligation for you.
+> 2. **Does its form trigger condition hold here for me?** (code / container / deployment environment / optional tiers or quantified claims / data artifacts / CLI provided / multiple implementations of the same interface ... **the complete vocabulary is in §17.8 "Marker Syntax", and it is a closed set**) If it does not hold → this requirement creates no obligation for you.
 > 3. **Does its category include me?** (Category A = public Python project, Category B = closed-source Python project, Category C = other infrastructure project; definitions in Layer 0) If it does not include you → no obligation arises.
 >
 > All three pass → act according to the modality: `M` must be achieved; `R` is a recommendation, and not adopting it requires being able to state a reason. **When in doubt, treat it as applicable.**
@@ -41,7 +41,7 @@ When you receive a task, first ask: **What does the user actually want? Is this 
 2. **Cost second**: Provided fidelity and risk are under control, finish at minimum cost; if it can be done in one pass, do it in one pass; if a simplest path exists, take it. **Entry points first** — first look for ready-made entry points such as scripts, README, and docs under the directory the user gave you to build the full picture, then decide whether to read the source in depth.
 3. **Speed third**: Never sacrifice fidelity or safety for speed, and never sacrifice cost for "comprehensiveness".
 
-**Why simple-first:** Simple operations are hard to get wrong — this is both Occam's razor applied to engineering execution and one of the means of foolproofing (§2) and of raising the task success rate.
+**Why simple-first:** Fewer steps and fewer judgments mean a lower error rate — it is a means of foolproofing (§2) and of raising the task success rate. **It governs operations, not artifacts**: an artifact's complexity is governed by the entropy criterion (see "Entropy and complexity discipline" below).
 
 Here **cost** means effort and resource consumption (tokens, tool calls, footprint of change); **speed** means wall-clock time and number of interaction rounds. When the two conflict, cost wins — rework is the largest time expense.
 
@@ -49,20 +49,26 @@ Here **cost** means effort and resource consumption (tokens, tool calls, footpri
 
 **Risk gate (deciding whether to spend more cost): The cost paid to control a risk must be far smaller than the cost if the risk once materializes.**
 
-- **Reversible**: the consequence is minor, controllable, and rollback-able — **all three hold at once** (e.g., editing docs, editing **local** config, a re-runnable script) → **just do it**; inspecting every circuit in the whole building for it is a huge waste.
+- **Reversible**: the consequence is minor, controllable, and rollback-able — **all three hold at once** (e.g., editing docs, editing **local** config, a re-runnable script) → **just do it**; running a full verification pass for it is a huge waste.
 - **Irreversible**: **any one** of the three above fails, which is this class (e.g., deletion, **data** migration, external release, production config change) → **pay the necessary cost of one quick verification first** (backup, boundary validation, pre-authorized fallback). **When in doubt, treat it as irreversible.**
 
-**This principle only adjusts the depth of execution and the completeness of the deliverable; it exempts no mandatory clause** — the mandatory force of these clauses is independent of whether the consequence is reversible, and they all apply in full; **which clauses there are and whom each governs is judged by their own scope of application and markers**. The numbers below are only a navigation index and carry no criterion: security and secrets §15, contracts and interfaces §2.1, boundary validation §2.3, operational foolproofing §2.4, single source of truth §1.4, task decomposition §1.5, fallbacks §3. For reversible tasks the deliverable takes these mandatory clauses and the user's explicit acceptance criteria as its floor and is **minimally sufficient** — stop once the acceptance criteria are met, without adding unrequested refinements, examples, or review rounds; the floor is not lowered.
+**This principle only adjusts the depth of execution and the completeness of the deliverable; it exempts no mandatory clause** — the mandatory force of these clauses is independent of whether the consequence is reversible, and they all apply in full; **which clauses there are and whom each governs is judged by their own scope of application and markers**. The numbers below are only a navigation index and carry no criterion: security and secrets §15, contracts and interfaces §2.1, boundary validation §2.3, operational foolproofing §2.4, single source of truth §1.4, task decomposition §1.5, fallbacks §3. The **deliverable** takes these mandatory clauses and the user's explicit acceptance criteria as its floor and is **minimally sufficient** — stop once the acceptance criteria are met, without adding unrequested refinements, examples, or review rounds; the floor is not lowered. **Irreversibility adds verification and fallbacks only**; **it adds no functionality and no length**.
 
 **§6 reproduction is not among them** — it has its own applicability precondition (see §6): it is pursued only when "the result needs to be run a second time in the future, and the second time must be consistent with this time", and the meaning of "consistent" is decided by the effect defined by the requirement.
 
 **Escalation signal:** Only when a simple approach fails once, or the same problem recurs, escalate to root-cause investigation.
 
-**Complexity discipline (symmetrical to the escalation signal):** Complexity may only be added one layer at a time, and every added layer must prove that it is necessary.
+**Entropy and complexity discipline (symmetrical to the escalation signal):** Complexity may only be added one layer at a time, and every added layer must prove that it is necessary.
+
+**The system's entropy comes in two kinds, pulling in opposite directions:** functional entropy — the number of functions, optional tiers, config items, and interface elements in the artifact: the more, the worse; structural entropy — the degree to which interfaces are unclear, boundaries untidy, naming inaccurate, and tests fail to correspond to functionality: the higher, the worse. The goal is not "simple"; it is **minimal functionality, maximal order**. There is only one test: **is this change serving the user's request, or serving "I think it should be"?** Wherever "simple" is given as a reason for a trade-off, it refers to the artifact complexity defined here; the **cost sense** (the "cost" defined in the paragraph above), the **operational sense** (number of steps, number of judgments, path length), and the **"minimal" inside a term such as "minimal normative unit"** all fall outside the scope of this sentence. **This section is the measure of the whole document, not the property of one chapter**: whichever clause in any chapter asks for a smaller functional surface or a firmer structural surface is one of its landing points — you need not see the word "entropy" in every place.
 
 - **Start minimal and usable**: deliver the simplest form that achieves the requirement first; before it works, do not introduce the next layer of complexity.
-- **Every layer must be ablated** (one ablation experiment: remove this layer, then re-measure the effect): every added layer of complexity (module, parameter, abstraction, branch, dependency) must have its necessity judged by one ablation — remove this layer: does the effect defined by the requirement degrade noticeably? If you cannot answer, or removing it makes no difference, delete the layer; do not keep it "just in case".
+- **Every layer must be ablated** (one ablation experiment: remove this layer, then re-measure the effect): every added layer of complexity (parameters, branches, dependencies, extra layers of indirection) must have its necessity judged by one ablation — remove this layer: does the effect defined by the requirement degrade noticeably? If you cannot answer, or removing it makes no difference, delete the layer; do not keep it "just in case". **Structures such as modules, interfaces, and tests are not judged by ablation** — their necessity is decided by the criteria of §1.1, §1.2, and §11 respectively; whatever is required by a **non-exemptible clause** (all of L1, and L2 clauses marked M, such as §1.3's separation of computation and infrastructure) is always kept. **Where the two readings are ambiguous, treat the layer as subject to ablation.**
 - **Never invent requirements for the user**: function and form are defined by the user. The "more general / more complete / more elegant" that the user did not ask for is not a requirement — it is over-execution.
+- **Add one at a time**: after the first version is delivered and the user confirms it, add only one function or form at a time, and only one that the user explicitly asked for.
+- **Structure may be reserved; shells may not**: **structure** may be reserved — interfaces, boundaries, naming; **shells** must not be reserved — config items, extension points with no consumer, empty directories, placeholder sections. **A shell is not structure**: it looks like structure but adds functional entropy.
+
+**Before delivery, ask the reverse question once more: delete which half and the user would still call this what he asked for?** Whatever still stands is, by the criteria of this section, over-execution.
 
 **Must be true.** Every statement made to others (users, colleagues, AI) — documents, conclusions, reports, status — must be consistent with the facts: what is unverified must not be written as verified, and what you do not know must not be written as no problem. In §17.7 "Obligation One: explicit status", the rule that "items not yet verified must not be counted toward the usable total" is its landing point in functional descriptions.
 
@@ -135,7 +141,7 @@ The boundary is the first step of system design. From the network boundary betwe
 
 ### 1.1 Module Boundaries: One Thing Well 〔L1｜all〕
 
-Each module does only one thing and does that thing well. If a module's responsibility cannot be stated clearly in one sentence, it should be split. A module's internals may be very complex, but the boundaries between modules must be clear and simple.
+Each module does only one thing and does that thing well. If a module's responsibility cannot be stated clearly in one sentence, it should be split. A module's internals may be very complex, but the boundaries between modules must be clear and simple. **This is structural entropy** — complexity inside a module does not raise the maintenance cost; complexity that crosses a boundary does.
 
 **The practical effect of a good boundary:** When modifying upper-layer code, you do not need to open lower-layer files — you only need to know the lower-layer module's interface and responsibility, without reading its implementation.
 
@@ -161,7 +167,7 @@ Every piece of information has **exactly one** authoritative source in the syste
 
 "This value can come from three places" sounds flexible, but in practice it leaves the user changing a parameter and not knowing why it does not take effect.
 
-**Judgment criterion:** If someone asks "where does this value come from", can you give the unique answer within one second? If not, there are too many sources.
+**Judgment criterion:** If someone asks "where does this value come from", can you give the unique answer within one second? If not, there are too many sources. **Duplication is structural entropy**: every additional editable copy is one more place that can drift.
 
 > The extension of this principle in the deployment process: **when the project has a deployment machine or a deployment process**, the code on the deployment machine has only one source, the development machine (see §14.4).
 
@@ -355,7 +361,7 @@ The presence of the mechanism is verified by the corresponding check items in `t
 
 **Judgment criterion:** Can you state in one sentence what the effect defined by the requirement for this run's "consistent" is? Calling "consistent" "bit-for-bit identical" when the requirement does not so require is over-execution; being unable to state the effect clearly means reproduction is not yet defined.
 
-**Boundary:** The reproduction mechanism itself is also subject to the Preamble's "risk gate" — additionally building reproduction-specific gates for a result that will not run a second time, or pursuing bit-for-bit consistency for a task whose fluctuation is allowed, costs far more than it gains and is over-execution. Parameter placement is decided by the principle of §10.1, together with §1.4 (single source of truth) and §7.1 (single configuration entry point); reproduction is only a means of verification (see §10.1).
+**Boundary:** The reproduction mechanism itself is also subject to the Preamble's "risk gate" — additionally building reproduction-specific gates for a result that will not run a second time, or pursuing bit-for-bit consistency for a task whose fluctuation is allowed, costs far more than it gains and is over-execution. Parameter placement is decided by §10.1; reproduction is only a means of verification (see §10.1).
 
 ---
 
@@ -494,7 +500,7 @@ project/
 
 A file grown to thousands of lines is hard to read and modify, and the IDE is slow to open it. Split too finely, and one feature is scattered across a dozen files — the reader jumps around everywhere and their thinking is fragmented. The ideal granularity is: **one file corresponds to one clear conceptual unit**, and opening that file lets the reader fully understand that concept.
 
-Litmus test: Can you fully understand one concept in one file? If you must jump between multiple files to piece together the whole picture, it is too fragmented. **Keeping files under 1000 lines is recommended (an example magnitude, not a criterion)** — if it is exceeded, ask yourself whether it has crammed in two concepts. But if the logic inside the file genuinely belongs to the same conceptual unit (such as a pure-function toolkit, a complex model adapter), exceeding 1000 lines is acceptable; in that case, ensure the file is internally organized by functional domain with clear separator lines and comments, so readers can locate things quickly.
+Litmus test: Can you fully understand one concept in one file? If you must jump between multiple files to piece together the whole picture, it is too fragmented. **Keeping files under 1000 lines is recommended (an example magnitude, not a criterion)** — if it is exceeded, ask yourself whether it has crammed in two concepts. But if the logic inside the file genuinely belongs to the same conceptual unit (such as a pure-function toolkit, a complex model adapter), exceeding 1000 lines is acceptable; in that case, ensure the file is internally organized by functional domain with clear separator lines and comments, so readers can locate things quickly. **Both sides of granularity are entropy**: too large is structural entropy (one concept scattered across many places, so the whole cannot be read off), too fragmented is functional entropy (the reader has to jump more times).
 
 ### 8.3 Class-to-Directory: When a Class Is Too Large 〔L2·M｜all·code〕
 
@@ -689,7 +695,7 @@ For complex algorithms whose generalization completeness is extremely hard to ex
 **The applicability boundary of this clause (to prevent padding documents):** What this clause requires is that "**the conclusions and evidence of acceptance must be captured where users can access them**", **not** that "every acceptance must add or produce a document". The form of the output is decided by the nature of the acceptance object:
 
 - When the acceptance object **provides selectable tiers, or gives quantifiable performance/effect/capacity conclusions**, i.e. its conclusions **have user-facing explanatory value** (capability, parameters, performance, **and whether the project-defined criteria are met**) → the conclusions and evidence are captured into the statement of function and capability in `docs/` (form decided by the project, see §17.7).
-- When the acceptance object **has no user-facing explanatory value**, this clause **requires no document whatsoever**; the conclusions land in the same run's acceptance record and git commit record (§17.4), and a document **must not** be fabricated to satisfy this clause — that is exactly the "documentation that duplicates the code and therefore inevitably goes stale" that §1.6 opposes.
+- When the acceptance object **has no user-facing explanatory value**, this clause **requires no document whatsoever**; the conclusions land in the same run's acceptance record and git commit record (§17.4), and a document **must not** be fabricated to satisfy this clause — that is exactly the "documentation that duplicates the code and therefore inevitably goes stale" that §1.6 opposes. **Documentation produced beyond need is functional entropy**, not diligence.
 - The judgment needs to answer only one sentence: **Among this acceptance's conclusions, which one is something users have a right to know and that currently has nowhere to be found?** If you cannot answer, do not produce a document.
 ---
 
@@ -807,7 +813,7 @@ The concrete file names and module divisions are decided by each project accordi
 
 ### 13.4 Debugging: Simple Is Reliable 〔L2·M｜all·code〕
 
-**Principle:** The complexity of the debugging means must not exceed the complexity of the system being debugged. For the general methodology (simple first, assess before acting) see the Preamble "Execution-First Principle". Debugging tools are themselves code and can have bugs too. When a complex logging framework, distributed tracing, or async sampler itself becomes the source of the failure, fall back to the simplest reliable means.
+**Principle:** The complexity of the debugging means must not exceed the complexity of the system being debugged. For the general methodology (entropy criterion, assess before acting) see the Preamble "Entropy and complexity discipline" and "Execution-First Principle". Debugging tools are themselves code and can have bugs too. When a complex logging framework, distributed tracing, or async sampler itself becomes the source of the failure, fall back to the simplest reliable means.
 
 **Technique:** `print()` + stdout redirection is the last and most reliable fallback. This is not a step backward; it is fallback design (§3.1) applied to the debugging domain — degrade to a simpler but more reliable approach so that debugging information is never lost.
 
@@ -1248,7 +1254,7 @@ Division of labor between the state-section anchor and the event section: the ev
 
 ### 17.7 Statement of Function and Capability (`docs/`) 〔L2·M｜all·tiers-or-quantified-claims〕
 
-**Applicability.** **When a project offers optional tiers (supported configuration combinations), or gives externally quantifiable performance / effect / capacity conclusions**, `docs/` must contain exactly one user-facing statement of function and capability. **A project with only a function list and neither tiers nor quantified conclusions does not trigger this section** — its truthfulness is covered by the L1 rule "must be true" and by the three reader questions of §17.2; this section requires it to produce no dedicated document, and tiers or metrics must not be fabricated to satisfy this section.
+**Applicability.** **When a project offers optional tiers (supported configuration combinations), or gives externally quantifiable performance / effect / capacity conclusions**, `docs/` must contain exactly one user-facing statement of function and capability. **A project with only a function list and neither tiers nor quantified conclusions does not trigger this section** — its truthfulness is covered by the L1 rule "must be true" and by the three reader questions of §17.2; this section requires it to produce no dedicated document, and tiers or metrics must not be fabricated to satisfy this section. **A fabricated tier is functional entropy**: it adds to what the user must read, and nothing to what the user can do.
 
 **Obligation One: explicit status.** Every listed item must carry an explicit conclusion state, with only four permitted values: **verified usable / verified unusable / not yet verified / outside the commitment scope** (projects may define their own labels but must declare the mapping to the four). States must be presented in **distinguishable text** and must not rely on color, a legend, blank space, or placeholders alone. Items without a conclusion must not be omitted, and design goals, plans, or placeholders must not be passed off as usable; **items not yet verified must not be counted toward the usable total**; an item marked "verified unusable" must state which criterion it failed (it is not enough to write "failed / unusable"). Writing "unusable" for something never measured is as distorting as writing "usable" for something never measured.
 
@@ -1286,7 +1292,7 @@ This section governs the relationship between **this constitution's own** two la
 - The chapter structure and numbering are identical — §a.b points to the same clause in the English version
 - The clause sets are identical — every clause the Chinese version has must exist clause by clause in the English version, and vice versa
 
-**The writing style of the constitution text.** This constitution writes only **concepts, criteria, and general explanations**. Any expression that could be replaced by a value of the same kind without changing the clause's meaning — a specific instance, a specific number, a specific form, a literal value, and metaphors / analogies — is not written at all; except for enumerations necessary to the criteria — **the reason they cannot be deleted is explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan), **and is not repeated inside the clause**. **Specific examples that a tool can mechanically verify are all pushed down into `tools/`**: the constitution writes only the categories and criteria of checks, and the concrete determination rules are carried by the scripts themselves (§15.1 first-paragraph division of labor).
+**The writing style of the constitution text.** This constitution writes only **concepts, criteria, and general explanations**. Any expression that could be replaced by a value of the same kind without changing the clause's meaning — a specific instance, a specific number, a specific form, a literal value, and metaphors / analogies — is not written at all; except for enumerations necessary to the criteria — **the reason they cannot be deleted is explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan), **and is not repeated inside the clause**. **Specific examples that a tool can mechanically verify are all pushed down into `tools/`**: the constitution writes only the categories and criteria of checks, and the concrete determination rules are carried by the scripts themselves (§15.1 first-paragraph division of labor). This section is where the entropy criterion lands on the text itself — removing examples and removing repetition both compress the constitution's own functional entropy.
 
 **Layer, modality, and applicability conditions must be explicit.** Each clause's **heading line carries at most one marker**, placed on the heading of that clause's **minimal normative unit** (a clause with subsections places it on the subsection heading, a clause without subsections on the section heading); **inline references appearing in the body in forms such as `(L3…)` are not markers**; **an unmarked clause is treated as `L2·M｜all·unconditional`** — a missing marker only makes the clause govern more broadly. Four requirements:
 
@@ -1353,11 +1359,11 @@ The scope of `self` in §17.8 **is not widened by this section**.
 
 ## XVIII. Version Evolution and Debt Management
 
-Technical debt is the cancer of engineering quality. Today's shortcut becomes tomorrow's doubled workload, and the day after tomorrow's forbidden zone that nobody dares to touch. The core principle is just one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
+Technical debt grows over the life of a project: today's shortcut becomes tomorrow's doubled workload, and the day after tomorrow's part that nobody dares to touch. The core principle is just one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
 
 ### 18.1 No Debt Left Behind 〔L2·M｜all·unconditional〕
 
-- After the new architecture goes online, passes tests, and runs stably, old code is **deleted immediately**: no "compatibility mode", no old-architecture directory, no version/legacy naming, no "to be deleted" comments — **the exact matching is defined by `tools/check_legacy_cleanup.sh`**. The codebase contains exactly one current architecture (migration scripts are an explicit exception, see §18.2).
+- After the new architecture goes online, passes tests, and runs stably, old code is **deleted immediately**: no "compatibility mode", no old-architecture directory, no version/legacy naming, no "to be deleted" comments — **the exact matching is defined by `tools/check_legacy_cleanup.sh`**. The codebase contains exactly one current architecture (migration scripts are an explicit exception, see §18.2). **Old code is structural entropy**: while it stays, the reader must decide every time whether "this piece is still in use".
 - When deleting old code, update in step: naming (no more `v2`, `new`, `legacy` prefixes/suffixes), **configuration templates (the landing points of §7.1) must reflect the current architecture**, documentation (architecture descriptions in README and docs/), tests (delete the old architecture's tests; do not keep them "just in case").
 - Version numbers are updated on every release, following `MAJOR.MINOR.PATCH`: architecture refactors and incompatible configuration changes bump MAJOR, new features bump MINOR, bug fixes bump PATCH.
 
