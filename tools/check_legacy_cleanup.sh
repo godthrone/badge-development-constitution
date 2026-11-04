@@ -4,7 +4,7 @@
 # Mechanism (vendored manifest syntax, parsing, matching) is defined here — this
 # header and the section comments below. The criteria (opt-in, refuse-closed,
 # stale) live in BADGE-constitution §18.1; there is no separate policy document
-# (§17.8).
+# (§21.1).
 #
 # Checks for:
 #   - legacy/ or deprecated/ directories

@@ -1,16 +1,16 @@
 # BADGE Constitution — Release Checklist
 
-This file is the sole authoritative source for this repository's release procedure. It describes steps and cites `§` numbers only — it does not restate clause text (§17.2 process-document exception, §17.8 sole-landing rule).
+This file is the sole authoritative source for this repository's release procedure. It describes steps and cites `§` numbers only — it does not restate clause text (§17.2 process-document exception, §21.1 sole-landing rule).
 It is git-tracked so it survives sessions (§17.4).
 
-Run each check below as **Class C** (`--class=C`); which clauses bind a Class C project is decided by §17.8, not by this file.
+Run each check below as **Class C** (`--class=C`); which clauses bind a Class C project is decided by §21.1, not by this file.
 Do not start §2, tag, or push until §1 is green. If this file and the constitution disagree, follow the constitution.
 
 ## 0. Scope and version
 
 - [ ] Define what changes: new clause, edit, or bug fix.
 - [ ] Bump the version per §18.1 and record it here.
-- [ ] If this release is the **layered restructure**, say so here. The tagging pass must satisfy §17.8's
+- [ ] If this release is the **layered restructure**, say so here. The tagging pass must satisfy §21.1's
       four conditions; record the evidence in the commit message.
 
 ## 1. Chinese final-text review — BLOCKING GATE
@@ -27,7 +27,7 @@ Read `BADGE-constitution-vX.Y.Z.zh-CN.md` clause by clause — a *read*: items 8
       spots that should be "defined once, pointed at elsewhere". *Criterion:* every requirement has one
       normative home; every other mention is a bare pointer.
 - [ ] **4. Markers match their body** — each heading's marker (layer/mode/category/trigger) is earned
-      by its text, the vocabulary is the §17.8 closed set, and `宪自` has a definition. *Criterion:* the
+      by its text, the vocabulary is the §21.1 closed set, and `宪自` has a definition. *Criterion:* the
       marker alone tells whether the clause binds a reader, and none is marked weaker or narrower than
       its own wording.
 - [ ] **5. Agreement with `tools/`** — every `§` in a tool comment still names an existing section,
@@ -47,11 +47,11 @@ Read `BADGE-constitution-vX.Y.Z.zh-CN.md` clause by clause — a *read*: items 8
 
 ## 2. English edition — whole-text translation
 
-Starts only after section 1 is green and Chinese is final — that file is the *only* input (§17.8).
+Starts only after section 1 is green and Chinese is final — that file is the *only* input (§21.1).
 
 - [ ] Translate the whole document continuously — no patch over the previous English edition, no "only
       the clauses that moved", no independent English edit, nothing back-filled into Chinese.
-- [ ] Verify the consistency criteria in §17.8 (per §17.8) plus the marker-token sequence.
+- [ ] Verify the consistency criteria in §21.1 (per §21.1) plus the marker-token sequence.
 
 ## 3. Swap files and update references
 
@@ -64,7 +64,7 @@ Starts only after section 1 is green and Chinese is final — that file is the *
       language dimension: a tool treating `*.en.md` as the version source of truth breaks silently when
       only another language edition is present.
 - [ ] Confirm the filename filters in `tools/` are version-independent: prefix match, not exact filename
-      (criterion: §17.8).
+      (criterion: §21.1).
 - [ ] Regenerate the **DSH skill handover artifact**; the **user** replaces
       `~/.dsh/skills/badge-constitution.md` (outside this repo) and re-checks its version string
       (`description:`, `# BADGE 开发宪法 vX.Y.Z`) — a stale skill teaches the old edition to every session.

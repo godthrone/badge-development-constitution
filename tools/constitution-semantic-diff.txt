@@ -1,0 +1,114 @@
+# constitution-semantic-diff.txt — semantic rewrite manifest for the
+# current release
+#
+# Purpose: the mechanical evidence required by §21.1 "生效范围" condition ③ —
+# after every applicability marker is stripped from the Chinese text of the
+# release under test, the result may differ from the previous release (v3.2.1)
+# only inside the ranges declared below.  Read by
+# tools/check_constitution_text.sh (check C5).
+#
+# Coordinates: **previous-release line numbers** (the v3.2.1 zh-CN file), not
+# the current-release numbers — a declared range says "this part of the old
+# text was deliberately rewritten", which stays meaningful after the new file
+# grew.
+#
+# Strip rule used to produce the comparison (do not widen it):
+#   1. delete a marker at the END of a line:      s/[ \t]*〔[^〕]*〕[ \t]*$//
+#   2. delete a line that is ONLY a marker:       /^[ \t]*〔[^〕]*〕[ \t]*$/
+# Never a global 〔〕 deletion: inline examples in the §21.1 syntax paragraph
+# (and similar prose) are clause text, not markers.  The same rule is applied
+# to BOTH editions, the previous release included: stripping one side only
+# turns that side's own markers into phantom differences.
+#
+# Format:  <ids>  <start>-<end>  <anchor + why>
+#   ids     : the modification point(s) of the revision plan that own this
+#             range — M<n> a planned change, F<n> a fix from the final-text
+#             review round, M0 a non-semantic change (version string only),
+#             R<n> a range whose only justification is diff realignment — an
+#             insertion that re-split hunks already owned by another range —
+#             never a rewording.
+#   range   : previous-release lines, inclusive, 1-based.
+#
+# Change records answer a different question — "what did this release change?" —
+# and are verified positively instead of by hunk coverage.  Coverage alone cannot
+# say "this section is new here": a hunk is the finest granularity the range
+# model has, so an inserted section that abuts a rewritten paragraph shares that
+# hunk under any diff alignment.  Records are in NEW-edition coordinates:
+#   Format:  <N|X><n>  <line>  <anchor>  — <what changed>
+#     N<n> : a clause this release ADDS — <line> must be a heading.
+#     X<n> : a line this release REVISES — <line> must not be a heading.
+#     <line>   : line number in the published Chinese edition of this release.
+#     <anchor> : a distinctive substring of that line.  The check requires it to
+#                sit on <line>, to be scope-unique (N: the only *heading*
+#                containing it; X: the only *line* containing it), and requires
+#                the whole line NOT to occur verbatim in PREV_TAG after the
+#                marker strip — an unchanged line is not a change.  A wrong
+#                <line> therefore FAILS instead of passing quietly.
+#
+# Notes:
+#   * Markers are metadata: they vanish under the strip rule, so they can never
+#     justify a textual difference — no marker-only edit needs a range or a
+#     record.
+#   * Records are verified on every run, including a run whose diff is empty:
+#     an empty diff says nothing about whether the records are right.
+#   * A MOVE is declared as two ranges and needs no record of its own: the
+#     source hunk (a deletion) and the destination hunk (a zero-width
+#     insertion).  Neither the clause nor its text is new, so an N record would
+#     lie and an X record would fail by construction (the moved lines do occur
+#     verbatim in PREV_TAG).  R<n> does not apply either: it covers diff
+#     realignment, not a deliberate relocation.
+#
+# Declarations: the v3.2.0 ones were retired together with the base move
+# (v3.2.0 → v3.2.1): their line numbers address the old base and would have
+# authorized any hunk inside them.  This revision's own ranges and records
+# follow below; an empty list would be a real statement too (every difference
+# from v3.2.1 is undeclared and C5 FAILS), not a truncated file.
+
+# ── Rewrite ranges — v3.2.1 coordinates, inclusive. A pure insertion has a
+#    zero-width hunk and is written as the single point it was inserted after.
+#    One declaration per line: continuation lines would be parsed as ranges.
+#    One declaration per hunk: the two restructuring hunks own the block, and
+#    every renumbered cross-reference is declared at the old line it sits on.
+M0   1-1      version string only: title v3.2.1 → v4.0.0 (MAJOR), no clause text touched
+M1   19-19    primitives primer: the `宪自` definition now lives in §21.1 — reference renumbered
+M2   23-23    第〇层 判定程序 step 2: the trigger-form vocabulary now lives in §21.1 — reference renumbered
+M3   30-30    三层 section lead-in: 「强制力在 §21.1」 — two references on this line renumbered
+M4   87-87    第〇层 C 类清单: the moved subsections leave the list, which now names §17.7 plus §21.2, and the conservative default reads §7–§21
+M5   89-89    第〇层「形态触发」: the trigger-form vocabulary now lives in §21.1 — reference renumbered
+M6   122-122   第〇层「适用性判据」总则: the conservative default now reads §7–§21 — the chapter count follows the new chapter 21
+M7   767-767   §7 双语: the truth-source definition now lives in §21.1 — reference renumbered
+M8   826-826   §14.1 依赖许可证: the single-locus rule now lives in §21.1 — reference renumbered
+M9   846-846   §15 容器: the conservative default now reads §7–§21 — the chapter count follows the new chapter 21
+M10  1167-1167 §17 heading:「文档体系」→「文档与记录」 — the constitution-text clauses leave the chapter, so the title no longer covers them
+M11  1173-1173 §17.1 README: both references to the truth-source rule renumbered to §21.1
+M12  1196-1196 §17.2 流程文档例外: the single-locus rule now lives in §21.1 — reference renumbered
+M13  1244-1244 §17.6 单语豁免: the truth-source rule now lives in §21.1 — reference renumbered
+M14  1280-1355 the moved block: the chapter's two text clauses (76 lines, both headings through the last clause) leave chapter 17 in one piece, not a word changed
+M15  1406-1406 §20 pyproject 模板 lead-in: 「标准模板」 is now exception class 1 of §21.1 — reference renumbered
+M16  1450-1450 the moved block lands here: inserted after the last line of §20 (zero-width hunk, appended at end of file as chapter 21)
+M17  119-119 第〇层「适用性判据」step 3 看类别: `宪自` gains a reading rule — it holds for this constitution repository only, takes no part in the Layer 0 classification, and does not apply to any other repository
+
+# ── Change records — v4.0.0 coordinates. No N record: this release adds no
+#    clause (21.1/21.2 are relocated text, not new text).  No X record for the
+#    two changed heading lines either — the document title (line 1) and the §17
+#    heading are owned by ranges M0 and M10, and a heading cannot be an X
+#    record.  The moved block needs no record: its lines are verbatim the
+#    v3.2.1 lines, so an X record on them would fail the "must differ from
+#    PREV_TAG" test by construction.
+#    NB: they are checked against whatever --zh names, so pointing --zh at the
+#    v3.2.1 edition fails them by construction — the baseline run is a hunk
+#    question (0 hunks), not a record question.
+X1   19    `宪自`——表示**只约束本宪法仓库自身**（定义见  — the `宪自` definition moved to the new chapter 21
+X2   23    §21.1「标记语法」，是闭集**）不成立  — the trigger-form vocabulary moved to the new chapter 21
+X3   30    §21.1；两者不一致时以  — the normative locus for the text-writing rules moved to the new chapter 21
+X4   87    §17.3–§17.5、§17.7、§19.1–§19.3、§21.2  — the moved subsection became §21.2, so the C-class list names the new number, and the conservative default follows chapter 21
+X5   89    §21.1「标记语法」**（如：有代码  — the trigger-form vocabulary moved to the new chapter 21
+X6   122   其余条款"是**保守默认**  — the default range §7–§20 becomes §7–§21 with the new chapter
+X7   767   英文版是中文版的全文翻译，见  — the truth-source rule moved to the new chapter 21
+X8   826   （§21.1「宪法内容的唯一落点」）  — the single-locus rule moved to the new chapter 21
+X9   846   §7–§21（第〇层）  — the default range §7–§20 becomes §7–§21 with the new chapter
+X10  1173  §21.1。两者在"两版内容集合必须一致"上同构，差别是  — README duality now points at the relocated truth-source rule
+X11  1196  （复述条文即违反  — the single-locus rule moved to the new chapter 21
+X12  1244  英文版是全文翻译，见  — the monoglot exemption now points at the relocated truth-source rule
+X13  1330  类不适用。本节是**模板**（§21.1  — the template exception is now numbered inside §21.1
+X14  119   只对本宪法仓库适用  — `宪自` had no reading rule, so a self-only clause could fall under the §7–§21 default and bind no repository at all; it now binds this constitution repository only and stays out of the Layer 0 classification

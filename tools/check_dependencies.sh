@@ -4,7 +4,7 @@
 # Mechanism (fields, search roots, matching patterns, strict switch) is defined
 # here — this header, the section comments below, and `--help`. The criteria
 # (severity, offline rule, no-false-pass) live in BADGE-constitution §14.1 /
-# §14.2 / §19.3; there is no separate policy document (§17.8).
+# §14.2 / §19.3; there is no separate policy document (§21.1).
 #
 # Checks for:
 #   - No requirements.txt, Pipfile, poetry.lock, Pipfile.lock

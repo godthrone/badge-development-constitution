@@ -95,7 +95,7 @@ CONFIGS_DIR=$(find "$PROJECT_ROOT" -type d -name "configs" \
 if [ -n "$CONFIG_EXAMPLE" ] || [ -n "$CONFIGS_DIR" ]; then
     echo "  [OK] Config template exists (config.toml, config.override.sample.toml, legacy config_example.*, or configs/)"
 else
-    echo "[FAIL] check_directory_layout: No config.toml, config.override.sample.toml, configs/ directory, or legacy config_example.toml/.yaml found (§7.3)."
+    echo "[FAIL] check_directory_layout: No config.toml, config.override.sample.toml, configs/ directory, or legacy config_example.toml/.yaml found (§7.1)."
     echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
     FAIL=1
 fi
@@ -111,15 +111,17 @@ fi
 # ─── 5. Root-level required files ───────────────────────────────────────
 
 ROOT_FILES=(
-    "pyproject.toml:Package config"
-    "README.md:English README"
-    "README.zh-CN.md:Chinese README"
-    ".gitignore:Git ignore rules"
+    "pyproject.toml:Package config:§8.1/§20"
+    "README.md:English README:§17.1"
+    "README.zh-CN.md:Chinese README:§17.1"
+    ".gitignore:Git ignore rules:§19.2"
 )
 
 for entry in "${ROOT_FILES[@]}"; do
     file="${entry%%:*}"
-    desc="${entry##*:}"
+    desc_and_section="${entry#*:}"
+    desc="${desc_and_section%%:*}"
+    section="${desc_and_section##*:}"
     if [ -f "$PROJECT_ROOT/$file" ]; then
         echo "  [OK] $file — $desc"
     else
@@ -127,10 +129,10 @@ for entry in "${ROOT_FILES[@]}"; do
             if [ "$CLASS" = "B" ] || [ "$CLASS" = "C" ]; then
                 echo "  [INFO] $file not found (bilingual docs exempt per §17.6 for Class $CLASS)"
             else
-                echo "  [WARN] $file not found (bilingual docs required by §17.1)"
+                echo "  [WARN] $file not found (bilingual docs required by $section)"
             fi
         else
-            echo "[FAIL] check_directory_layout: $file not found ($desc required by §8.1/§19.2)."
+            echo "[FAIL] check_directory_layout: $file not found ($desc required by $section)."
             FAIL=1
         fi
     fi

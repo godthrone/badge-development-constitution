@@ -5,7 +5,7 @@
 # Mechanism (manifest syntax, exemptable ids, matching, tier gate) is defined
 # here — this header, the section comments below, and `--help`. The criteria
 # (opt-in, downgrade-only, fail-closed, stale) live in BADGE-constitution
-# §15.1 / §15.4; there is no separate policy document (§17.8).
+# §15.1 / §15.4; there is no separate policy document (§21.1).
 #
 # Checks for:
 #   - IP addresses (internal/private ranges flagged)

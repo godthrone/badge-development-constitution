@@ -36,7 +36,7 @@
 #              applies per its applicability premise (Layer 0); §17.2, §18.1 and §19.2
 #              are 全类·无条件 and therefore always executed, outside the class
 #              branches (see the shared block below) — as is the
-#              constitution-refs check, which belongs to §17.8 (宪自·无条件,
+#              constitution-refs check, which belongs to §21.1 (宪自·无条件,
 #              binding on this constitution repository itself only) and likewise
 #              runs outside the class branches. Docker deployment is NOT
 #              required, but §14.3 is checked whenever a Dockerfile exists.
@@ -306,8 +306,8 @@ run_check "Docs ASCII Diagrams (§17.2)"        "$SCRIPT_DIR/check_docs_ascii.sh
 # §18.1 — Legacy Cleanup (all classes: §18.1 is 全类·无条件)
 run_check "Legacy Cleanup (§18.1)"             "$SCRIPT_DIR/check_legacy_cleanup.sh"
 
-# §17.8 — Constitution Refs in Source (all classes)
-run_check "Constitution References (§17.8)"    "$SCRIPT_DIR/check_constitution_refs.sh"
+# §21.1 — Constitution Refs in Source (all classes)
+run_check "Constitution References (§21.1)"    "$SCRIPT_DIR/check_constitution_refs.sh"
 
 # §19.2 — .gitignore Coverage (all classes)
 run_check ".gitignore Coverage (§19.2)"        "$SCRIPT_DIR/check_gitignore.sh"

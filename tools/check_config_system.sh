@@ -34,7 +34,7 @@ echo "Checking configuration system..."
 
 # Recursively search for config.toml (base config, preferred), legacy
 # config_example.toml/.yaml, or a configs/ directory.
-# TOML is preferred (§7.3); legacy .yaml projects remain supported.
+# TOML is preferred (Layer 0「配置格式：TOML 优先」); legacy .yaml projects remain supported.
 # Projects may place configs in subdirectories (e.g. samples/configs/).
 CONFIG_EXAMPLE=$(find "$PROJECT_ROOT" \( -name "config.toml" -o -name "config_example.toml" -o -name "config_example.yaml" \) \
     -not -path "*/.local/*" -not -path "*/node_modules/*" \
@@ -74,9 +74,9 @@ elif [ -n "$CONFIGS_DIR" ] && [ -d "$CONFIGS_DIR" ] && [ -n "$(ls -A "$CONFIGS_D
     echo "  [OK] configs/ directory with example configs found at $CONFIGS_DIR"
 else
     if [ "$CLASS" = "B" ]; then
-        echo "  [WARN] No config.toml, legacy config_example.toml/.yaml, or configs/ found (§7.3) — advisory for Class B."
+        echo "  [WARN] No config.toml, legacy config_example.toml/.yaml, or configs/ found (§7.1) — advisory for Class B."
     else
-        echo "[FAIL] check_config_system: No config.toml, legacy config_example.toml/.yaml, or configs/ found (§7.3)."
+        echo "[FAIL] check_config_system: No config.toml, legacy config_example.toml/.yaml, or configs/ found (§7.1)."
         echo "         Searched recursively; excluded .local/, node_modules/, __pycache__/, .venv/."
         FAIL=1
     fi

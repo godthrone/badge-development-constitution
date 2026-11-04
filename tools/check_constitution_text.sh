@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check_constitution_text.sh — Read-only invariant checks on the constitution
-# text itself (§17.8: layer / modality / applicability markers, and the
+# text itself (§21.1: layer / modality / applicability markers, and the
 # "layered restructure" evidence required by its 生效范围 clause ③).
 #
 # NOT registered in tools/check_all.sh, by design: check_all.sh is the
@@ -18,9 +18,9 @@
 #   --en <file>             English edition (translation). Default: newest
 #                           BADGE-constitution-v*.en.md in the repo root.
 #   --semantic-diff <file>  Semantic rewrite manifest for C5.
-#                           Default: tools/constitution-v3-semantic-diff.txt
+#                           Default: tools/constitution-semantic-diff.txt
 #   --prev-tag <tag>        Previous release tag to compare against in C5.
-#                           Default: v3.2.0
+#                           Default: v3.2.1
 #   --only <list>           Run only the listed checks, e.g. --only C1,C3.
 #                           Default: C1,C2,C3,C4,C5. Every check is read-only
 #                           and can be run on its own.
@@ -30,13 +30,13 @@
 #   C1  Coverage & syntax — every real h1/h2/h3 (fence-aware; a code block's
 #       comment lines are not headings) that is a *minimal normative unit*
 #       carries exactly one marker at the end of its line, and every token of
-#       that marker is in §17.8's closed set (layer / modality / category /
+#       that marker is in §21.1's closed set (layer / modality / category /
 #       trigger form). Missing, duplicated or illegal markers → FAIL. The
 #       document title and headings that have subsections are not units and
 #       must NOT carry a marker.
 #   C2  Bilingual marker sequence — the zh and en marker token sequences are
 #       compared item by item after mapping the English tokens back to the
-#       canonical Chinese form (§17.8 marker syntax / §3.4 of the framework
+#       canonical Chinese form (§21.1 marker syntax / §3.4 of the framework
 #       design: all↔全类, self↔宪自, each trigger word ↔ its Chinese word).
 #       A difference in length or content → FAIL.
 #   C3  L3 block markers — a fenced code block is a template landing point and
@@ -79,7 +79,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# ─── §17.8 closed sets (single definition inside this script) ─────────────
+# ─── §21.1 closed sets (single definition inside this script) ─────────────
 
 ZH_LAYERS="L1 L2 L3"
 EN_LAYERS="L1 L2 L3"
@@ -87,7 +87,7 @@ ZH_MODALITIES="M R"
 EN_MODALITIES="M R"
 ZH_CATEGORIES="A B C A/B 全类 宪自"
 EN_CATEGORIES="A B C A/B all self"
-# Trigger forms, in the order §17.8 lists them. `+` joins several; each part is
+# Trigger forms, in the order §21.1 lists them. `+` joins several; each part is
 # checked against this list on its own.
 ZH_TRIGGERS="无条件 有代码 有容器 有部署环境 有可选档位或量化结论 有数据产物 提供 CLI 有多套同接口实现 有配置文件 有自动化测试 有启动脚本 有版本发布 有 git 仓库 有 README 有提示词 使用 AI 助手 采用本模板时 长时运行 面向公开分发"
 EN_TRIGGERS="unconditional code container deployment tiers-or-quantified-claims data-artifacts cli multiple-implementations config-files automated-tests startup-script versioned-releases git-repo readme prompt-text ai-assistant template-adopted long-running public-distribution"
@@ -99,8 +99,8 @@ EN_BLOCK_MARKER="〔L3｜template-adopted〕"
 
 ZH_FILE=""
 EN_FILE=""
-SEMANTIC_DIFF="$SCRIPT_DIR/constitution-v3-semantic-diff.txt"
-PREV_TAG="v3.2.0"
+SEMANTIC_DIFF="$SCRIPT_DIR/constitution-semantic-diff.txt"
+PREV_TAG="v3.2.1"
 ONLY="C1 C2 C3 C4 C5"
 
 usage() {
@@ -231,7 +231,7 @@ scan_headings() {
 # Line each *top-level* fenced code block opens on (fence at column 0).
 #
 # An indented fence (`   ```python` nested in a list item) is an inline example
-# inside a clause body, not a template landing point: §17.8's rule about
+# inside a clause body, not a template landing point: §21.1's rule about
 # templates is about blocks a reader can adopt, and every such block in this
 # text is at column 0. Indented snippets are counted separately and reported,
 # so they stay visible without being asserted as templates.
@@ -262,7 +262,7 @@ validate_marker() {
         layers="$ZH_LAYERS"; mods="$ZH_MODALITIES"; cats="$ZH_CATEGORIES"; triggers="$ZH_TRIGGERS"
     fi
 
-    # The field separator may be written either way (§17.8: the separators may
+    # The field separator may be written either way (§21.1: the separators may
     # change shape); ｜ is the canonical form, so an ASCII | is normalised first.
     case "$body" in
         *｜*) : ;;
@@ -285,12 +285,12 @@ validate_marker() {
             modality="${layer_part#*·}"
             in_list "$modality" "$mods" || echo "illegal modality '$modality' (closed set: $mods)"
             if [ "$layer" = "L1" ] || [ "$layer" = "L3" ]; then
-                echo "modality '$modality' on '$layer' — §17.8: modality is written for L2 only"
+                echo "modality '$modality' on '$layer' — §21.1: modality is written for L2 only"
             fi
             ;;
         *)
-            # §17.8: every L2 clause carries its modality (M or R).
-            [ "$layer" = "L2" ] && echo "L2 without modality — §17.8 requires M or R on every L2 marker"
+            # §21.1: every L2 clause carries its modality (M or R).
+            [ "$layer" = "L2" ] && echo "L2 without modality — §21.1 requires M or R on every L2 marker"
             ;;
     esac
 
@@ -311,7 +311,7 @@ validate_marker() {
             done
             ;;
         *)
-            # The trigger form is optional in §17.8's marker syntax
+            # The trigger form is optional in §21.1's marker syntax
             # `〔layer[·modality]｜category[·trigger form]〕`: an L1 clause
             # applies to everything by definition, so it often carries only the
             # category. Absence is not an error; an ILLEGAL word is.
@@ -321,7 +321,7 @@ validate_marker() {
 }
 
 # Map an English marker body onto the canonical Chinese form so C2 can compare
-# the two editions token by token (§17.8 marker syntax, framework design §3.4).
+# the two editions token by token (§21.1 marker syntax, framework design §3.4).
 normalize_en() {
     local m="$1"
     m="$(printf '%s' "$m" | tr '|' '｜')"
@@ -365,7 +365,7 @@ marker_sequence() { # $1 = file, $2 = zh|en
 want() { in_list "$1" "$ONLY"; }
 
 echo "============================================"
-echo " Constitution text invariants (§17.8)"
+echo " Constitution text invariants (§21.1)"
 echo " zh: ${ZH_FILE:-<none>}"
 echo " en: ${EN_FILE:-<none>}"
 echo " checks: $(printf '%s' "$ONLY" | tr ' ' ',')"
@@ -423,9 +423,9 @@ c1_one_file() {
                 issues=$((issues + 1))
             fi
         else
-            # A heading with subsections is not the landing point (§17.8).
+            # A heading with subsections is not the landing point (§21.1).
             if [ "$cnt" -gt 0 ]; then
-                echo "  ${label}:${ln}: marker on a heading with subsections ('${marker}') — §17.8 puts it on the minimal normative unit"
+                echo "  ${label}:${ln}: marker on a heading with subsections ('${marker}') — §21.1 puts it on the minimal normative unit"
                 issues=$((issues + 1))
             fi
         fi
@@ -471,7 +471,7 @@ if want C2; then
         en_n=$(printf '%s\n' "$EN_SEQ" | grep -c . || true)
         c2_issues=0
         if [ "$zh_n" -ne "$en_n" ]; then
-            echo "  marker count differs: zh=${zh_n}, en=${en_n} (§17.8: both editions carry the same clause set)"
+            echo "  marker count differs: zh=${zh_n}, en=${en_n} (§21.1: both editions carry the same clause set)"
             c2_issues=$((c2_issues + 1))
         fi
         # Compare item by item; report the first mismatch and then keep counting
@@ -665,7 +665,7 @@ if want C5; then
             # BOTH sides of the comparison:
             #   1. a marker at the END of a line is metadata → delete it;
             #   2. a line that is ONLY a marker (block-level L3) → delete it.
-            # Inline 〔…〕 inside prose (§17.8's syntax paragraph) is clause
+            # Inline 〔…〕 inside prose (§21.1's syntax paragraph) is clause
             # text and MUST survive: a global 〔〕 deletion would hide real edits.
             # Stripping only the NEW edition is a bug, not a shortcut: a
             # previous release that already carries markers (v3.1.0 does)
@@ -855,7 +855,7 @@ if want C5; then
                     [ -z "$c5_why" ] || c5_why="$c5_why and "
                     c5_why="${c5_why}$(printf '%s\n' "$rec_issues" | grep -c .) invalid change record(s)"
                 fi
-                status FAIL C5 "$c5_why — either the edit is out of scope (§17.8 condition ③) or the manifest is wrong."
+                status FAIL C5 "$c5_why — either the edit is out of scope (§21.1 condition ③) or the manifest is wrong."
             elif [ ! -s "$tmpdir/hunks.txt" ]; then
                 # No difference at all: the coverage question is vacuous, but
                 # the records above still had to verify — an empty diff must

@@ -63,5 +63,5 @@ if [ ${#OVER_1000[@]} -eq 0 ]; then
 fi
 
 echo ""
-echo "[PASS] check_file_size: No file exceeds a constitutional hard limit (§8.2)."
+echo "[PASS] check_file_size: 1000-line check completed (§8.2 treats the limit as a suggested magnitude, not a criterion)."
 exit 0
