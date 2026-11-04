@@ -3,8 +3,8 @@
 This file is the sole authoritative source for this repository's release procedure. It describes steps and cites `§` numbers only — it does not restate clause text (§17.2 process-document exception, §17.8 sole-landing rule).
 It is git-tracked so it survives sessions (§17.4).
 
-Runtime rule of thumb: **Class C** (`--class=C`) only — never the full Class A Python checks here.
-**Section 1 blocks translation, tag and push** until green; the constitution wins any conflict.
+Run each check below as **Class C** (`--class=C`); which clauses bind a Class C project is decided by §17.8, not by this file.
+Do not start §2, tag, or push until §1 is green. If this file and the constitution disagree, follow the constitution.
 
 ## 0. Scope and version
 
@@ -63,9 +63,8 @@ Starts only after section 1 is green and Chinese is final — that file is the *
       every **hardcoded** filename reference (`tools/`, `.gitignore`, work log, `docs/`), including the
       language dimension: a tool treating `*.en.md` as the version source of truth breaks silently when
       only another language edition is present.
-- [ ] Filename-based exemption / regex filters in `tools/` stay **version-independent** (prefix match, not
-      exact filename). Regression source: `check_constitution_refs.sh` matched `BADGE-constitution\.` and
-      silently stopped exempting the constitution after a version rename.
+- [ ] Confirm the filename filters in `tools/` are version-independent: prefix match, not exact filename
+      (criterion: §17.8).
 - [ ] Regenerate the **DSH skill handover artifact**; the **user** replaces
       `~/.dsh/skills/badge-constitution.md` (outside this repo) and re-checks its version string
       (`description:`, `# BADGE 开发宪法 vX.Y.Z`) — a stale skill teaches the old edition to every session.

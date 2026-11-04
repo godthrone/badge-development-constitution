@@ -20,7 +20,7 @@
 #   --semantic-diff <file>  Semantic rewrite manifest for C5.
 #                           Default: tools/constitution-v3-semantic-diff.txt
 #   --prev-tag <tag>        Previous release tag to compare against in C5.
-#                           Default: v3.1.0
+#                           Default: v3.2.0
 #   --only <list>           Run only the listed checks, e.g. --only C1,C3.
 #                           Default: C1,C2,C3,C4,C5. Every check is read-only
 #                           and can be run on its own.
@@ -100,7 +100,7 @@ EN_BLOCK_MARKER="〔L3｜template-adopted〕"
 ZH_FILE=""
 EN_FILE=""
 SEMANTIC_DIFF="$SCRIPT_DIR/constitution-v3-semantic-diff.txt"
-PREV_TAG="v3.1.0"
+PREV_TAG="v3.2.0"
 ONLY="C1 C2 C3 C4 C5"
 
 usage() {

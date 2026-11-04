@@ -30,7 +30,7 @@
 #                        `ARG X` + `ENV X=$X` laundering spelling, stay FAILs at
 #                        every class: ENV pollutes the runtime and §14.3 does not
 #                        relax that by class. --class changes 8c's verdict only.
-#   --class=C: a missing Dockerfile is NOT a failure — §0 does not require Docker
+#   --class=C: a missing Dockerfile is NOT a failure — Layer 0 does not require Docker
 #              deployment for class C. When a Dockerfile is present it is checked
 #              against §14.3 in full, like any other class.
 #   Class A / B: a missing Dockerfile still fails (§14.3 requires Docker deployment).
@@ -71,7 +71,7 @@ fi
 
 if [ -z "$DOCKERFILE" ]; then
     if [ "$CLASS" = "C" ]; then
-        # §0: class C is not required to provide a Docker deployment, so "no
+        # Layer 0: class C is not required to provide a Docker deployment, so "no
         # Dockerfile" is not a violation for C — it is a silent skip. A class C
         # project that DOES ship a Dockerfile falls through to the checks below
         # and §14.3 applies to it in full.

@@ -1,4 +1,4 @@
-# BADGE Development Constitution v3.2.0
+# BADGE Development Constitution v3.2.1
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — Boundary and Defensive-Guard Engineering Development Constitution
 >
@@ -86,13 +86,13 @@ The BADGE Constitution classifies projects into three categories, each with a di
 - **Category B (closed-source Python project)**: private repository, internal-team-facing. Except for the explicit relaxations listed below, the remaining clauses of this constitution apply; Category B judges exemptions clause by clause by the litmus test of each category (see below), and **the numbers below are only the instances currently confirmed** — newly added or revised clauses enter and leave by their own applicability conditions, neither inheriting automatically nor being excluded automatically: bilingual README exemption (§17.1, effective per §17.6), config format as recommendation rather than mandate (§7), the graded exception for non-credential company-internal information (§15.4, limited to projects not pushed to a public repository). Among them the mandatory core is security (§15), foolproofing (§2), and reproducibility within the scope of §6.
 - **Category C (other infrastructure projects)**: projects belonging to neither Category A nor Category B (determination in "Classification Determination"). **Must comply with: all of L1, and the L2-M clauses hit by the trigger condition**; the parts marked L3 in §1–§5 **serve as no criterion** (checked only when you adopt that template). §6 reproduction takes effect according to its applicability precondition, see §6. In addition, the following clauses **are judged by their own markers (layer/modality/category/trigger)**: §11.5, §15, §15.4, §16, §17.3–§17.5, §17.7–§17.9, §19.1–§19.3. **The conservative default that "the remaining clauses of §7–§20 do not apply by default" is retained**.
 
-**Form triggers.** Where a clause carries a trigger form, it applies if the form actually exists in this project. **The category field is a constraint**: for a clause marked `all`, the form existing is enough for it to apply and the category does not veto; a clause marked `A/B` does not enter Category C even if the form exists. The two are not mutually exclusive. **The trigger-form vocabulary is in §17.8 "Marker Syntax"** (e.g.: code / container / optional tiers or quantified claims). Form determination is done by the maintainer; machine checking only checks "whether a clause carries an annotated condition", not "whether the condition holds".
+**Form triggers.** Where a clause carries a trigger form, it applies if the form actually exists in this project. **The category field is a constraint**; whether it vetoes is decided by "Applicability Criteria". The two are not mutually exclusive. **The trigger-form vocabulary is in §17.8 "Marker Syntax"** (e.g.: code / container / optional tiers or quantified claims). Form determination is done by the maintainer; machine checking only checks "whether a clause carries an annotated condition", not "whether the condition holds".
 
 **Classification decides the scope of a clause's application and does not change how §6 reproduction is judged**: across all three categories, §6 reproduction only asks "will it run a second time, and does the second run have to be the same", and judges by the effect defined by the requirement.
 
 ## Classification Determination 〔L2·M｜all·unconditional〕
 
-The project has a `pyproject.toml` and builds a Python package → Category A (public repository) or Category B (private repository). Otherwise → Category C. If it is not A or B, it is C. The category is only the default landing point; **hitting a form makes the corresponding L2 clause apply (for a clause marked all, the category does not veto; a clause marked A/B does not enter Category C because the form exists)**.
+The project has a `pyproject.toml` and builds a Python package → Category A (public repository) or Category B (private repository). Otherwise → Category C. If it is not A or B, it is C. The category is only the default landing point; **hitting a form makes the corresponding L2 clause apply** (whether category vetoes is decided by "Applicability Criteria").
 
 ## Conflict Resolution Framework 〔L1｜all〕
 
@@ -202,9 +202,7 @@ In the AI era, code is the first document — AI reads and writes code directly,
 
 ## II. Foolproofing Design
 
-Automotive design has a principle: a floored accelerator has a rev limiter, engaging a gear has a synchronizer, brakes take priority over the accelerator, and the window defog button is placed where it is easy to reach. The manual has hundreds of pages and few owners have read it — yet the accident rate is very low, because **the system does not allow people to make mistakes**.
-
-Software should be the same. Instead of praying that developers are careful and that users read the documentation carefully, use design to make errors simply impossible.
+**Foolproofing means the system does not allow people to make mistakes.** It does not rely on developers being careful, nor on users reading the docs closely — both guarantees fail under pressure.
 
 ### 2.1 Contracts as Foolproofing 〔L2·M｜all·code〕
 
@@ -214,7 +212,7 @@ All interactions on boundaries are constrained by **verifiable contracts**, not 
 
 ### 2.2 Explicitness as Foolproofing 〔L2·M｜all·code〕
 
-There is no magic in the code. State is explicit, data flow is visible, dependencies are declared. Implicit behavior is the biggest obstacle to understanding code — for humans and AI alike. When everything is explicit, errors have nowhere to hide.
+There is no magic in the code. State is explicit, data flow is visible, dependencies are declared. Implicit behavior is the biggest obstacle to understanding code — for humans and AI alike. When everything is explicit, errors surface at the earliest possible point.
 
 **Applicability condition: Python projects — three prohibitions.** Do not concatenate paths from strings; do not pass `**kwargs` all the way through (which makes the origin of parameters untraceable); do not use `hasattr` to probe **your own project's** business interfaces (that means the interface contract is unclear, and ABC or Protocol should be used to define explicit interfaces).
 
@@ -383,7 +381,7 @@ The presence of the mechanism is verified by the corresponding check items in `t
 - **Environment fields**: configuration values that vary by deployment environment but are not themselves secret.
 
 - **Base configuration** (`config.toml`, git-tracked, read by default at startup): contains **all fields** and is the **single authoritative source** of the configuration schema. Non-deployment fields have production-grade defaults. Secret fields are left empty (**the sentinel values are an L3 example**: `""`, `0`, `[]`, normalized to `None` at load time, see §2.2). Environment fields have **development defaults** (reasonable values usable locally) rather than being left empty — this ensures the project runs out of the box in a development environment.
-- **Override configuration** (**recommended location (R)**: `.local/config.override.toml` — a path example; landing it under `.local/` per §16.2 is sufficient; gitignored, deployment machine only): overrides only the fields that need deployment-specific values. Copy it from the git-tracked `config.override.sample.toml` template and fill in the real values. **It must not add fields that do not exist in the base configuration** — the override "fills holes", it does not "dig new ones". By default the template lists only the common fields that need overriding; when the total number of configuration fields is small, the template may directly mirror all fields for easier comparison.
+- **Override configuration** (**recommended location (R)**: `.local/config.override.toml` — a path example; landing it under `.local/` per §16.2 is sufficient; gitignored, deployment machine only): overrides only the fields that need deployment-specific values. Copy it from the git-tracked `config.override.sample.toml` template and fill in the real values. **A field that does not exist in the base configuration cannot be added**. By default the template lists only the common fields that need overriding; when the total number of configuration fields is small, the template may directly mirror all fields for easier comparison.
 - **Merge rule:** At startup the program first loads the base configuration into a dict, then loads the override configuration and **deep merges** it into the same dict — the override dict's leaf values replace the base dict's leaf values at the same path. After merging there is only **one configuration** in the program, with no ambiguity of "two configuration sources".
 
 **Override file location (R):** The recommended override file location is `.local/config.override.toml` (example). Other locations are supported through a user-supplied explicit `--override` argument. CLI auto-detection order (**the following order is an example, not a criterion**): explicit `--override` argument → `.local/` → adjacent path (backward compatible).
@@ -1296,7 +1294,7 @@ This section governs the relationship between **this constitution's own** two la
 
 **Layer, modality, and applicability conditions must be explicit.** Each clause's **heading line carries at most one marker**, placed on the heading of that clause's **minimal normative unit** (a clause with subsections places it on the subsection heading, a clause without subsections on the section heading); **inline references appearing in the body in forms such as `(L3…)` are not markers**; **an unmarked clause is treated as `L2·M｜all·unconditional`** — a missing marker only makes the clause govern more broadly. Four requirements:
 
-1. **Layer** may only be one of L1 / L2 / L3. A clause marked L1 **must not use** a specific technology, specific form, specific number, or file name **as the criterion**; examples, analogies, and executable landing points are not in this category, but one example must not be used to infer that the remaining cases do not hold. A clause marked L3 **must not** be treated by any clause or tool as a compliance criterion (it may serve only as the check basis "when this template is adopted"); **the reverse is equally prohibited** — a substantive requirement must not be downgraded to L3 to evade criteria.
+1. **Layer** may only be one of L1 / L2 / L3. A clause marked L1 **must not use** a specific technology, specific form, specific number, or file name **as the criterion**; as explanation (not as criteria), examples and executable landing points are out of scope here, but one must not infer from a single example that other cases do not hold — **analogies**, whether used as criteria or as explanation, remain bound by the ban in "The writing style of the constitution text". A clause marked L3 **must not** be treated by any clause or tool as a compliance criterion (it may serve only as the check basis "when this template is adopted"); **the reverse is equally prohibited** — a substantive requirement must not be downgraded to L3 to evade criteria.
 2. **Modality** has only two levels, M (mandatory) / R (recommended) (L3 is a layer, not a modality), and it must agree with the wording of the body: a paragraph whose body says "must" must not land in a section marked R (the section marker takes the strongest modality of the section; per-paragraph wording inside the section remains the per-paragraph criterion).
 3. **The applicability conditions must be directly readable from the marker** and must be self-consistent with the body — reading the clause itself must suffice to judge "does it govern my project or not". Any clause meaningful only for a certain project form (deployment form, artifact form, technology stack, audience) **must be worded as condition-triggered**; **it is prohibited** to carry form-specific requirements with "every project must…"; **and a specific form of one project (a particular file name, a particular report, a particular field list, a particular deployment method) must not be written as an unconditional requirement for all projects** — such content may appear only as L3, or be written as a conditional L2.
 4. **Enumerations necessary to the criteria** must at the same time state "under what conditions it is necessary to the criteria"; when the condition is missing, the enumeration does not enjoy the exception and is handled as a "replaceable value of the same kind".
@@ -1359,7 +1357,7 @@ The scope of `self` in §17.8 **is not widened by this section**.
 
 ## XVIII. Version Evolution and Debt Management
 
-Technical debt grows over the life of a project: today's shortcut becomes tomorrow's doubled workload, and the day after tomorrow's part that nobody dares to touch. The core principle is just one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
+Technical debt compounds over the life of a project: today's shortcut has to be paid back many times over tomorrow, and the day after tomorrow becomes a part no one dares to touch. The core principle is just one sentence: **once the new architecture is validated, the old architecture must be eradicated.**
 
 ### 18.1 No Debt Left Behind 〔L2·M｜all·unconditional〕
 

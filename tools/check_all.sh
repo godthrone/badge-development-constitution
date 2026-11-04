@@ -29,11 +29,11 @@
 #   `--class=A --scope=private` is rejected outright (exit 2): §15.4 grants no
 #   exception to class A, so the pair is a contradiction, not a weaker check.
 #
-# Classes (§0 三类项目定义):
+# Classes (Layer 0, three project classes):
 #   --class A  (default) Run all checks
 #   --class B  Skip §17.1 bilingual checks (exemption), relax YAML/__main__.py checks
 #   --class C  Run §15, §16, §17.3-§17.5, §19.1-§19.3 checks. §6 (复现) still
-#              applies per its applicability premise (§0); §17.2, §18.1 and §19.2
+#              applies per its applicability premise (Layer 0); §17.2, §18.1 and §19.2
 #              are 全类·无条件 and therefore always executed, outside the class
 #              branches (see the shared block below) — as is the
 #              constitution-refs check, which belongs to §17.8 (宪自·无条件,
@@ -248,7 +248,7 @@ run_check "Docker Image Version (§14.3)"       "$SCRIPT_DIR/check_docker_versio
 
 fi  # end class A/B Layer 1-2
 
-# §14.3 — Dockerfile Check for class C (§0: C is not required to provide Docker
+# §14.3 — Dockerfile Check for class C (Layer 0: C is not required to provide Docker
 # deployment). A class C project that DOES ship a Dockerfile gets the same §14.3
 # checks as any other class; one without a Dockerfile is skipped without a
 # failure and without being counted, so the C-class summary is unchanged.
@@ -261,10 +261,10 @@ if [ "$CLASS" = "C" ]; then
         run_check "Docker Image Version (§14.3)"   "$SCRIPT_DIR/check_docker_version.sh"
     else
         echo "── Dockerfile (§14.3) ──"
-        echo "  [SKIP] §0: class C does not require Docker deployment, and no Dockerfile was found."
+        echo "  [SKIP] Layer 0: class C does not require Docker deployment, and no Dockerfile was found."
         echo ""
         echo "── Docker Image Version (§14.3) ──"
-        echo "  [SKIP] §0: no Dockerfile to pin a base image version for (§14.3)."
+        echo "  [SKIP] Layer 0: no Dockerfile to pin a base image version for (§14.3)."
         echo ""
     fi
 fi
