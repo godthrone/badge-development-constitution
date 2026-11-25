@@ -100,7 +100,7 @@ EN_BLOCK_MARKER="〔L3｜template-adopted〕"
 ZH_FILE=""
 EN_FILE=""
 SEMANTIC_DIFF="$SCRIPT_DIR/constitution-semantic-diff.txt"
-PREV_TAG="v3.2.1"
+PREV_TAG="v4.0.0"
 ONLY="C1 C2 C3 C4 C5"
 
 usage() {

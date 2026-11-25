@@ -1,4 +1,4 @@
-# BADGE Development Constitution v4.0.0
+# BADGE Development Constitution v4.1.0
 
 > **B**oundary **A**nd **D**efensive **G**uard for **E**ngineering — Boundary and Defensive-Guard Engineering Development Constitution
 >
@@ -63,12 +63,12 @@ Here **cost** means effort and resource consumption (tokens, tool calls, footpri
 **The system's entropy comes in two kinds, pulling in opposite directions:** functional entropy — the number of functions, optional tiers, config items, and interface elements in the artifact: the more, the worse; structural entropy — the degree to which interfaces are unclear, boundaries untidy, naming inaccurate, and tests fail to correspond to functionality: the higher, the worse. The goal is not "simple"; it is **minimal functionality, maximal order**. There is only one test: **is this change serving the user's request, or serving "I think it should be"?** Wherever "simple" is given as a reason for a trade-off, it refers to the artifact complexity defined here; the **cost sense** (the "cost" defined in the paragraph above), the **operational sense** (number of steps, number of judgments, path length), and the **"minimal" inside a term such as "minimal normative unit"** all fall outside the scope of this sentence. **This section is the measure of the whole document, not the property of one chapter**: whichever clause in any chapter asks for a smaller functional surface or a firmer structural surface is one of its landing points — you need not see the word "entropy" in every place.
 
 - **Start minimal and usable**: deliver the simplest form that achieves the requirement first; before it works, do not introduce the next layer of complexity.
-- **Every layer must be ablated** (one ablation experiment: remove this layer, then re-measure the effect): every added layer of complexity (parameters, branches, dependencies, extra layers of indirection) must have its necessity judged by one ablation — remove this layer: does the effect defined by the requirement degrade noticeably? If you cannot answer, or removing it makes no difference, delete the layer; do not keep it "just in case". **Structures such as modules, interfaces, and tests are not judged by ablation** — their necessity is decided by the criteria of §1.1, §1.2, and §11 respectively; whatever is required by a **non-exemptible clause** (all of L1, and L2 clauses marked M, such as §1.3's separation of computation and infrastructure) is always kept. **Where the two readings are ambiguous, treat the layer as subject to ablation.**
+- **Every layer must be ablated** (one ablation experiment: remove this layer, then re-measure the effect): every added layer of complexity (parameters, branches, dependencies, extra layers of indirection) must have its necessity judged by one ablation — remove this layer: does the effect defined by the requirement degrade noticeably? If you cannot answer, or removing it makes no difference, delete the layer; do not keep it "just in case". **Structures such as modules, interfaces, and tests are not judged by ablation** — their necessity is decided by the judgment criteria of §1.1, §1.2, and §11 respectively; whatever is required by a **non-exemptible clause** (all of L1, and L2 clauses marked M, such as §1.3's separation of computation and infrastructure) is always kept. **Where the two readings are ambiguous, treat the layer as subject to ablation.**
 - **Never invent requirements for the user**: function and form are defined by the user. The "more general / more complete / more elegant" that the user did not ask for is not a requirement — it is over-execution.
 - **Add one at a time**: after the first version is delivered and the user confirms it, add only one function or form at a time, and only one that the user explicitly asked for.
 - **Structure may be reserved; shells may not**: **structure** may be reserved — interfaces, boundaries, naming; **shells** must not be reserved — config items, extension points with no consumer, empty directories, placeholder sections. **A shell is not structure**: it looks like structure but adds functional entropy.
 
-**Before delivery, ask the reverse question once more: delete which half and the user would still call this what he asked for?** Whatever still stands is, by the criteria of this section, over-execution.
+**Before delivery, ask the reverse question once more: delete which half and the user would still call this what he asked for?** Whatever still stands is, by this section's judgment criterion, over-execution.
 
 **Must be true.** Every statement made to others (users, colleagues, AI) — documents, conclusions, reports, status — must be consistent with the facts: what is unverified must not be written as verified, and what you do not know must not be written as no problem. In §17.7 "Obligation One: explicit status", the rule that "items not yet verified must not be counted toward the usable total" is its landing point in functional descriptions.
 
@@ -125,7 +125,7 @@ Whether a requirement holds for a certain project is judged in order, without sk
 
 ## Compliance Detection 〔L2·M｜all·unconditional〕
 
-Project classification is not hardcoded inside the project. When running the compliance detection script, pass the classification in via a command-line argument (e.g. `--class A`) to adjust the detection level flexibly. Tools **must not** treat one category's implementation (e.g. `uv.lock`, directory templates) as a criterion for all categories; where a clause carries no trigger condition, the tool handles it as the strictest (all·unconditional).
+Project classification is not hardcoded inside the project. When running the compliance check script, pass the classification in via a command-line argument (e.g. `--class A`) to adjust the detection level flexibly. Tools **must not** treat one category's implementation (e.g. `uv.lock`, directory templates) as a criterion for all categories; where a clause carries no trigger condition, the tool handles it as the strictest (all·unconditional).
 
 ## Configuration Format: TOML First 〔L2·R｜all·config-files〕
 
@@ -134,7 +134,6 @@ Project classification is not hardcoded inside the project. When running the com
 ---
 
 # Layer 1: Design Philosophy
-
 ## I. Boundary Thinking
 
 The boundary is the first step of system design. From the network boundary between services down to the parameter boundary between functions, where the boundary is drawn decides the system's complexity distribution, testability, and extensibility. Draw the boundary first, then fill in the implementation.
@@ -189,14 +188,16 @@ Facing a complex problem, human instinct is to "solve all problems at once", and
 
 **Judgment criterion:** Can a sub-task be completed independently and produce a verifiable result without depending on the context of other sub-tasks? If not, the split is not fine enough. After the task completes, can the caller judge whether the task succeeded solely from the output result? If not, the output boundary is unclear.
 
-### 1.6 Documentation Boundaries: Details in Comments, Structure in Docs 〔L1｜all〕
+### 1.6 Documentation Boundaries: Comments Carry Rationale, Docs Carry Structure 〔L1｜all〕
 
 In the AI era, code is the first document — AI reads and writes code directly, and maintaining a detailed architecture document kept in sync with the code is both expensive and inevitably stale. The dividing line between architecture documentation and code comments is itself a boundary decision:
 
-- **Architecture documentation**: for humans and AI. It writes module boundaries, responsibilities, and interfaces, with architecture diagrams, flow diagrams, data-flow diagrams, and swimlane diagrams — after reading it you know how the system works. It contains no implementation details.
-- **Code comments**: for AI. First, explaining the logic and design rationale of key code (why it is designed this way); second, the responsibility declaration at the head of the file — drawing a clear boundary for the code file so that AI does not pile unrelated methods and classes into it during modification (this is a foolproofing device, see §2). **The requirement for the file-head responsibility declaration is in §12.4**; the trigger condition, exemptions, and judgment criterion are defined only there.
+- **Architecture documentation**: for humans and AI. It records module boundaries, responsibilities, and interfaces, with architecture diagrams, flow diagrams, data-flow diagrams, and swimlane diagrams — after reading it you know how the system works. It contains no implementation details.
+- **Code comments**: for AI. They state the design rationale of key code (why it must be written this way), and also the responsibility declaration at the head of the file (§12.4 — **its trigger condition, exemptions, and judgment criterion are defined only in §12.4 and are not repeated here**). Comments contain **no pointers** — no document paths, file names, symbol names, or citation numbers: pointers go stale, and **a stale pointer is worse than no pointer**, because it makes the next reader act on a wrong map (§12.5 gives its criterion).
 
-**Judgment criterion:** Can the architecture documentation explain how the system works without containing implementation details? If not, the details have not been pushed down into comments. (For the judgment criterion of the file-head responsibility declaration, see §12.4.)
+**The reason for the dividing line:** comments and code live in the same file, so whoever changes the code necessarily sees them and changes them in step — unlike documentation, they do not quietly go stale somewhere else; documentation lives in another file, so whoever changes the code does not necessarily see it, and it inevitably decays later. **Put information that will go stale because the code changed next to the code, and put information that describes the overall structure in the documentation.**
+
+**Judgment criterion:** Reading this file's comments, can a reader quickly grasp **what this file is for and why it is designed this way**? Being able to state "why it exists, why it is organized this way" is a pass. If that requires reading external documentation first, the design rationale has not landed in the comments; if the comments are longer than the code, the rationale has not been compressed into a single sentence (§12.5).
 
 ---
 
@@ -325,7 +326,6 @@ After a new user clones the project, the fewest commands are enough to see the o
 **Judgment criterion:** Can a new deployment environment start without editing `run.sh`? If environment variables must be set first, is it confirmed that this belongs to the third-party adapter scenario allowed by §7.1, with clear records and reasonable default values?
 
 ---
-
 ## V. Correct First, Optimize Later 〔L1｜all〕
 
 Performance optimization is necessary, but must not come at the cost of correctness and maintainability. The principle is: **guarantee correctness first, then pursue performance. But do not design an architecture that cannot be optimized.**
@@ -382,11 +382,11 @@ The presence of the mechanism is verified by the corresponding check items in `t
 
 - **Base configuration** (`config.toml`, git-tracked, read by default at startup): contains **all fields** and is the **single authoritative source** of the configuration schema. Non-deployment fields have production-grade defaults. Secret fields are left empty (**the sentinel values are an L3 example**: `""`, `0`, `[]`, normalized to `None` at load time, see §2.2). Environment fields have **development defaults** (reasonable values usable locally) rather than being left empty — this ensures the project runs out of the box in a development environment.
 - **Override configuration** (**recommended location (R)**: `.local/config.override.toml` — a path example; landing it under `.local/` per §16.2 is sufficient; gitignored, deployment machine only): overrides only the fields that need deployment-specific values. Copy it from the git-tracked `config.override.sample.toml` template and fill in the real values. **A field that does not exist in the base configuration cannot be added**. By default the template lists only the common fields that need overriding; when the total number of configuration fields is small, the template may directly mirror all fields for easier comparison.
-- **Merge rule:** At startup the program first loads the base configuration into a dict, then loads the override configuration and **deep merges** it into the same dict — the override dict's leaf values replace the base dict's leaf values at the same path. After merging there is only **one configuration** in the program, with no ambiguity of "two configuration sources".
+- **Merge rule**: At startup the program first loads the base configuration into a dict, then loads the override configuration and **deep merges** it into the same dict — the override dict's leaf values replace the base dict's leaf values at the same path. After merging there is only **one configuration** in the program, with no ambiguity of "two configuration sources".
 
 **Override file location (R):** The recommended override file location is `.local/config.override.toml` (example). Other locations are supported through a user-supplied explicit `--override` argument. CLI auto-detection order (**the following order is an example, not a criterion**): explicit `--override` argument → `.local/` → adjacent path (backward compatible).
 
-**The following example (L3): field names and values only demonstrate the shape; swapping in equivalent values does not change the meaning of the clause.**
+**The following example (L3): field names and values only demonstrate the form; swapping in equivalent values does not change the meaning of the clause.**
 
 〔L3｜template-adopted〕
 ```toml
@@ -411,7 +411,7 @@ model = "production-model"
 
 **Null-value handling — applicability: the configuration format does not support null literals (such as TOML).** TOML has no `None`/null literal. To express the semantics of "not provided" in the base configuration, use `""` (empty string). At load time the program must uniformly convert `""` to `None`. `""` is the serialized representation of `None`, not a business-meaningful empty string. For numeric and array fields, use `0` and `[]` as the "not provided" sentinels (**the concrete sentinels are examples**), and the program must likewise convert them to `None`. The sentinels themselves may be swapped; the criterion is "there is only one representation of 'not provided'" (§2.2 null values).
 
-**Litmus test:** Does the base configuration contain all fields (none omitted)? Can you fully understand the configuration schema by reading the base configuration? Does the override configuration only override fields that already exist in the base configuration (no added fields)? After merging, is there only one configuration in the program (a single downstream consumer)?
+**Judgment criterion:** Does the base configuration contain all fields (none omitted)? Can you fully understand the configuration schema by reading the base configuration? Does the override configuration only override fields that already exist in the base configuration (no added fields)? After merging, is there only one configuration in the program (a single downstream consumer)?
 
 ### 7.2 Validate at Load Time 〔L2·M｜all·config-files〕
 
@@ -433,11 +433,11 @@ Config parameters are the boundary between the user and the system. If parameter
 
 **2. Orthogonal parameters.** Parameters should be independent of one another — adjusting one does not change the semantics of another. If changing `warmup_steps` requires also changing `total_steps` for the scheduler to work properly, these two parameters are coupled and the design is flawed. Orthogonal configuration lets users optimize each dimension independently, without maintaining a "parameter linkage table" in their heads.
 
-**Litmus test:** Can the user adjust each parameter independently and get a predictable result? If changing parameter A requires also changing parameter B, they are not orthogonal and should be merged into one parameter, or the system should derive one of them automatically.
+**Judgment criterion:** Can the user adjust each parameter independently and get a predictable result? If changing parameter A requires also changing parameter B, they are not orthogonal and should be merged into one parameter, or the system should derive one of them automatically.
 
 **3. Self-explanatory parameter names.** Parameter names may be long, but must let the user see the meaning at a glance without consulting documentation. `learning_rate` is better than `lr`, `warmup_steps` is better than `ws`, `min_lr_ratio` is better than `min_lr` (the latter reads as an absolute LR value rather than a ratio). Abbreviations are allowed in only one case: the abbreviation is a **universally known** general term in the domain, such as `lr`, `tp`, `pp`, `lora`. But even for these terms, using the full name as a top-level parameter name in a configuration file is recommended — `learning_rate` is less ambiguous than `lr`.
 
-**Litmus test:** Find someone unfamiliar with the project and show them only the parameter name and its comment. Can they accurately state what the parameter does? If they get the function right but the unit or range wrong, the name is right but the comment is insufficient. If they get the function wrong, the parameter name itself is ambiguous. In addition, when this parameter is changed, does the system behavior really change as expected? If nothing changes, it was never wired into the code — that is phantom configuration, not a parameter design problem.
+**Judgment criterion:** Find someone unfamiliar with the project and show them only the parameter name and its comment. Can they accurately state what the parameter does? If they get the function right but the unit or range wrong, the name is right but the comment is insufficient. If they get the function wrong, the parameter name itself is ambiguous. In addition, when this parameter is changed, does the system behavior really change as expected? If nothing changes, it was never wired into the code — that is phantom configuration, not a parameter design problem.
 
 ---
 
@@ -456,7 +456,7 @@ project/
 ├── config.toml              # base default config (git-tracked, contains all fields) · as needed (when there are config files)
 ├── config.override.sample.toml  # override template (git-tracked, placeholders) · as needed (when there are config files)
 ├── src/project_name/        # source code, src-layout · required
-│   ├── __init__.py          # version number + public API re-export · required
+│   ├── __init__.py          # public API re-export · required (the version comes from the §8.7 tag, not from here)
 │   ├── __main__.py          # python -m entry point · as needed (when `python -m` is a supported way to run)
 │   ├── py.typed             # PEP 561 marker · as needed (when published as an installable package or imported by downstream)
 │   ├── cli.py               # CLI entry point (upgradeable to a cli/ directory when complex) · as needed (when a CLI is provided)
@@ -488,7 +488,7 @@ project/
 
 > The directory layout template lists both `README.md` and `README.zh-CN.md`. For projects exempt under §17.6, a single `README.md` may be kept.
 
-> For `__main__.py` in the directory tree above: whether it is needed is decided by the **entry-point shape** — it must be provided when the project supports `python -m <package_name>` as a way to run; it is not required when a container image is the primary delivery vehicle and a startup script (§4.1) or CLI entry point already exists. **This clause is independent of project category.**
+> For `__main__.py` in the directory tree above: whether it is needed is decided by the **entry-point form** — it must be provided when the project supports `python -m <package_name>` as a way to run; it is not required when a container image is the primary delivery vehicle and a startup script (§4.1) or CLI entry point already exists. **This clause is independent of project category.**
 
 **`cli.py` may be upgraded to a `cli/` directory:** When the CLI logic is complex enough to need splitting into multiple sub-modules (such as subcommand dispatch, training worker process entry), follow the same logic as §8.3 (class-to-directory) — `cli/__init__.py` is responsible for external transparency, so external consumers see only the `package_name.cli:main` entry point and do not perceive whether the internals are a single file or a directory.
 
@@ -498,7 +498,7 @@ project/
 
 A file grown to thousands of lines is hard to read and modify, and the IDE is slow to open it. Split too finely, and one feature is scattered across a dozen files — the reader jumps around everywhere and their thinking is fragmented. The ideal granularity is: **one file corresponds to one clear conceptual unit**, and opening that file lets the reader fully understand that concept.
 
-Litmus test: Can you fully understand one concept in one file? If you must jump between multiple files to piece together the whole picture, it is too fragmented. **Keeping files under 1000 lines is recommended (an example magnitude, not a criterion)** — if it is exceeded, ask yourself whether it has crammed in two concepts. But if the logic inside the file genuinely belongs to the same conceptual unit (such as a pure-function toolkit, a complex model adapter), exceeding 1000 lines is acceptable; in that case, ensure the file is internally organized by functional domain with clear separator lines and comments, so readers can locate things quickly. **Both sides of granularity are entropy**: too large is structural entropy (one concept scattered across many places, so the whole cannot be read off), too fragmented is functional entropy (the reader has to jump more times).
+Judgment criterion: Can you fully understand one concept in one file? If you must jump between multiple files to piece together the whole picture, it is too fragmented. **Keeping files under 1000 lines is recommended (an example magnitude, not a criterion)** — if it is exceeded, ask yourself whether it has crammed in two concepts. But if the logic inside the file genuinely belongs to the same conceptual unit (such as a pure-function toolkit, a complex model adapter), exceeding 1000 lines is acceptable; in that case, ensure the file is internally organized by functional domain with clear separator lines and comments, so readers can locate things quickly. **Both sides of granularity are entropy**: too large is structural entropy (one concept scattered across many places, so the whole cannot be read off), too fragmented is functional entropy (the reader has to jump more times).
 
 ### 8.3 Class-to-Directory: When a Class Is Too Large 〔L2·M｜all·code〕
 
@@ -544,13 +544,13 @@ The following mixed usage counts as **mixing that needs splitting**:
 - A stateful, lifecycle-bearing service class sits next to unrelated standalone functions — they should be extracted into a helpers module.
 - Complex state-management classes are mixed with pure computation functions, so the reader cannot tell at a glance the scope of the functions' side effects.
 
-**Litmus test:** Can the reader tell at a glance whether the functions in this file have side effects? If you see that the file contains a class and cannot tell whether the functions depend on the class's state — that is **mixing that needs splitting**, and it should be split.
+**Judgment criterion:** Can the reader tell at a glance whether the functions in this file have side effects? If you see that the file contains a class and cannot tell whether the functions depend on the class's state — that is **mixing that needs splitting**, and it should be split.
 
 ### 8.5 Output Directory Isolation 〔L2·M｜all·data-artifacts〕
 
 This section applies to runs that produce on-disk artifacts. Source code and data are assets; run artifacts are consumables. The two must be physically isolated — the output directory is not inside the source tree, and is specified by the `output` field of the configuration file. The default value points to `outputs/` under the project root, and this directory is excluded in `.gitignore`.
 
-**The following is an example (L3): the directory names and layering only demonstrate the shape; swapping in equivalent shapes does not change the meaning of the clause.**
+**The following is an example (L3): the directory names and layering only demonstrate the form; swapping in equivalent forms does not change the meaning of the clause.**
 
 〔L3｜template-adopted〕
 ```
@@ -561,7 +561,7 @@ outputs/<run_name>/
 └── results/              # final outputs (datasets, models, evaluation results)
 ```
 
-**Every run must generate a unique `run_name`** (by default based on a timestamp) to prevent accidental overwriting; **the configuration used by this run must be backed up together with the artifacts** (M — independent of the directory tree shape above; the backup file name and location are decided per project). After the run finishes, the user can reproduce this run's effect as defined in §6 from the configuration backup under the artifact directory — no need to go back and find the original configuration file. The backup file uses the same format as the project's original configuration (for a TOML project, `config.toml`).
+**Every run must generate a unique `run_name`** (by default based on a timestamp) to prevent accidental overwriting; **the configuration used by this run must be backed up together with the artifacts** (M — independent of the directory tree form above; the backup file name and location are decided per project). After the run finishes, the user can reproduce this run's effect as defined in §6 from the configuration backup under the artifact directory — no need to go back and find the original configuration file. The backup file uses the same format as the project's original configuration (for a TOML project, `config.toml`).
 
 ### 8.6 Imports and File Headers 〔L2·M｜A/B·code〕
 
@@ -581,10 +581,9 @@ At runtime the version number is obtained through the standard library's metadat
 
 **Why not use the `version` field of `pyproject.toml`?** Because `pyproject.toml` would then carry two completely unrelated pieces of information: the version number and the dependency declarations. If the version number is hardcoded in `pyproject.toml`, changing the version during a Docker build changes the file hash, invalidates the dependency-layer cache, and forces all packages to be downloaded again. `setuptools-scm` + `dynamic = ["version"]` decouples the version number from the file into git tags — `pyproject.toml` contains no version string, and a version change does not change the file hash, so `pyproject.toml` can be safely placed in the dependency layer without triggering a dependency rebuild. A version change affects only the source layer (`COPY src`), while the dependency-layer cache is fully reused. This is the result of §1.4 (single source of truth) and §14.3 (Docker layer caching) working together.
 
-**Litmus test:** How many files must be changed to make a release? If the number exceeds 0, this clause is violated.
+**Judgment criterion:** How many files must be changed to make a release? If the number exceeds 0, this clause is violated.
 
 ---
-
 ## IX. Data and Interfaces
 
 ### 9.1 Data Contract: Explicit Schema 〔L2·M｜all·code〕
@@ -626,7 +625,7 @@ Multiple implementations of the same type are managed through a registry (a stri
 
 **`--config` is the only explicitly listed argument name** — other argument names vary by project and must be reviewed item by item against the three principles above: under reproduction conditions (the same config; the same seed if the task involves randomness), does a different value of this argument change the effect defined by the requirement (§6)? If yes, it must go into config.
 
-**Litmus test (technique):** For any argument X — under reproduction conditions (the same config; the same seed if the task involves randomness), if different values of X change the effect defined by the requirement (§6), or change the existence, location, or controllable content of any on-disk output, then X must go into config. (This criterion is independent of whether §6 reproduction is needed: participating in deciding artifacts is enough to be bound.)
+**Judgment criterion (technique):** For any argument X — under reproduction conditions (the same config; the same seed if the task involves randomness), if different values of X change the effect defined by the requirement (§6), or change the existence, location, or controllable content of any on-disk output, then X must go into config. (This criterion is independent of whether §6 reproduction is needed: participating in deciding artifacts is enough to be bound.)
 
 **Output constraint (technique):** The on-disk output of every CLI command is decided by config — any "output-locating" argument is forbidden. Tool commands that do not participate in artifacts are equally bound, with three options: print only without writing to disk; accept `--config` and write output into the config-decided directory; or demote to a scripts/ script (§10.2).
 
@@ -744,7 +743,7 @@ For complex algorithms whose generalization completeness is extremely hard to ex
 
 7. `from __future__ import annotations` is used only when circular imports prevent type annotations from being evaluated (see §8.6).
 
-**Litmus test:** Open any function — can you accurately state the type of every parameter and the return type from the signature alone? If not, the annotations are incomplete. Are there anonymous nested types in the code (such as `dict[str, list[tuple[...]]]`)? If so, they should be replaced with classes.
+**Judgment criterion:** Open any function — can you accurately state the type of every parameter and the return type from the signature alone? If not, the annotations are incomplete. Are there anonymous nested types in the code (such as `dict[str, list[tuple[...]]]`)? If so, they should be replaced with classes.
 
 ### 12.2 Naming 〔L2·M｜A/B·code〕
 
@@ -756,7 +755,7 @@ A class name should decompose into path components — the CamelCase words of th
 
 **Why constrain classes but not functions?** Functions get their domain context from the file they live in — the responsibility for locating them lies with the file. Classes are self-locating units referenced across files, and may be upgraded into a directory (§8.3) — a class name must carry its own locating information.
 
-**Litmus test:** Given a class name, can you say where it should live without looking at the code? Given a path, can you say which class families it should contain? Naming only passes if both directions can be answered.
+**Judgment criterion:** Given a class name, can you say where it should live without looking at the code? Given a path, can you say which class families it should contain? Naming only passes if both directions can be answered.
 
 ### 12.3 Language Convention 〔L2·M｜all·code〕
 
@@ -781,17 +780,36 @@ Comments write **why**, not **what**. Useless comments are forbidden.
 - The file header may be a module docstring or a comment block; the language follows §12.3
 - `__init__.py` is exempt — its responsibility is exactly to re-export the public API (§8.6), and no repeated declaration is needed
 - **One-off scripts, auto-generated files, and test fixture data are not required** — they have no responsibility boundary that needs long-term guarding
-- A responsibility declaration is navigation and foolproofing information, not the "useless comment" forbidden by §12.3 — it answers "why does this file exist, and what content belongs in it"
+- A responsibility declaration is an **explicit exception** to §12.3's "no what" and to §12.5 item 3: it states **structural information about the file boundary** (§1.1), not a restatement of code behaviour, so it is not the "useless comment" that §12.3 forbids either
 
-**Litmus test:** Can the file header's responsibility declaration state in one sentence "should this piece of code go into this file"? If not, either the comment is not clear enough, or the file boundary has already been breached.
+**Judgment criterion:** Can the file header's responsibility declaration state in one sentence "should this piece of code go into this file"? If not, either the comment is not clear enough, or the file boundary has already been breached.
+
+**A file header must be short.** One sentence — not expanded into a paragraph, not an enumeration of contents, not a background story. **Failing to be short is not a writing problem; it means the file is too large** — a file that needs three paragraphs to state its responsibility holds more than one thing and should be split (§1.1). The length cap shares its origin with the comment length in §12.5; the criterion is in §12.5 item 1. **Until that language's check script exists, judge by hand** — a missing script does not mean the clause does not bind. **A migration-script header as required by §18.2 is not bound by this paragraph**: it must list the source/target versions, what is migrated, and what cannot be auto-migrated — that is the interface of an upgrade chain, not a statement of file responsibility.
+
+### 12.5 Comment Discipline: Write Reasons Only, Leave No Pointers 〔L2·M｜all·code〕
+
+Comments are **design notes written for AI to read**, not a restatement of the code and not an index into the documentation. They have exactly one legitimate use: stating **why this piece of code must be written this way**. Where the code already expresses what it is doing, a comment does not repeat it; everything else is left unwritten.
+
+**1. Every comment must be short.** One comment = one short sentence, at most two lines. Numeric caps: **200 characters, 2 lines** (values required by the criterion; for the reasoning see the revision record; that language's check script implements these values and their counting method and sets no default of its own, see item 5). Exceeding the cap means the comment holds two things: split it into two, or delete the half that is not needed. **Better to have no comment than to write one that still leaves a question after it is read.**
+
+**2. Pointers are forbidden.** No comment may contain any **reference to an artifact that can go stale**. **When a comment does refer to such an artifact, the following categories are the enumeration necessary to the criterion** (reason in the revision record): documentation paths, file names, module names, symbol names, URLs, issue/PR numbers, commit summaries, `§` numbers, "see the documentation", "for details see…", "refer to…". **Criterion: does this sentence still hold after someone else refactors the code?** If not, it is a pointer — delete it. Naming a technology stack (language, library, protocol, standard) does not count as a pointer — no commit can make it go stale.
+
+**3. Write reasons only; do not restate the code.** Where the code already expresses "what is done", the comment does not say it a second time. **Write only what the code cannot express.** **When a rationale is written, the following categories are the enumeration necessary to the criterion** (reason in the revision record): why this approach was chosen, why the order cannot be swapped, which trap is being avoided here, why this boundary must exist. A comment that restates the code becomes a lie once the code changes.
+
+**4. The ratio must have a cap.** In a single file, **line comments must not exceed 5% of code lines** (a value required by the criterion; for the reasoning see the revision record). **Judge per file, not per repository** — a repository average is diluted by the many clean files and hides the occasional runaway file. Only **line comments** count in the numerator; the **file-header responsibility declaration does not count** (it is bound by §12.4), and **every other documentation block (docstring / JSDoc) is subject to items 2 and 3 and does count** — otherwise rewriting a long comment as a documentation block would bypass this item wholesale. **Comments that another clause explicitly requires are not counted** (e.g. §2.2's sentinel-rationale note, §4.2's localization note, §18.2's migration-script header): those are not comments this item encourages but obligations created elsewhere, and two M clauses must not deny each other in the same file. **A file whose comments total fewer than 200 characters is not subject to this item** (a value required by the criterion): at that absolute size the ratio carries no statistical meaning.
+
+**5. Checking is carried by tools; what the clause applies to is decided by the clause.** This clause applies to the project's own source files. Comment syntax, how characters and lines are counted, and how code lines are counted are implemented by **check scripts under `tools/`, separated by language** (§15.1 first-paragraph division of labor) — comment syntax differs between languages, and mixing them into one script would only turn the decision rules into a pile of special cases. **A language without a script is still subject to this clause**, judged by hand using that language's comment syntax; adding a script for a new language does not change this clause.
+
+**6. Machine directives are not comments.** shebang lines, encoding declarations, and **instructions read by tools** such as `# type: ignore[…]`, `# noqa`, and `# fmt: off` express no rationale; they are not subject to items 1-4 and do not count in the ratio numerator.
+
+**Judgment criterion:** Delete every comment — can a reader (human or AI) still tell what the code does? If yes, the comments were not restating the code, and this clause is satisfied. Then add the comments back — can the reader tell **why it is done this way**? If yes, the reasons really do live in the comments, and §1.6 is satisfied. Only when both questions answer "yes" does it pass.
 
 ---
-
 ## XIII. Error Handling and Logging
 
 ### 13.1 Exceptions: Do Not Swallow 〔L2·M｜all·code〕
 
-**Absolutely forbidden:** `except Exception: pass` or a bare `except: pass`. Every `except` block must contain explicit handling logic (retry, degrade, or convert into user-readable information and then exit). In principle exceptions are handled uniformly at boundary layers and exposed as early as possible in internal layers.
+**Absolutely forbidden** `except Exception: pass` or a bare `except: pass`. Every `except` block must contain explicit handling logic (retry, degrade, or convert into user-readable information and then exit). In principle exceptions are handled uniformly at boundary layers and exposed as early as possible in internal layers.
 
 ### 13.2 Log Levels 〔L2·M｜all·data-artifacts+long-running〕
 
@@ -799,7 +817,7 @@ DEBUG is for developers troubleshooting bugs, INFO for users to understand the r
 
 **Projects that produce run artifacts or run for a long time (processes expected to keep running rather than ending after a single call)** must provide at least one standard log channel (for Python projects, the standard library `logging`), using these four levels. This ensures compatibility with log aggregation tools, CI pipelines, and debugging workflows. Beyond this required channel, the project may add domain-specific log files (structured JSONL for metrics, time-series event logs, raw rollout records, etc.) — these are system-personalized extensions and are not bound by the four-level scheme.
 
-### 13.3 Log Files by File 〔L2·M｜all·data-artifacts〕
+### 13.3 Splitting Logs into Files 〔L2·M｜all·data-artifacts〕
 
 The split granularity of log files matches module boundaries (§1.1): **mutually independent modules log separately, while tightly coupled pipeline steps share the same log file.** Each independent log domain distinguishes **readable logs** (human-readable, INFO level) from **raw logs** (machine-parseable, full DEBUG). ERROR is aggregated into a common error log file. All log files live in the `logs/` subdirectory under the output directory (**when the output directory of §8.5 exists**; see §8.5 Output Directory Isolation).
 
@@ -807,7 +825,7 @@ The concrete file names and module divisions are decided by each project accordi
 
 **Core principle: splitting exists so that an investigator does not have to open the logs of unrelated modules at the same time, but it must not force an investigator tracing one causal chain to stitch a timeline together across files.** Structured domain-specific logs (such as JSONL rollout records, time-series event logs) are system-personalized extensions (see 13.2) and are not bound by this constraint — they serve machine analysis, not human investigation.
 
-**Litmus test:** When investigating one event, how many log files must be opened at the same time to correlate the timeline across files? If you have to jump back and forth repeatedly, the split is too fine and the files should be merged.
+**Judgment criterion:** When investigating one event, how many log files must be opened at the same time to correlate the timeline across files? If you have to jump back and forth repeatedly, the split is too fine and the files should be merged.
 
 ### 13.4 Debugging: Simple Is Reliable 〔L2·M｜all·code〕
 
@@ -815,7 +833,7 @@ The concrete file names and module divisions are decided by each project accordi
 
 **Technique:** `print()` + stdout redirection is the last and most reliable fallback. This is not a step backward; it is fallback design (§3.1) applied to the debugging domain — degrade to a simpler but more reliable approach so that debugging information is never lost.
 
-**Litmus test:** How long does it take to set up the debugging environment? If the debugging environment itself is more complex than the bug being debugged, the debugging means are the problem.
+**Judgment criterion:** How long does it take to set up the debugging environment? If the debugging environment itself is more complex than the bug being debugged, the debugging means are the problem.
 
 ---
 
@@ -843,7 +861,7 @@ All dependency packages must be under **permissive licenses suitable for commerc
 
 ### 14.3 Container Images 〔L2·M｜all·container〕
 
-**Whether to deploy in containers is decided by the project's shape and release method; this constitution makes no requirement** — Category C does not apply §7–§21 by default (Layer 0), and if a Category A/B project builds no image, this clause likewise has nothing to govern. But **once** a project provides a container image, **all** constraints of this clause take effect: the base image is pinned to a concrete version tag or digest (do not use `latest`; tags can be overwritten — use a digest when strong determinism is required), two-layer build with layer caching (the Dockerfile separates a dependency layer from a source layer; dependency installation uses `uv sync` or `uv pip install` with `uv.lock` to ensure the dependency versions inside the container match the development environment — **Python/uv projects**), `build.sh` injects the version from git tags, BuildKit cache mounts, build-time parameters do not pollute the runtime, and the three kinds of residue are empty after the build. Environment contamination and secret leakage are correctness problems of the image itself, **independent of project category**.
+**Whether to deploy in containers is decided by the project's form and release method; this constitution makes no requirement** — Category C does not apply §7–§21 by default (Layer 0), and if a Category A/B project builds no image, this clause likewise has nothing to govern. But **once** a project provides a container image, **all** constraints of this clause take effect: the base image is pinned to a concrete version tag or digest (do not use `latest`; tags can be overwritten — use a digest when strong determinism is required), two-layer build with layer caching (the Dockerfile separates a dependency layer from a source layer; dependency installation uses `uv sync` or `uv pip install` with `uv.lock` to ensure the dependency versions inside the container match the development environment — **Python/uv projects**), `build.sh` injects the version from git tags, BuildKit cache mounts, build-time parameters do not pollute the runtime, and the three kinds of residue are empty after the build. Environment contamination and secret leakage are correctness problems of the image itself, **independent of project category**.
 
 **Docker layer cache design:** The dependency layer copies both `uv.lock` and `pyproject.toml`. The version number is derived by `setuptools-scm` from git tags (§8.7), and `dynamic = ["version"]` in `pyproject.toml` contains no version string, so a version change does not change the file hash of `pyproject.toml`. The dependency layer is rebuilt only when `uv.lock` or `pyproject.toml` actually changes — routine version releases and code changes never trigger a dependency-layer rebuild.
 
@@ -930,7 +948,7 @@ docker build \
 ```
 > Usable only when these addresses **carry no credentials** and are not pushed to a public repository. It does **not** pollute the runtime environment (`ARG` does not enter `Config.Env`), but it does appear in `docker history` (see below), and it **must never** be switched to passing the values via `ENV`.
 
-This rule applies to all configuration that is needed only at build time and should not exist at runtime — proxies are the most typical scenario, but it also covers private pip mirror sources, build cache configuration, and the like. Litmus test: is this configuration still needed when the container runs? If not, it must not appear in the final image.
+This rule applies to all configuration that is needed only at build time and should not exist at runtime — proxies are the most typical scenario, but it also covers private pip mirror sources, build cache configuration, and the like. Judgment criterion: Is this configuration still needed when the container runs? If not, it must not appear in the final image.
 
 **The two kinds of metadata for build-time parameters: configuration metadata and build history metadata.** "`ARG` does not enter the image" is an incomplete statement — what it does not enter is **configuration metadata**; what it does enter is **build history metadata**. To judge whether a value pollutes the runtime environment or leaks, the two locations must be judged separately:
 
@@ -993,7 +1011,7 @@ Modifying code directly on a deployment machine is a breeding ground for enginee
 - If temporary debugging is needed during deployment, reproduce the problem on the development machine, modify the code, commit, and then deploy the new version — do not take the path of "modify it on the deployment machine and then sync it back"
 - If the deployment machine can access git, keeping the `.git` directory is recommended, so that `git status` can verify at any time whether the working tree is clean and `git log -1` can confirm the currently running version. If the deployment machine cannot access git, the deployment script should record the version identifier into a `VERSION` file in the deployment directory at deploy time
 
-**Litmus test:** Can the code on the deployment machine be traced to a definite version on the development machine (a git commit, or the version marker of a package file)? Are there any source code modifications on the deployment machine that were not committed on the development machine? Code sync is healthy when the first answer is "yes" and the second answer is "no".
+**Judgment criterion:** Can the code on the deployment machine be traced to a definite version on the development machine (a git commit, or the version marker of a package file)? Are there any source code modifications on the deployment machine that were not committed on the development machine? Code sync is healthy when the first answer is "yes" and the second answer is "no".
 
 ---
 
@@ -1067,7 +1085,7 @@ Secret information does not enter git. Secrets include: keys, passwords, tokens,
 - Template files (**named per the §7.1 convention**) must be tracked in git and **contain placeholders only** (placeholder forms are defined by `tools/check_secrets.sh`)
 - If personal information (email, phone numbers, instant messaging accounts, etc.) must appear in configuration, prefer the layered override (§7.1); use `.env` when environment variables are genuinely required. It must not be hardcoded in the base configuration or in templates
 
-**Litmus test:** Can an outsider clone the project and run it (in degraded mode) without access to any secret information? Does the git history contain any secret information or personal information?
+**Judgment criterion:** Can an outsider clone the project and run it (in degraded mode) without access to any secret information? Does the git history contain any secret information or personal information?
 
 ### 15.3 Post-Leak Response 〔L2·M｜all·unconditional〕
 
@@ -1112,10 +1130,9 @@ If what leaked is personal information (PII) rather than a secret, the history-r
 
 **Named exemption list (opt-in).** The named exemption list for Category B and private Category C is an **engineering mechanism, not a constitution-level right** (Category A and public repositories have no such channel, see §15.1 item 1). **opt-in** — when the list does not exist, the check's behavior and output are **exactly the same** as without the mechanism; an empty list and a comments-only list are likewise inert, and no list-related line may be printed. **Downgrade only, never hide** — a hit does not disappear because it is registered: it is still printed item by item, accompanied by the reason the project gives, and the list changes only that hit's severity label and reports the number of downgraded items; it **does not change** this run's pass/fail conclusion, and red-line categories must not be let through this way. **fail-closed** — when the list is not under version control, has an invalid format, is missing fields, names a category that is not eligible for exemption, uses wildcards or absolute paths, or points to a nonexistent path, that entry **does not take effect** and is reported item by item; naming a red-line category itself constitutes failure. **stale visible** — when a valid registered entry matches no hit, stale must be reported; a registration must not outlive the hit it corresponds to. **Independent** — this list relaxes only this one check and affects no other check. The list's syntax, fields, matching method, and scope of effect are defined by `tools/check_secrets.sh` together with its `--help` / inline comments (§15.1 first-paragraph division of labor).
 
-**Litmus test:** If this repository were made public tomorrow, what would be exposed in tracked files and git history? Only credentials and employee personal sensitive information are **unacceptable** answers; internal addresses and internal data are acceptable — but at that point the visibility change must be handled per §15.3; it cannot be left to "we'll deal with it later".
+**Judgment criterion:** If this repository were made public tomorrow, what would be exposed in tracked files and git history? Only credentials and employee personal sensitive information are **unacceptable** answers; internal addresses and internal data are acceptable — but at that point the visibility change must be handled per §15.3; it cannot be left to "we'll deal with it later".
 
 ---
-
 ## XVI. Local and Temporary Files
 
 Every project generates local files that are useful during development but do not belong in the permanent codebase — run logs, migration plans, deployment notes, deployment configuration, personal experiments. Without a designated home, these files scatter across the repository, and sooner or later one of them gets committed with an internal IP or a password in it.
@@ -1195,15 +1212,15 @@ If a file has long-term value to the project, first decide its destination by th
 
 **The exception for process documentation.** When the **authoritative definition** of a process cannot be carried by code and the process needs to be **reviewed**, it may be made a standalone document in `docs/`: the document must declare at its head "this file is the sole authoritative source of this process", and the whole text describes steps only and cites only `§` numbers — it **must not restate clause content** (restating clause content violates §21.1 "the sole landing point of constitution content"). Such a document is not judged a violation on the grounds of §16.2 "maintainer-only documents have no landing point in the repository"; process documents that do not satisfy the above three conditions are handled per §16.2 (sink into `.local/` or delete).
 
-**The boundary with §1.6 still applies:** the **architecture explanation** in `docs/` writes only the structural-level "what" and "why" (module boundaries, responsibilities, interfaces); implementation details live in code comments (§12.4); the usage documents in `docs/` serve "how to use it", and copying implementation details is not permitted just because they are user-facing.
+**The boundary with §1.6 still applies:** the **architecture explanation** in `docs/` writes only the structural-level "what" and "why" (module boundaries, responsibilities, interfaces); implementation details live in the code itself and in the design rationale inside the comments (§1.6, §12.5); the usage documents in `docs/` serve "how to use it", and copying implementation details is not permitted just because they are user-facing.
 
 **When documentation contains structural-level diagrams**, it must use a machine-parseable, versionable **textual diagramming language**, the specific language being chosen by the project and unified within the repository (**currently Mermaid by default**); **diagrams that exist only as images are prohibited**, and hand-drawn character diagrams that cannot be machine-parsed are not accepted either — a textual diagramming language can be generated and modified by AI, whereas images cannot. Node names must always be wrapped in English double quotes to guarantee compatibility across renderers. **The necessary structural-level diagrams (architecture, flow, data flow, etc.) are indispensable elements of an architecture explanation** — after reading them you know how the system works. Directory trees, tables, and other plain-text structures are not "diagrams" and are not subject to this section.
 
 **Tracked documentation contains no deployment environment records.** Deployment notes, experiment records, run monitoring, and the like are local files as defined in §16.2 and should go into `.local/`. `docs/` **is allowed** to contain opaque run IDs, acceptance criteria, item-by-item conclusions, and failure attribution (acceptance is user-facing acceptance; both the conclusions and the attribution are things users have a right to know).
 
-**The commit rules for internal-network information in `docs/` are judged per the existing division of labor between §15.4 and §16.2; this section sets up no stricter prohibition of its own.** Specifically: **whether it can enter tracked files** is decided by the §15.4 grading table according to **project category and repository visibility** (in Category B and Category C projects not pushed to a public repository, internal IPs / domain names / paths as internal service addresses in project content are allowed); **whether it is a runtime environment record** is judged by §16.2 (host paths, hostnames, container names, and other runtime environment records may go only into `.local/`); internal nodes, internal accounts, and staffing are handled per §15.1 item 1 and §16.2. **The sole exception is the landing point of the user-facing statement of function and capability** — that landing point has its own stricter basis (because it is user-facing and AI-facing), see §17.7 "Prohibition Two: desensitization floor for the landing point". For the verbatim basis see §17.7.
+**The rules for admitting internal-network information into `docs/` are judged per the existing division of labor between §15.4 and §16.2; this section sets up no stricter prohibition of its own.** Specifically: **whether it can enter tracked files** is decided by the §15.4 grading table according to **project category and repository visibility** (in Category B and Category C projects not pushed to a public repository, internal IPs / domain names / paths as internal service addresses in project content are allowed); **whether it is a runtime environment record** is judged by §16.2 (host paths, hostnames, container names, and other runtime environment records may go only into `.local/`); internal nodes, internal accounts, and staffing are handled per §15.1 item 1 and §16.2. **The sole exception is the landing point of the user-facing statement of function and capability** — that landing point has its own stricter standard (because it faces external users and AI), see §17.7 "Prohibition Two: desensitization floor for the landing point". For the character-level standard see §17.7.
 
-**Litmus test:** Can a user who **does not know this project** (human or AI), reading only `docs/`, answer three things — **① how to use this software** (install it, run the minimal example through, find the parameters)? **② what its architecture looks like**? **③ whether it works well** — what it can do, to what degree, where the boundaries are (performance dimensions are up to the project)? If all three are answerable, `docs/`'s positioning is correct.
+**Judgment criterion:** Can a user who **does not know this project** (human or AI), reading only `docs/`, answer three things — **① how to use this software** (install it, run the minimal example through, find the parameters)? **② what its architecture looks like**? **③ whether it works well** — what it can do, to what degree, where the boundaries are (performance dimensions are up to the project)? If all three are answerable, `docs/`'s positioning is correct.
 
 ### 17.3 AI Assistant Documentation 〔L2·R｜all·ai-assistant〕
 
@@ -1230,7 +1247,7 @@ Division of labor between the state-section anchor and the event section: the ev
 
 **When to update:** at the end of each working session or when a phase task completes — append 3~5 lines to the event section (**a recommended value**) and refresh the current values in the state section (the "user's original prompt" anchor stays unchanged unless the goal changes). Projects that use AI assistants place a pointer to `work_log_current.md` in the AI assistant's local instruction file (§17.3).
 
-**Litmus test:** Can a newcomer (or new AI) fully continue the work reading only the work log and the codebase, without asking the original author? If not, the log is incomplete.
+**Judgment criterion:** Can a newcomer (or new AI) fully continue the work reading only the work log and the codebase, without asking the original author? If not, the log is incomplete.
 
 ### 17.6 Single-Language and Private Projects 〔L2·R｜all·readme〕
 
@@ -1248,7 +1265,7 @@ Division of labor between the state-section anchor and the event section: the ev
 - Choose the language by target audience: Chinese for Chinese-speaking communities, English for English-speaking communities
 - If the project later becomes open-source or expands its audience, add a bilingual README at that point — this is not debt; it is a scope change
 
-**Litmus test:** Does the project's target audience include both Chinese- and English-speaking communities? If not, and the project is not in a public repository, a bilingual README produces no practical value.
+**Judgment criterion:** Does the project's target audience include both Chinese- and English-speaking communities? If not, and the project is not in a public repository, a bilingual README produces no practical value.
 
 ### 17.7 Statement of Function and Capability (`docs/`) 〔L2·M｜all·tiers-or-quantified-claims〕
 
@@ -1299,10 +1316,9 @@ When users of an old version need to upgrade to the new architecture, provide a 
 - The script header comment states: source version number → target version number, what is migrated (configuration file format, checkpoint format, data format), and the parts that cannot be auto-migrated (requiring manual user action)
 - Migration scripts are not the old-architecture code referred to in §18.1; they are modules in the new codebase responsible for "upgrading old data / old configuration". Migration proceeds generation by generation: upgrading across several major versions may require running multiple migration scripts in order, so older migration scripts remain in `scripts/` as an upgrade chain for users who skip versions
 
-**Litmus test:** When a newcomer clones the project, can they see traces of the old architecture? If so — leftover code, outdated comments, un-updated configuration templates — version management has failed.
+**Judgment criterion:** When a newcomer clones the project, can they see traces of the old architecture? If so — leftover code, outdated comments, un-updated configuration templates — version management has failed.
 
 ---
-
 ## XIX. Open Source Management
 
 ### 19.1 Git Workflow 〔L2·M｜A/B·git-repo〕
@@ -1390,7 +1406,13 @@ This section governs the relationship between **this constitution's own** two la
 - The chapter structure and numbering are identical — §a.b points to the same clause in the English version
 - The clause sets are identical — every clause the Chinese version has must exist clause by clause in the English version, and vice versa
 
-**The writing style of the constitution text.** This constitution writes only **concepts, criteria, and general explanations**. Any expression that could be replaced by a value of the same kind without changing the clause's meaning — a specific instance, a specific number, a specific form, a literal value, and metaphors / analogies — is not written at all; except for enumerations necessary to the criteria — **the reason they cannot be deleted is explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan), **and is not repeated inside the clause**. **Specific examples that a tool can mechanically verify are all pushed down into `tools/`**: the constitution writes only the categories and criteria of checks, and the concrete determination rules are carried by the scripts themselves (§15.1 first-paragraph division of labor). This section is where the entropy criterion lands on the text itself — removing examples and removing repetition both compress the constitution's own functional entropy.
+**The boundary between criterion thresholds and literal patterns.** The concrete content that a criterion can mechanically verify falls into two classes, with opposite landing points, and the two must not be mixed:
+- **A number is a "pass line" → the clause.** If a number decides "does this count as passing" (a length cap, a line-count cap, a ratio cap), it is **the criterion itself**, written in the clause (exception 4), with no separate default value set in `tools/`.
+- **A string is "how to match" → `tools/`.** If a pattern decides "what is used to recognize it" (a regular expression, a file-name filter, a field-name list), it is an **implementation detail**, written in the script, and does not enter the clause.
+
+**Reason:** a change to the pass line is a change to the rule (the constitution must be amended again); a change to the way of matching is only a change to the implementation (edit the script). Putting the two in the same place amounts to giving "adjusting the regex" and "adjusting the standard" the same approval process — either the standard gets changed casually, or the regex cannot be changed.
+
+**The writing style of the constitution text.** This constitution writes only **concepts, criteria, and general explanations**. Any expression that could be replaced by a value of the same kind without changing the clause's meaning — a specific instance, a specific number, a specific form, a literal value, and metaphors / analogies — is not written at all; except for enumerations necessary to the criteria — **the reason they cannot be deleted is explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan), **and is not repeated inside the clause**. **Specific examples and match patterns that a tool can mechanically verify are all pushed down into `tools/`** (except thresholds necessary to the criteria, see exception 4): the constitution writes only the categories and criteria of checks, and the concrete determination rules are carried by the scripts themselves (§15.1 first-paragraph division of labor). This section is where the entropy criterion lands on the text itself — removing examples and removing repetition both compress the constitution's own functional entropy.
 
 **Layer, modality, and applicability conditions must be explicit.** Each clause's **heading line carries at most one marker**, placed on the heading of that clause's **minimal normative unit** (a clause with subsections places it on the subsection heading, a clause without subsections on the section heading); **inline references appearing in the body in forms such as `(L3…)` are not markers**; **an unmarked clause is treated as `L2·M｜all·unconditional`** — a missing marker only makes the clause govern more broadly. Four requirements:
 
@@ -1414,12 +1436,19 @@ This section governs the relationship between **this constitution's own** two la
 1. **Standard templates** — **executable landing points** where replacing them would change the reader's actions or the tool's behavior (directory trees, configuration file skeletons, build scripts, paste-ready command blocks, etc.). They are not "replaceable values of the same kind"; deleting or replacing them would directly change the reader's actions.
 2. **Enumerations necessary to the criteria** — **category lists** without which it could not be determined "what to do / what to scan / what to compare" (such as the secret categories in §15.1 item 1, the personal-information categories in item 4, the six criteria in §16.2, the three residue locations in §14.3). Such enumerations are the criteria themselves, not examples — **but they must at the same time state under what conditions they are necessary to the criteria**; when the condition is missing, the enumeration is handled as a "replaceable value of the same kind" and must be de-exampled.
 3. **Bundled examples explicitly marked "not a closed list"** — example lists that are **explicitly marked** with "the following are examples, not a closed list" or an equivalent sentence and that **do not serve as a basis for judgment** (such as the "content that goes into `docs/`" list in §17.2) are **exempt from this section**: their demonstrative value outweighs the risk of overfitting, and they have been explicitly marked as open sets. **An example list without that marking is not exempt.**
+4. **Thresholds necessary to the criteria** — when a clause itself uses a number as the **pass line** for "pass / fail", that number may be written into the clause, but it must simultaneously satisfy four conditions:
+   - **Delete it and the criterion cannot be executed** — only undecidable wording such as "keep it short" or "keep it few" remains;
+   - **State what quantity it is compared against** — a character count, a line count, or a proportion of another class of lines; a bare number with no comparison object is still an example, and this exception does not apply;
+   - **The clause is the only authority** — the implementation in `tools/` must agree with the clause; **where they disagree the clause prevails and the disagreement is treated as a tool defect**, found by the alignment check on the tool side (the same principle as the C2 check of the Chinese/English marker sequences: one authority, one mechanical verification). **A given threshold is written in exactly one place in the clause**, and every other location refers to that place; **the measurement basis (characters or bytes, whether whitespace and marker characters count, whether blank lines count in the denominator) is likewise written in the clause**, and the script implements it without defining it;
+   - **The revision record states why it cannot be replaced by a qualitative wording**.
 
-**How the reasons are recorded.** Enumerations necessary to the criteria and standard templates **may be kept**, but **their reason for not being deletable must be explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan) — **not repeated inside the clause**. The granularity of the reasons: **category 1 (standard templates) uses one unified reason** — "**executable landing points** where replacing them would change the reader's actions or the tool's behavior" (all standard templates share this one reason, not expanded one by one); **category 2 (enumerations necessary to the criteria) is explained item by item** — "what could not be determined if it were deleted"; **category 3 (examples explicitly marked "not a closed list") is exempt from the explanation obligation** (it has been marked as an open set).
+   **This exception is read together with the "boundary" section above:** the pass line goes into the clause, the match pattern goes into the tool. **Reason:** generality comes from the object and the direction of the criterion, not from "having no numbers". Deleting a threshold does not make the rule more general, only undecidable; an undecidable rule is interpreted by each executor separately and instead breeds several sets of standards (§1.4).
+
+**How the reasons are recorded.** Enumerations necessary to the criteria and standard templates **may be kept**, but **their reason for not being deletable must be explained at constitution-revision review and recorded in the revision record** (§17.4's git commit record / revision plan) — **not repeated inside the clause**. The granularity of the reasons: **category 1 (standard templates) uses one unified reason** — "**executable landing points** where replacing them would change the reader's actions or the tool's behavior" (all standard templates share this one reason, not expanded one by one); **category 2 (enumerations necessary to the criteria) is explained item by item** — "what could not be determined if it were deleted"; **category 3 (examples explicitly marked "not a closed list") is exempt from the explanation obligation** (it has been marked as an open set); **category 4 (thresholds necessary to the criteria) explains** "why a qualitative wording cannot replace this pass line".
 
 **Scope of effect:** This section **takes effect immediately** for newly revised and newly added clauses. Existing clauses are **handled in batches** under the debt management of §18: the maintainers create debt entries for existing clauses (clause location, violation form, planned batch). **The full-annotation channel (layered refactoring)**: a full annotation that is **purely metadata** **does not count as** the "unplanned one-off full rewrite" prohibited by this section and may be completed for all clauses at once within **a single release**, but **must simultaneously satisfy** four conditions; missing any one returns it to batch handling: ① **planned** (the revision record states that this is a layered refactoring and lists the marker vocabulary, the determination procedure, and the entire scope of changes); ② **semantics untouched** (no criterion added or removed, no modality changed, no section numbering or order changed — only markers added); ③ **mechanical evidence** (after stripping all markers from the new version's text, compare it **byte by byte** with the same file of the previous release; differences may fall only within the list of semantic rewrites explicitly declared this time, and that list goes into the revision record); ④ **no intermediate state** (do not release a version in which "half the document is marked and half is not"). **Semantic rewrites still proceed clause by clause / batch by batch** and are not exempted by this channel; every use of this channel must be re-declared in the revision record.
 
-**Litmus test:** Take any clause of the English version — can you find exactly one corresponding source text in the Chinese version? Does the English version contain any clause the Chinese version does not have at all? Take any clause of the Chinese version — does it contain an instance, number, literal value, or metaphor that "could be replaced by a value of the same kind without changing the clause's meaning"? If it is an exception (standard template / enumeration necessary to the criteria / example explicitly marked "not a closed list") yet its reason for not being deletable is **not explained in the revision record**, that likewise counts as a violation. If the former cannot be done, or the latter exists, or the writing-style criteria are violated, this section is violated. Take any clause that holds only for a certain kind of project — can its applicability conditions be seen by reading the clause itself (including the end-of-heading marker)? Take any clause marked L1 — does it **use** a specific technology, form, number, or file name **as the criterion**? (Examples do not count; but inferring from one example that the remaining cases do not hold is likewise a violation.) Take any sample marked L3 — does any clause or tool treat it as a compliance criterion? If any one item cannot be answered or is answered "yes", this section is violated.
+**Judgment criterion:** Take any clause of the English version — can you find exactly one corresponding source text in the Chinese version? Does the English version contain any clause the Chinese version does not have at all? Take any clause of the Chinese version — does it contain an instance, number, literal value, or metaphor that "could be replaced by a value of the same kind without changing the clause's meaning"? If it is an exception (standard template / enumeration necessary to the criteria / example explicitly marked "not a closed list") yet its reason for not being deletable is **not explained in the revision record**, that likewise counts as a violation. If it is a threshold necessary to the criteria yet **does not state what quantity it is compared against**, or the implementation in `tools/` disagrees with the clause's number, that likewise counts as a violation. If the former cannot be done, or the latter exists, or the writing-style criteria are violated, this section is violated. Take any clause that holds only for a certain kind of project — can its applicability conditions be seen by reading the clause itself (including the end-of-heading marker)? Take any clause marked L1 — does it **use** a specific technology, form, number, or file name **as the criterion**? (Examples do not count; but inferring from one example that the remaining cases do not hold is likewise a violation.) Take any sample marked L3 — does any clause or tool treat it as a compliance criterion? If any one item cannot be answered or is answered "yes", this section is violated.
 
 ### 21.2 Model-Facing Prompt Text 〔L2·M｜all·prompt-text〕
 
@@ -1443,7 +1472,7 @@ An example **must not serve as a criterion**, nor be read as a closed list — t
 
 **Generalization acceptance.** When a new kind of situation is added, if the prompt must be changed before it can be handled correctly, this prompt still handles individual cases, not a class of situations.
 
-**Stop at necessity.** If, after one sentence is deleted, the existing situations can still be handled correctly as before, that sentence is superfluous.
+**Keep only the necessary.** If, after one sentence is deleted, the existing situations can still be handled correctly as before, that sentence is superfluous.
 
 The prompt text does not repeat itself, and earlier and later parts do not contradict each other.
 
@@ -1451,4 +1480,4 @@ The prompt text does not repeat itself, and earlier and later parts do not contr
 
 The scope of `self` in §21.1 **is not widened by this section**.
 
-**Litmus test:** Take any passage of a project's prompt text: does the same rule appear in two editable copies? Replace the concrete action, tool, or value of any example with one of the same kind — does the meaning change? When a new situation of the same kind appears, must the prompt be changed first before it can be handled? Delete any one sentence — can the existing situations still be handled correctly as before? Have process clauses replaced judgment? Does the whole text repeat itself or contradict itself? If any one of these is answered "yes", this section is violated.
+**Judgment criterion:** Take any passage of a project's prompt text: does the same rule appear in two editable copies? Replace the concrete action, tool, or value of any example with one of the same kind — does the meaning change? When a new situation of the same kind appears, must the prompt be changed first before it can be handled? Delete any one sentence — can the existing situations still be handled correctly as before? Have process clauses replaced judgment? Does the whole text repeat itself or contradict itself? If any one of these is answered "yes", this section is violated.

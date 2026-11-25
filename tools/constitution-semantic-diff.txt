@@ -58,57 +58,65 @@
 #     verbatim in PREV_TAG).  R<n> does not apply either: it covers diff
 #     realignment, not a deliberate relocation.
 #
-# Declarations: the v3.2.0 ones were retired together with the base move
-# (v3.2.0 → v3.2.1): their line numbers address the old base and would have
-# authorized any hunk inside them.  This revision's own ranges and records
-# follow below; an empty list would be a real statement too (every difference
-# from v3.2.1 is undeclared and C5 FAILS), not a truncated file.
+# Declarations for v4.0.0 → v4.1.0. The v3.2.1-era declarations were retired
+# together with their base (they addressed v3.2.1 line numbers and would have
+# authorized any hunk inside them). Coordinates below are **v4.0.0** lines.
 
-# ── Rewrite ranges — v3.2.1 coordinates, inclusive. A pure insertion has a
-#    zero-width hunk and is written as the single point it was inserted after.
-#    One declaration per line: continuation lines would be parsed as ranges.
-#    One declaration per hunk: the two restructuring hunks own the block, and
-#    every renumbered cross-reference is declared at the old line it sits on.
-M0   1-1      version string only: title v3.2.1 → v4.0.0 (MAJOR), no clause text touched
-M1   19-19    primitives primer: the `宪自` definition now lives in §21.1 — reference renumbered
-M2   23-23    第〇层 判定程序 step 2: the trigger-form vocabulary now lives in §21.1 — reference renumbered
-M3   30-30    三层 section lead-in: 「强制力在 §21.1」 — two references on this line renumbered
-M4   87-87    第〇层 C 类清单: the moved subsections leave the list, which now names §17.7 plus §21.2, and the conservative default reads §7–§21
-M5   89-89    第〇层「形态触发」: the trigger-form vocabulary now lives in §21.1 — reference renumbered
-M6   122-122   第〇层「适用性判据」总则: the conservative default now reads §7–§21 — the chapter count follows the new chapter 21
-M7   767-767   §7 双语: the truth-source definition now lives in §21.1 — reference renumbered
-M8   826-826   §14.1 依赖许可证: the single-locus rule now lives in §21.1 — reference renumbered
-M9   846-846   §15 容器: the conservative default now reads §7–§21 — the chapter count follows the new chapter 21
-M10  1167-1167 §17 heading:「文档体系」→「文档与记录」 — the constitution-text clauses leave the chapter, so the title no longer covers them
-M11  1173-1173 §17.1 README: both references to the truth-source rule renumbered to §21.1
-M12  1196-1196 §17.2 流程文档例外: the single-locus rule now lives in §21.1 — reference renumbered
-M13  1244-1244 §17.6 单语豁免: the truth-source rule now lives in §21.1 — reference renumbered
-M14  1280-1355 the moved block: the chapter's two text clauses (76 lines, both headings through the last clause) leave chapter 17 in one piece, not a word changed
-M15  1406-1406 §20 pyproject 模板 lead-in: 「标准模板」 is now exception class 1 of §21.1 — reference renumbered
-M16  1450-1450 the moved block lands here: inserted after the last line of §20 (zero-width hunk, appended at end of file as chapter 21)
-M17  119-119 第〇层「适用性判据」step 3 看类别: `宪自` gains a reading rule — it holds for this constitution repository only, takes no part in the Layer 0 classification, and does not apply to any other repository
+# ── Rewrite ranges — v4.0.0 coordinates, inclusive.
+M0   1-1      version string only: title v4.0.0 → v4.1.0 (MINOR), no clause text touched
+M1   192-192  §1.6 heading: 「细节进注释，结构进文档」 → 「注释写理由，文档写结构」 — the old title promised that detail sinks into comments, the opposite of what §12.5 now requires
+M2   197-197  §1.6 「代码注释」 bullet: rewritten to state the two legitimate uses (design rationale, file-header duty) and to forbid pointers in comments
+M3   199-199  §1.6 judgement criterion: replaced with "can a reader grasp this file's purpose and design rationale from its comments", plus the reason comments do not rot while documents do
+M4   784-784  §12.4 职责声明 bullet: it now names the exemption it is (an explicit exception to §12.3's "no what") instead of only denying "useless comment"
+M9   786-787  §12.4 tail: inserts 「文件头必须短」 and the whole new §12.5 after §12.4; line 787 is the blank that follows the separator, realigned by the insertion
+M5   1392-1393 §21.1 「宪法文本的写法」: the lead-in plus the sentence that used to say every mechanically checkable example sinks into `tools/` — it now carves out criterion thresholds (exception 4)
+ inserts 「判据阈值与字面模式的分界」 — thresholds are the pass line and live in the clause, match patterns are implementation and live in tools
+M10  459-459  §8.1 layout tree: the __init__.py line no longer says "version + public API re-export", because §8.7 forbids __version__ here and check_version.sh fails it
+M11  1198-1198 §17.2: the architecture-note sentence pointed at §12.4 for "implementation details live in code comments" — that was v4.0.0 §1.6 semantics; it now points at §1.6 and §12.5
+M6   1416-1416 §21.1 exception list: inserts exception 4 (判据必需的阈值) after exception 3 (zero-width hunk)
+M7   1418-1418 §21.1 「理由的记录方式」: names the fourth exception class so its justification cannot be skipped
+M8   1422-1422 §21.1 「判断标准」: adds the two new failure modes (a threshold with no comparison basis; tools disagreeing with the clause)
 
-# ── Change records — v4.0.0 coordinates. No N record: this release adds no
-#    clause (21.1/21.2 are relocated text, not new text).  No X record for the
-#    two changed heading lines either — the document title (line 1) and the §17
-#    heading are owned by ranges M0 and M10, and a heading cannot be an X
-#    record.  The moved block needs no record: its lines are verbatim the
-#    v3.2.1 lines, so an X record on them would fail the "must differ from
-#    PREV_TAG" test by construction.
-#    NB: they are checked against whatever --zh names, so pointing --zh at the
-#    v3.2.1 edition fails them by construction — the baseline run is a hunk
-#    question (0 hunks), not a record question.
-X1   19    `宪自`——表示**只约束本宪法仓库自身**（定义见  — the `宪自` definition moved to the new chapter 21
-X2   23    §21.1「标记语法」，是闭集**）不成立  — the trigger-form vocabulary moved to the new chapter 21
-X3   30    §21.1；两者不一致时以  — the normative locus for the text-writing rules moved to the new chapter 21
-X4   87    §17.3–§17.5、§17.7、§19.1–§19.3、§21.2  — the moved subsection became §21.2, so the C-class list names the new number, and the conservative default follows chapter 21
-X5   89    §21.1「标记语法」**（如：有代码  — the trigger-form vocabulary moved to the new chapter 21
-X6   122   其余条款"是**保守默认**  — the default range §7–§20 becomes §7–§21 with the new chapter
-X7   767   英文版是中文版的全文翻译，见  — the truth-source rule moved to the new chapter 21
-X8   826   （§21.1「宪法内容的唯一落点」）  — the single-locus rule moved to the new chapter 21
-X9   846   §7–§21（第〇层）  — the default range §7–§20 becomes §7–§21 with the new chapter
-X10  1173  §21.1。两者在"两版内容集合必须一致"上同构，差别是  — README duality now points at the relocated truth-source rule
-X11  1196  （复述条文即违反  — the single-locus rule moved to the new chapter 21
-X12  1244  英文版是全文翻译，见  — the monoglot exemption now points at the relocated truth-source rule
-X13  1330  类不适用。本节是**模板**（§21.1  — the template exception is now numbered inside §21.1
-X14  119   只对本宪法仓库适用  — `宪自` had no reading rule, so a self-only clause could fall under the §7–§21 default and bind no repository at all; it now binds this constitution repository only and stays out of the Layer 0 classification
+# ── Change records — v4.1.0 coordinates. Headings cannot be X records, so the
+#    two rewritten headings (§1.6 and the document title) are owned by ranges
+#    M1 and M0 alone; §12.5 is new, hence an N record.
+N1   792   注释纪律：只写理由，不留指针  — new clause: per-comment length, no pointers, rationale only, per-file ratio cap, per-language checker scripts
+X1   197   写重点代码的设计理由  — comments now carry design rationale and a file-header duty, and may not hold pointers (the old text sent detail into comments and said nothing about pointers)
+X2   201   看了这个文件的注释，能否快速理解  — the criterion now asks whether the file's purpose and design rationale are legible, and names the two failure modes (needs an external document; longer than the code)
+X3   790   文件头必须短  — a file header that needs a paragraph is evidence the file holds more than one thing
+X4   1417  判据阈值与字面模式的分界  — splits mechanically checkable content by landing point: pass-line numbers in the clause, match patterns in tools
+X5   1447  条文以一个数值作为  — exception 4 lets a threshold be a clause criterion, with four conditions incl. clause-authority over tools
+X6   1455  理由的记录方式  — the justification rule now names the fourth exception class
+X7   1459  若属判据必需的阈值却  — two new failure modes: a threshold without its comparison basis, and tools whose values diverge from the clause
+
+# ── Why the thresholds cannot be replaced by qualitative wording (exception 4,
+#    clause four of the "criterion thresholds" exception).
+#
+#    §12.5 states three numbers: 200 characters per comment, at most 2 lines,
+#    and line comments at most 5% of a code line count. Deleting any of them
+#    leaves "keep comments short" / "keep comments rare" — a criterion nobody
+#    can judge, which is worse than a strict number: every reader then applies
+#    their own standard and the clause stops being one rule (§1.4).
+#
+#    Why these three and not others:
+#    200 characters is the length at which a comment still fits one terminal
+#    line at a normal width; beyond it the reader starts wrapping, and a
+#    wrapped comment is where multi-paragraph essays begin. 2 lines is the same
+#    bound stated in lines so a narrow editor cannot smuggle a longer comment.
+#    5% is the share at which comments stop being annotations and become a
+#    parallel narrative: measured on this repository's own modules, healthy
+#    files sit near 5% (user-ledger 4.8%, compaction 5.1%) while the runaway
+#    files in the consumer project that motivated this clause sat at 21-49%.
+#    The gap is wide, so the threshold is not a knife edge.
+#
+#    Fourth threshold (same record): a file whose comments total fewer than 200
+#    characters is exempt from the ratio item. Deleting it would make every
+#    tiny file violate the 5% cap on arithmetic grounds alone (30 code lines x
+#    5% = 1.5 lines, so a single explanatory comment could fail the file), and
+#    "small file" cannot be expressed qualitatively without putting a number
+#    back somewhere. It is a floor on the measurement, not a second pass line.
+
+#    Assumption to revisit: if a project shows a legitimate 8-10% ratio (dense
+#    math, wire-format tables), that is evidence for raising the number, not
+#    for deleting it — the amendment path is a threshold change with its own
+#    record, not a return to "keep it low".
